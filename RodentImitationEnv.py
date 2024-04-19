@@ -16,44 +16,25 @@ import os
 
 _XML_PATH = "rodent.xml"
 
-def initialize_part_names(physics):
-    # Get the ids of the limbs, accounting for quaternion and pos
-    part_names = physics.named.data.qpos.axes.row.names
-    for _ in range(6):
-        part_names.insert(0, part_names[0])
-    return part_names
 
-# TODO: make this site_index_map into a jax-able object?
 def env_setup(params):
+  """sets up the mj_model on intialization with help from dmcontrol
+  rescales model, gets end effector indices, and more?
+
+  Args:
+      params (_type_): _description_
+
+  Returns:
+      _type_: _description_
+  """
     root = mjcf.from_path(_XML_PATH)
     
-    body_sites = []
-    for key, v in params["KEYPOINT_MODEL_PAIRS"].items():
-        parent = root.find("body", v)
-        pos = params["KEYPOINT_INITIAL_OFFSETS"][key]
-        site = parent.add(
-            "site",
-            name=key,
-            type="sphere",
-            size=[0.005],
-            rgba="0 0 0 1",
-            pos=pos,
-            group=3,
-        )
-        body_sites.append(site)
-
     rescale.rescale_subtree(
         root,
         params["SCALE_FACTOR"],
         params["SCALE_FACTOR"],
     )
     physics = mjcf.Physics.from_mjcf_model(root)
-    # Usage of physics: binding = physics.bind(body_sites)
-
-    axis = physics.named.model.site_pos._axes[0]
-    params["site_index_map"] = {key: int(axis.convert_key_item(key)) for key in params["KEYPOINT_MODEL_PAIRS"].keys()}
-    
-    params["part_names"] = initialize_part_names(physics)
 
     # get mjmodel from physics and set up solver configs
     mj_model = physics.model.ptr
@@ -67,13 +48,14 @@ def env_setup(params):
     
     mj_model.opt.jacobian = 0 # dense
     
-    return physics, mj_model, params["site_index_map"]
+    return mj_model
   
   
 class RodentTrackClip(PipelineEnv):
 
   def __init__(
       self,
+      params,
       terminate_when_unhealthy=True,
       healthy_z_range=(0.01, 0.5),
       reset_noise_scale=1e-2,
@@ -82,7 +64,8 @@ class RodentTrackClip(PipelineEnv):
       ls_iterations: int = 3,
       **kwargs,
   ):
-
+    
+    mj_model = env_setup(params)
 
     sys = mjcf_brax.load_model(mj_model)
 
@@ -100,7 +83,11 @@ class RodentTrackClip(PipelineEnv):
     self._reset_noise_scale = reset_noise_scale
     
   def reset(self, rng) -> State:
-    """Resets the environment to an initial state."""
+    """
+    Resets the environment to an initial state.
+    TODO: Must reset this to the start of a trajectory (set the appropriate qpos)
+    Can still add a small amt of noise (qpos + epsilon) for randomization purposes
+    """
     rng, rng1, rng2 = jax.random.split(rng, 3)
 
     low, hi = -self._reset_noise_scale, self._reset_noise_scale
@@ -169,16 +156,44 @@ class RodentTrackClip(PipelineEnv):
         pipeline_state=data, obs=obs, reward=reward, done=done
     )
 
+
+  def _calculate_termination(self, state, ref) -> bool:
+    """calculates whether the termination condition is met
+
+    Args:
+        state (_type_): _description_
+        ref (_type_): reference trajectory
+
+    Returns:
+        bool: _description_
+    """
+    return 
+    
+  def _calculate_reward(self, state):
+    """calculates the tracking reward:
+    (insert description of each of the terms)
+
+    Args:
+        state (_type_): _description_
+    """
+    
+    total_reward = rcom + rvel + rapp + rquat + ract
+    return total_reward
+
   def _get_obs(
       self, data: mjx.Data, action: jp.ndarray
   ) -> jp.ndarray:
-    """Observes rodent body position, velocities, and angles."""
-    # I don't think the order matters?
+    """
+      Gets reference trajectory obs along with env state obs 
+    """
+    # I don't think the order matters as long as it's consistent?
+    # return the reference traj concatenated with the state obs. reference traj goes in the encoder
+    # and the rest of the obs go straight to the decoder
+    ref_traj = self.full_ref_traj.qpos[i:i+5]
+    ref_traj = transform_to_relative(ref_traj)
     return jp.concatenate([
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
         data.geom_xpos, # 
-        action, 
-        
     ])

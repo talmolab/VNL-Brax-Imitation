@@ -86,14 +86,17 @@ class VAE(nn.Module):
     self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
     self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
+  # x = (traj_dims * traj_length + state_dims)
   def __call__(self, x, e_rng, z_rng):
-    mean, logvar = self.encoder(x, e_rng)
+    traj = x[:traj_dims * traj_length]
+    state = x[traj_dims * traj_length:]
+    mean, logvar = self.encoder(traj, e_rng)
     z = reparameterize(z_rng, mean, logvar)
-    recon_x = self.decoder(z)
-    return recon_x, mean, logvar
+    action = self.decoder(z.cat(state))
+    return action, mean, logvar
 
   def generate(self, z):
-    return nn.sigmoid(self.decoder(z))
+    return self.decoder(z) + noise
 
 
 @flax.struct.dataclass
@@ -102,6 +105,34 @@ class PPONetworks:
   value_network: networks.FeedForwardNetwork
   parametric_action_distribution: distribution.ParametricDistribution
   
+  
+def make_inference_fn(ppo_networks: PPONetworks):
+  """Creates params and inference function for the PPO agent."""
+
+  def make_policy(params: types.PolicyParams,
+                  deterministic: bool = False) -> types.Policy:
+    policy_network = ppo_networks.policy_network
+    parametric_action_distribution = ppo_networks.parametric_action_distribution
+
+    def policy(observations: types.Observation,
+               key_sample: PRNGKey) -> Tuple[types.Action, types.Extra]:
+      logits = policy_network.apply(*params, observations)
+      if deterministic:
+        return ppo_networks.parametric_action_distribution.mode(logits), {}
+      raw_actions = parametric_action_distribution.sample_no_postprocessing(
+          logits, key_sample)
+      log_prob = parametric_action_distribution.log_prob(logits, raw_actions)
+      postprocessed_actions = parametric_action_distribution.postprocess(
+          raw_actions)
+      return postprocessed_actions, {
+          'log_prob': log_prob,
+          'raw_action': raw_actions
+      }
+
+    return policy
+
+  return make_policy
+
   
 def make_ppo_networks(
     observation_size: int,

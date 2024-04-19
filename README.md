@@ -7,6 +7,7 @@ setup:
 - mujoco-mjx
 - flax
 - optax
+- dmcontrol
   
 ## Current Progress (04/18/2024)
 below is my current progrses in each of the files. Bear in mind that our implementation needs to be fully compatible with jax, since much of the logic will be jitted. This means using jax.numpy (jnp) instead of numpy, and making sure there are no side-effects in our functions so they can be jitted properly. Read through the quickstart pages in the jax documentation [here](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html). However, some initial setup stuff that dmcontrol/mjcf would help with could work!
@@ -25,5 +26,11 @@ https://github.com/google-deepmind/dm_control/blob/7a6a5309e3ef79a720081d6d90958
 - `RodentImitationEnv.py` The brax environment. mostly the same as RodentRun for now, I just removed some of the running related logic and added more obs. Need to implement the whole reward calculation, and some good way of loading the trajectory data as part of the obs
 
 - `train.py`: the high level wandb stuff and actually running ppo
+
+## Things to think about:
+- How do we manage reference trajectory input in the environment?
+  - We need to mark where in the clip each environment is at
+  - We store the whole trajectory once as a class attribute and the `_get_obs` function takes the 5 frames it needs from there
+  - 
 
 
