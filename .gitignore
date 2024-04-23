@@ -1,0 +1,8 @@
+# STAC data files
+*.p
+
+# h5 files
+*.h5
+
+# Python 
+__pycache__/
