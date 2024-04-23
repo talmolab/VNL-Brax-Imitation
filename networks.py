@@ -1,6 +1,8 @@
-"""Network definitions."""
-# making it a inherent class later！
-
+"""
+Custom network definitions.
+This is needed because we need to route the observations 
+to proper places in the network in the case of the VAE (CoMic, Hasenclever 2020)
+"""
 import dataclasses
 from typing import Any, Callable, Sequence, Tuple
 import warnings
@@ -88,7 +90,8 @@ class VAE(nn.Module):
   def generate(self, z):
     return self.decoder(z) + noise
 
-  
+
+# VAE policy
 def make_ppo_networks_vae(
     observation_size: int,
     action_size: int,
@@ -114,7 +117,7 @@ def make_ppo_networks_vae(
       hidden_layer_sizes=value_hidden_layer_sizes,
       )
 
-  return networks.PPONetworks(
+  return ppo_networks.PPONetworks(
       policy_network=policy_network,
       value_network=value_network,
       parametric_action_distribution=parametric_action_distribution)
