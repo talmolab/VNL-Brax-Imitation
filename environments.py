@@ -9,17 +9,18 @@ from dm_control.locomotion.walkers import rescale
 
 import mujoco
 from mujoco import mjx
-
+from flax import struct
 import numpy as np
 from dataclasses import dataclass
 import h5py
 import os
+from mujoco.mjx._src.dataclasses import PyTreeNode
 
 _XML_PATH = "assets/rodent.xml"
 
 # 13 features
-@dataclass 
-class ReferenceClip:
+# @struct.dataclass
+class ReferenceClip(PyTreeNode):
   angular_velocity: jp.ndarray
   appendages: jp.ndarray
   body_positions: jp.ndarray
@@ -43,19 +44,19 @@ def unpack_clip(file_path):
   with h5py.File(file_path, "r") as f:
     data_group = f['clip_0']['walkers']['walker_0']
     clip = ReferenceClip(
-      jp.array(data_group['angular_velocity']),
-      jp.array(data_group['appendages']),
-      jp.array(data_group['body_positions']),
-      jp.array(data_group['body_quaternions']),
-      jp.array(data_group['center_of_mass']),
-      jp.array(data_group['end_effectors']),
-      jp.array(data_group['joints']),
-      jp.array(data_group['joints_velocity']),
-      jp.array(data_group['markers']),
-      jp.array(data_group['position']),
-      jp.array(data_group['quaternion']),
-      jp.array(data_group['scaling']),
-      jp.array(data_group['velocity']),
+      np.array(data_group['angular_velocity']),
+      np.array(data_group['appendages']),
+      np.array(data_group['body_positions']),
+      np.array(data_group['body_quaternions']),
+      np.array(data_group['center_of_mass']),
+      np.array(data_group['end_effectors']),
+      np.array(data_group['joints']),
+      np.array(data_group['joints_velocity']),
+      np.array(data_group['markers']),
+      np.array(data_group['position']),
+      np.array(data_group['quaternion']),
+      np.array(data_group['scaling']),
+      np.array(data_group['velocity']),
     )
   return clip
 
@@ -143,7 +144,7 @@ class RodentSingleClipTrack(PipelineEnv):
     quat = self._ref_traj.quaternion[:, start_frame]
     joints =self._ref_traj.joints[:, start_frame]
     print(pos.shape, quat.shape, joints.shape)
-    qpos = jp.concatenate(pos, quat, joints)
+    qpos = jp.concatenate((pos, quat, joints))
     print(qpos.shape)
     
     data = self.pipeline_init(qpos, jp.zeros(self.sys.nv))
@@ -241,7 +242,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # return the reference traj concatenated with the state obs. reference traj goes in the encoder
     # and the rest of the obs go straight to the decoder
     ref_traj = self.full_ref_traj.qpos[i:i+5]
-    ref_traj = transform_to_relative(ref_traj)
+    ref_traj = transform_to_relative(data, ref_traj)
     return jp.concatenate([
         data.qpos, 
         data.qvel, 

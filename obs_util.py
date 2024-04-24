@@ -29,9 +29,11 @@ def global_vector_to_local_frame(mjxData, vec_in_world_frame):
                        'dimension 2 or 3: got {}'.format(
                            vec_in_world_frame.shape))
 
-def get_reference_rel_bodies_pos_local(clip_reference_features, mjxData):
+def get_reference_rel_bodies_pos_local(mjxData, clip_reference_features):
     """Observation of the reference bodies relative to walker in local frame."""
     
+    # self._walker_features['body_positions'] is the equivalent of 
+    # the ref traj 'body_positions' feature but calculated for the current walker state
     time_steps = time_step + ref_steps
     obs = global_vector_to_local_frame(
         mjxData, (clip_reference_features['body_positions'][time_steps] -
