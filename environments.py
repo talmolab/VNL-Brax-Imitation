@@ -9,17 +9,16 @@ from dm_control.locomotion.walkers import rescale
 
 import mujoco
 from mujoco import mjx
-from flax import struct
 import numpy as np
-from dataclasses import dataclass
 import h5py
 import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
+from walker import Rat
 
 _XML_PATH = "assets/rodent.xml"
 
 # 13 features
-# @struct.dataclass
+# TODO: currently stores np arrays
 class ReferenceClip(PyTreeNode):
   angular_velocity: jp.ndarray
   appendages: jp.ndarray
@@ -70,14 +69,13 @@ def env_setup(params):
   Returns:
       _type_: _description_
   """
-  root = mjcf.from_path(_XML_PATH)
-  
+  walker = Rat(foot_mods=False)
   rescale.rescale_subtree(
-      root,
+      walker.mjcf_model,
       params["scale_factor"],
       params["scale_factor"],
   )
-  physics = mjcf.Physics.from_mjcf_model(root)
+  physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
 
   # get mjmodel from physics and set up solver configs
   mj_model = physics.model.ptr
@@ -90,7 +88,19 @@ def env_setup(params):
   mj_model.opt.ls_iterations = params["ls_iterations"]
   mj_model.opt.jacobian = 0 # dense
   
-  return mj_model
+  # gets the indices for end effectors: [11, 15, 59, 64]
+  axis = physics.named.model.body_pos._axes[0]
+  # app_idx = {key: int(axis.convert_key_item(key)) for key in utils.params["KEYPOINT_MODEL_PAIRS"].keys()}
+  end_eff_idx = [int(axis.convert_key_item(key)) 
+                 for key in params['end_eff_names']]
+  walker_bodies = walker.mocap_tracking_bodies
+  # body_pos_idx
+  walker_bodies_names = [bdy.name for bdy in walker_bodies]
+  body_idxs = jp.array(
+    [walker_bodies_names.index(bdy) for bdy in walker_bodies_names]
+  )
+  
+  return mj_model, end_eff_idx, body_idxs
   
   
 class RodentSingleClipTrack(PipelineEnv):
@@ -106,7 +116,7 @@ class RodentSingleClipTrack(PipelineEnv):
       ref_traj_length: int=5,
       **kwargs,
   ):
-    mj_model = env_setup(params)
+    mj_model, self._end_eff_idx, self.body_idxs = env_setup(params)
 
     sys = mjcf_brax.load_model(mj_model)
 
@@ -118,14 +128,16 @@ class RodentSingleClipTrack(PipelineEnv):
     kwargs['backend'] = 'mjx'
 
     super().__init__(sys, **kwargs)
-
+    
     self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
+    
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
     self._ref_traj = unpack_clip(params["clip_path"])
+    
     if self._episode_length > self._clip_length:
       raise ValueError("episode_length cannot be greater than clip_length!")
     
@@ -137,19 +149,34 @@ class RodentSingleClipTrack(PipelineEnv):
     """
     rng, subkey = jax.random.split(rng)
     
-    start_frame = jax.random.randint(subkey,(), 0, self._clip_length - self._episode_length)
+    # do i need to subtract another 1? getobs gives the next n frames
+    start_frame = jax.random.randint(
+      subkey, (), 0, 
+      self._clip_length - self._episode_length - self._ref_traj_length
+    )
 
     # qpos = position + quaternion + joints
-    pos = self._ref_traj.position[:, start_frame]
-    quat = self._ref_traj.quaternion[:, start_frame]
-    joints =self._ref_traj.joints[:, start_frame]
-    print(pos.shape, quat.shape, joints.shape)
-    qpos = jp.concatenate((pos, quat, joints))
-    print(qpos.shape)
-    
-    data = self.pipeline_init(qpos, jp.zeros(self.sys.nv))
+    # pos = self._ref_traj.position[:, start_frame]
+    # quat = self._ref_traj.quaternion[:, start_frame]
+    # joints = self._ref_traj.joints[:, start_frame]
+    # qpos = jp.concatenate((pos, quat, joints))
+    qpos = jp.hstack([
+      self._ref_traj.position[:, start_frame],
+      self._ref_traj.quaternion[:, start_frame],
+      self._ref_traj.joints[:, start_frame],
+    ])
+    qvel = jp.hstack([
+      self._ref_traj.velocity[:, start_frame],
+      self._ref_traj.angular_velocity[:, start_frame],
+      self._ref_traj.joints_velocity[:, start_frame],
+    ])
+    data = self.pipeline_init(qpos, qvel) # jp.zeros(self.sys.nv) 
 
-    obs = self._get_obs(data, jp.zeros(self.sys.nu))
+    info = {
+      "start_frame": start_frame,
+      "next_frame": start_frame + 1
+    }
+    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
         'forward_reward': zero,
@@ -162,9 +189,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
     }
-    info = {
-      "start_frame": start_frame
-    }
+
     return State(data, obs, reward, done, metrics, info)
 
   def step(self, state: State, action: jp.ndarray) -> State:
@@ -172,6 +197,9 @@ class RodentSingleClipTrack(PipelineEnv):
     data0 = state.pipeline_state
     data = self.pipeline_step(data0, action)
 
+    # increment frame tracker
+    state.info['next_frame'] += 1
+    
     com_before = data0.subtree_com[1]
     com_after = data.subtree_com[1]
     velocity = (com_after - com_before) / self.dt
@@ -233,20 +261,61 @@ class RodentSingleClipTrack(PipelineEnv):
     return total_reward
 
   def _get_obs(
-      self, data: mjx.Data, action: jp.ndarray
+      self, data: mjx.Data, action: jp.ndarray, info
   ) -> jp.ndarray:
     """
       Gets reference trajectory obs along with env state obs 
     """
-    # I don't think the order matters as long as it's consistent?
-    # return the reference traj concatenated with the state obs. reference traj goes in the encoder
-    # and the rest of the obs go straight to the decoder
-    ref_traj = self.full_ref_traj.qpos[i:i+5]
-    ref_traj = transform_to_relative(data, ref_traj)
+
+    # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
+    # Then transform it before returning with the rest of the obs
+    ref_traj = self._ref_traj.qpos[info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj)
+    
+    # TODO: end effectors pos and appendages pos are two different features?
+    end_effectors = data.xpos[self._end_eff_idx] 
     return jp.concatenate([
+      # put the traj obs first
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        data.geom_xpos, # 
+        end_effectors,
     ])
+  
+  def global_vector_to_local_frame(self, mjxData, vec_in_world_frame):
+    """Linearly transforms a world-frame vector into entity's local frame.
+
+    Note that this function does not perform an affine transformation of the
+    vector. In other words, the input vector is assumed to be specified with
+    respect to the same origin as this entity's local frame. This function
+    can also be applied to matrices whose innermost dimensions are either 2 or
+    3. In this case, a matrix with the same leading dimensions is returned
+    where the innermost vectors are replaced by their values computed in the
+    local frame.
+    
+    Returns the resulting vector
+    """
+    xmat = jp.reshape(mjxData.xmat, (3, 3))
+    # The ordering of the np.dot is such that the transformation holds for any
+    # matrix whose final dimensions are (2,) or (3,).
+    if vec_in_world_frame.shape[-1] == 2:
+      return jp.dot(vec_in_world_frame, xmat[:2, :2])
+    elif vec_in_world_frame.shape[-1] == 3:
+      return jp.dot(vec_in_world_frame, xmat)
+    else:
+      raise ValueError('`vec_in_world_frame` should have shape with final '
+                       'dimension 2 or 3: got {}'.format(
+                           vec_in_world_frame.shape))
+
+  def get_reference_rel_bodies_pos_local(self, data, clip_reference_features, frame):
+    """Observation of the reference bodies relative to walker in local frame."""
+    
+    # self._walker_features['body_positions'] is the equivalent of 
+    # the ref traj 'body_positions' feature but calculated for the current walker state
+    # TODO: self._body_postioins_idx does not exist yet (how is it different from body_idxs?)
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    obs = self.global_vector_to_local_frame(
+        data, (clip_reference_features['body_positions'][time_steps] -
+                data[self._body_positions_idx])[:, self._body_idxs])
+    return jp.concatenate([o.flatten() for o in obs])
     
