@@ -11,11 +11,53 @@ import mujoco
 from mujoco import mjx
 
 import numpy as np
-
+from dataclasses import dataclass
+import h5py
 import os
 
-_XML_PATH = "rodent.xml"
+_XML_PATH = "assets/rodent.xml"
 
+# 13 features
+@dataclass 
+class ReferenceClip:
+  angular_velocity: jp.ndarray
+  appendages: jp.ndarray
+  body_positions: jp.ndarray
+  body_quaternions: jp.ndarray
+  center_of_mass: jp.ndarray
+  end_effectors: jp.ndarray
+  joints: jp.ndarray
+  joints_velocity: jp.ndarray
+  markers: jp.ndarray
+  position: jp.ndarray
+  quaternion: jp.ndarray
+  scaling: jp.ndarray
+  velocity: jp.ndarray
+  
+  
+def unpack_clip(file_path):
+  """Creates a ReferenceClip dataclass with the clip data.
+  Returns: 
+      ReferenceClip: containing the entire clip's worth of trajectory data
+  """
+  with h5py.File(file_path, "r") as f:
+    data_group = f['clip_0']['walkers']['walker_0']
+    clip = ReferenceClip(
+      jp.array(data_group['angular_velocity']),
+      jp.array(data_group['appendages']),
+      jp.array(data_group['body_positions']),
+      jp.array(data_group['body_quaternions']),
+      jp.array(data_group['center_of_mass']),
+      jp.array(data_group['end_effectors']),
+      jp.array(data_group['joints']),
+      jp.array(data_group['joints_velocity']),
+      jp.array(data_group['markers']),
+      jp.array(data_group['position']),
+      jp.array(data_group['quaternion']),
+      jp.array(data_group['scaling']),
+      jp.array(data_group['velocity']),
+    )
+  return clip
 
 def env_setup(params):
   """sets up the mj_model on intialization with help from dmcontrol
@@ -27,31 +69,30 @@ def env_setup(params):
   Returns:
       _type_: _description_
   """
-    root = mjcf.from_path(_XML_PATH)
-    
-    rescale.rescale_subtree(
-        root,
-        params["SCALE_FACTOR"],
-        params["SCALE_FACTOR"],
-    )
-    physics = mjcf.Physics.from_mjcf_model(root)
+  root = mjcf.from_path(_XML_PATH)
+  
+  rescale.rescale_subtree(
+      root,
+      params["scale_factor"],
+      params["scale_factor"],
+  )
+  physics = mjcf.Physics.from_mjcf_model(root)
 
-    # get mjmodel from physics and set up solver configs
-    mj_model = physics.model.ptr
-    
-    mj_model.opt.solver = {
-      'cg': mujoco.mjtSolver.mjSOL_CG,
-      'newton': mujoco.mjtSolver.mjSOL_NEWTON,
-    }[params["solver"].lower()]
-    mj_model.opt.iterations = params["iterations"]
-    mj_model.opt.ls_iterations = params["ls_iterations"]
-    
-    mj_model.opt.jacobian = 0 # dense
-    
-    return mj_model
+  # get mjmodel from physics and set up solver configs
+  mj_model = physics.model.ptr
+  
+  mj_model.opt.solver = {
+    'cg': mujoco.mjtSolver.mjSOL_CG,
+    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+  }[params["solver"].lower()]
+  mj_model.opt.iterations = params["iterations"]
+  mj_model.opt.ls_iterations = params["ls_iterations"]
+  mj_model.opt.jacobian = 0 # dense
+  
+  return mj_model
   
   
-class RodentTrackClip(PipelineEnv):
+class RodentSingleClipTrack(PipelineEnv):
 
   def __init__(
       self,
@@ -59,12 +100,11 @@ class RodentTrackClip(PipelineEnv):
       terminate_when_unhealthy=True,
       healthy_z_range=(0.01, 0.5),
       reset_noise_scale=1e-2,
-      solver="cg",
-      iterations: int = 6,
-      ls_iterations: int = 3,
+      clip_length: int=250,
+      episode_length: int=150,
+      ref_traj_length: int=5,
       **kwargs,
   ):
-    
     mj_model = env_setup(params)
 
     sys = mjcf_brax.load_model(mj_model)
@@ -81,6 +121,12 @@ class RodentTrackClip(PipelineEnv):
     self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
+    self._clip_length = clip_length
+    self._episode_length = episode_length
+    self._ref_traj_length = ref_traj_length
+    self._ref_traj = unpack_clip(params["clip_path"])
+    if self._episode_length > self._clip_length:
+      raise ValueError("episode_length cannot be greater than clip_length!")
     
   def reset(self, rng) -> State:
     """
@@ -88,17 +134,19 @@ class RodentTrackClip(PipelineEnv):
     TODO: Must reset this to the start of a trajectory (set the appropriate qpos)
     Can still add a small amt of noise (qpos + epsilon) for randomization purposes
     """
-    rng, rng1, rng2 = jax.random.split(rng, 3)
+    rng, subkey = jax.random.split(rng)
+    
+    start_frame = jax.random.randint(subkey,(), 0, self._clip_length - self._episode_length)
 
-    low, hi = -self._reset_noise_scale, self._reset_noise_scale
-    qpos = self.sys.qpos0 + jax.random.uniform(
-        rng1, (self.sys.nq,), minval=low, maxval=hi
-    )
-    qvel = jax.random.uniform(
-        rng2, (self.sys.nv,), minval=low, maxval=hi
-    )
-
-    data = self.pipeline_init(qpos, qvel)
+    # qpos = position + quaternion + joints
+    pos = self._ref_traj.position[:, start_frame]
+    quat = self._ref_traj.quaternion[:, start_frame]
+    joints =self._ref_traj.joints[:, start_frame]
+    print(pos.shape, quat.shape, joints.shape)
+    qpos = jp.concatenate(pos, quat, joints)
+    print(qpos.shape)
+    
+    data = self.pipeline_init(qpos, jp.zeros(self.sys.nv))
 
     obs = self._get_obs(data, jp.zeros(self.sys.nu))
     reward, done, zero = jp.zeros(3)
@@ -113,7 +161,10 @@ class RodentTrackClip(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
     }
-    return State(data, obs, reward, done, metrics)
+    info = {
+      "start_frame": start_frame
+    }
+    return State(data, obs, reward, done, metrics, info)
 
   def step(self, state: State, action: jp.ndarray) -> State:
     """Runs one timestep of the environment's dynamics."""

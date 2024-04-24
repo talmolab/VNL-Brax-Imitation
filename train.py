@@ -7,7 +7,7 @@ from brax import envs
 from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
-from Rodent_Env_Brax import Rodent
+from environments import RodentSingleClipTrack
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -45,7 +45,7 @@ config = {
     "ls_iterations": 3,
 }
 
-envs.register_environment('rodent', Rodent)
+envs.register_environment('rodent', RodentSingleClipTrack)
 
 # instantiate the environment
 env_name = config["env_name"]

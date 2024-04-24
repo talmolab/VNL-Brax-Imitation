@@ -199,6 +199,7 @@ def get_mocap_features(
     mocap_features["body_positions"] = np.array(mocap_features["body_positions"])
     mocap_features["body_quaternions"] = np.array(mocap_features["body_quaternions"])
 
+    print(mocap_features["position"].shape)
     # Offset vertically the qpos and xpos to ensure that the clip is aligned
     # with the floor. The heuristic uses the 10 lowest feet heights and
     # compensates for the thickness of the geoms.
