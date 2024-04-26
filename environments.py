@@ -160,6 +160,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # quat = self._ref_traj.quaternion[:, start_frame]
     # joints = self._ref_traj.joints[:, start_frame]
     # qpos = jp.concatenate((pos, quat, joints))
+    
     qpos = jp.hstack([
       self._ref_traj.position[:, start_frame],
       self._ref_traj.quaternion[:, start_frame],
@@ -256,9 +257,20 @@ class RodentSingleClipTrack(PipelineEnv):
     Args:
         state (_type_): _description_
     """
+    data_c = state.pipeline_state
+
+    com_c = data_c.subtree_com[1]
+    com_ref = self._ref_traj.center_of_mass[:, state.info['start_frame']]
+    rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
+
+    vel_c = data_c.qvel
+    vel_ref = self._ref_traj.velocity[:, state.info['start_frame']]
+    rvel = jp.exp(-0.1 * (jp.linalg.norm(vel_c - (vel_ref))**2))
+
     
     total_reward = rcom + rvel + rapp + rquat + ract
     return total_reward
+  
 
   def _get_obs(
       self, data: mjx.Data, action: jp.ndarray, info
@@ -266,21 +278,28 @@ class RodentSingleClipTrack(PipelineEnv):
     """
       Gets reference trajectory obs along with env state obs 
     """
-
     # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
     # Then transform it before returning with the rest of the obs
-    ref_traj = self._ref_traj.qpos[info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj)
+    
+    # info is currently a global variable
+    ref_traj = self._ref_traj.position[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    
+    ref_traj = jp.hstack(ref_traj)
+    
+    ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
-    end_effectors = data.xpos[self._end_eff_idx] 
+    # end_effectors = data.xpos[self._end_eff_idx] 
+
     return jp.concatenate([
       # put the traj obs first
+        ref_traj,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        end_effectors,
+        # end_effectors,
     ])
+  
   
   def global_vector_to_local_frame(self, mjxData, vec_in_world_frame):
     """Linearly transforms a world-frame vector into entity's local frame.
@@ -307,15 +326,20 @@ class RodentSingleClipTrack(PipelineEnv):
                        'dimension 2 or 3: got {}'.format(
                            vec_in_world_frame.shape))
 
+  
+  
   def get_reference_rel_bodies_pos_local(self, data, clip_reference_features, frame):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
     # TODO: self._body_postioins_idx does not exist yet (how is it different from body_idxs?)
+
     time_steps = frame + jp.arange(self._ref_traj_length)
-    obs = self.global_vector_to_local_frame(
-        data, (clip_reference_features['body_positions'][time_steps] -
-                data[self._body_positions_idx])[:, self._body_idxs])
+
+    obs = self.global_vector_to_local_frame(data,
+                                            (clip_reference_features['body_positions'][time_steps]
+                                             - data[self._body_idxs])[:, self._body_idxs])
+    
     return jp.concatenate([o.flatten() for o in obs])
     
