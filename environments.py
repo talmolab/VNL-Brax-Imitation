@@ -298,16 +298,16 @@ class RodentSingleClipTrack(PipelineEnv):
     # Then transform it before returning with the rest of the obs
     
     # info is currently a global variable
-    # ref_traj = self._ref_traj.position[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    # ref_traj = jp.hstack(ref_traj)
-    # ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
+    ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    ref_traj = jp.hstack(ref_traj)
+    #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
     # end_effectors = data.xpos[self._end_eff_idx] 
 
     return jp.concatenate([
       # put the traj obs first
-        # ref_traj,
+        ref_traj,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
@@ -350,9 +350,9 @@ class RodentSingleClipTrack(PipelineEnv):
 
     time_steps = frame + jp.arange(self._ref_traj_length)
 
-    obs = self.global_vector_to_local_frame(data,
-                                            (clip_reference_features['body_positions'][time_steps]
-                                             - data[self._body_idxs])[:, self._body_idxs])
+    obs = self.global_vector_to_local_frame(data.qpos,
+                                            (clip_reference_features[self.body_idxs][time_steps]
+                                             - data.qpos[self.body_idxs])[:, self.body_idxs])
     
     return jp.concatenate([o.flatten() for o in obs])
     
