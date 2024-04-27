@@ -180,17 +180,16 @@ class RodentSingleClipTrack(PipelineEnv):
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
-        'forward_reward': zero,
-        'reward_linvel': zero,
-        'reward_quadctrl': zero,
-        'reward_alive': zero,
-        'x_position': zero,
+        'rcom': zero,
+        'rvel': zero,
+        'rapp': zero,
+        'rquat': zero,
+        'ract': zero,
         'y_position': zero,
         'distance_from_origin': zero,
         'x_velocity': zero,
         'y_velocity': zero,
     }
-
     return State(data, obs, reward, done, metrics, info)
 
   def step(self, state: State, action: jp.ndarray) -> State:
@@ -198,78 +197,95 @@ class RodentSingleClipTrack(PipelineEnv):
     data0 = state.pipeline_state
     data = self.pipeline_step(data0, action)
 
-    # increment frame tracker
-    state.info['next_frame'] += 1
-    
     com_before = data0.subtree_com[1]
     com_after = data.subtree_com[1]
     velocity = (com_after - com_before) / self.dt
-    forward_reward = self._forward_reward_weight * velocity[0]
 
-    min_z, max_z = self._healthy_z_range
-    is_healthy = jp.where(data.q[2] < min_z, 0.0, 1.0)
-    is_healthy = jp.where(data.q[2] > max_z, 0.0, is_healthy)
-    if self._terminate_when_unhealthy:
-      healthy_reward = self._healthy_reward
-    else:
-      healthy_reward = self._healthy_reward * is_healthy
-
-    ctrl_cost = self._ctrl_cost_weight * jp.sum(jp.square(action))
-
-    obs = self._get_obs(data, action)
-    reward = forward_reward + healthy_reward - ctrl_cost
-    done = 1.0 - is_healthy if self._terminate_when_unhealthy else 0.0
+    # increment frame tracker
+    state.info['next_frame'] += 1
     
-    # TODO update these metrics (new reward components)
+    obs = self._get_obs(data, action, state.info)
+    rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
+    total_reward = rcom + rvel + rapp + rquat + ract
+    
+    done = self._calculate_termination
+
     state.metrics.update(
-        forward_reward=forward_reward,
-        reward_linvel=forward_reward,
-        reward_quadctrl=-ctrl_cost,
-        reward_alive=healthy_reward,
+        rcom=rcom,
+        rvel=rvel,
+        rapp=rapp,
+        rquat=rquat,
+        ract=ract,
         x_position=com_after[0],
         y_position=com_after[1],
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
     )
-
     return state.replace(
-        pipeline_state=data, obs=obs, reward=reward, done=done
+        pipeline_state=data, obs=obs, reward=total_reward, done=done
     )
 
 
   def _calculate_termination(self, state, ref) -> bool:
-    """calculates whether the termination condition is met
-
+    """
+    calculates whether the termination condition is met
     Args:
         state (_type_): _description_
         ref (_type_): reference trajectory
-
     Returns:
         bool: _description_
     """
-    return 
-    
-  def _calculate_reward(self, state):
-    """calculates the tracking reward:
-    (insert description of each of the terms)
+    data_c = state.pipeline_state
 
+    qpos_c = data_c.qpos
+    qpos_ref = self._ref_traj.joints[:, state.info['start_frame']]
+
+    bpos_c = data_c.xpos # is xpos the same with bpos?
+    bpos_ref = self._ref_traj.position[:, state.info['start_frame']]
+
+    if 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
+                      (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0:
+      return True
+    
+  def _calculate_reward(self, state, action):
+    """
+    calculates the tracking reward:
+    1. rcom: comparing center of mass
+    2. rvel: comparing joint angle velcoity
+    3. rquat: comprae joint angle position
+    4. ract: compare control force
+    5. rapp: compare end effector appendage positions
     Args:
         state (_type_): _description_
     """
     data_c = state.pipeline_state
 
+    # location using com
     com_c = data_c.subtree_com[1]
     com_ref = self._ref_traj.center_of_mass[:, state.info['start_frame']]
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
-    vel_c = data_c.qvel
-    vel_ref = self._ref_traj.velocity[:, state.info['start_frame']]
-    rvel = jp.exp(-0.1 * (jp.linalg.norm(vel_c - (vel_ref))**2))
+    # joint angle velocity
+    qvel_c = data_c.qvel
+    qvel_ref = self._ref_traj.joints_velocity[:, state.info['start_frame']]
+    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
-    
-    total_reward = rcom + rvel + rapp + rquat + ract
-    return total_reward
+    # joint angle posiotion
+    qpos_c = data_c.qpos
+    qpos_ref = self._ref_traj.joints[:, state.info['start_frame']] # is joints here the correct one?
+    rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
+
+    # control force
+    ract = -0.015 * jp.sum(jp.square(action)) / len(action)
+   
+    # end effector
+    # app_c = 
+    # app_ref = 
+    # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
+    rapp = 0
+
+    return (rcom,rvel,rquat,ract,rapp)
   
 
   def _get_obs(
@@ -282,18 +298,16 @@ class RodentSingleClipTrack(PipelineEnv):
     # Then transform it before returning with the rest of the obs
     
     # info is currently a global variable
-    ref_traj = self._ref_traj.position[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    
-    ref_traj = jp.hstack(ref_traj)
-    
-    ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
+    # ref_traj = self._ref_traj.position[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    # ref_traj = jp.hstack(ref_traj)
+    # ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
     # end_effectors = data.xpos[self._end_eff_idx] 
 
     return jp.concatenate([
       # put the traj obs first
-        ref_traj,
+        # ref_traj,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
@@ -326,7 +340,6 @@ class RodentSingleClipTrack(PipelineEnv):
                        'dimension 2 or 3: got {}'.format(
                            vec_in_world_frame.shape))
 
-  
   
   def get_reference_rel_bodies_pos_local(self, data, clip_reference_features, frame):
     """Observation of the reference bodies relative to walker in local frame."""
