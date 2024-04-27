@@ -208,7 +208,7 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
     
-    done = self._calculate_termination
+    done = False #self._calculate_termination
 
     state.metrics.update(
         rcom=rcom,
@@ -239,10 +239,14 @@ class RodentSingleClipTrack(PipelineEnv):
     data_c = state.pipeline_state
 
     qpos_c = data_c.qpos
-    qpos_ref = self._ref_traj.joints[:, state.info['start_frame']]
+    qpos_ref = jp.hstack([
+      self._ref_traj.position[:, state.info['start_frame']],
+      self._ref_traj.quaternion[:, state.info['start_frame']],
+      self._ref_traj.joints[:, ],state.info['start_frame']
+    ])
 
-    bpos_c = data_c.xpos # is xpos the same with bpos?
-    bpos_ref = self._ref_traj.position[:, state.info['start_frame']]
+    bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
+    bpos_ref = self._ref_traj.body_position[:, state.info['start_frame']]
 
     if 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
                       (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0:
@@ -261,22 +265,30 @@ class RodentSingleClipTrack(PipelineEnv):
     """
     data_c = state.pipeline_state
 
-    # location using com
+    # location using com (dim=3)
     com_c = data_c.subtree_com[1]
     com_ref = self._ref_traj.center_of_mass[:, state.info['start_frame']]
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
     # joint angle velocity
     qvel_c = data_c.qvel
-    qvel_ref = self._ref_traj.joints_velocity[:, state.info['start_frame']]
+    qvel_ref = jp.hstack([
+      self._ref_traj.velocity[:, state.info['start_frame']],
+      self._ref_traj.angular_velocity[:, state.info['start_frame']],
+      self._ref_traj.joints_velocity[:, state.info['start_frame']],
+    ])
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
     # joint angle posiotion
     qpos_c = data_c.qpos
-    qpos_ref = self._ref_traj.joints[:, state.info['start_frame']] # is joints here the correct one?
+    qpos_ref = jp.hstack([
+      self._ref_traj.position[:, state.info['start_frame']],
+      self._ref_traj.quaternion[:, state.info['start_frame']],
+      self._ref_traj.joints[:, ],state.info['start_frame']
+    ])
     rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
-    # control force
+    # control force from actions
     ract = -0.015 * jp.sum(jp.square(action)) / len(action)
    
     # end effector
@@ -284,8 +296,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # app_ref = 
     # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
     rapp = 0
-
-    return (rcom,rvel,rquat,ract,rapp)
+    
+    return rcom, rvel, rquat, ract, rapp
   
 
   def _get_obs(
@@ -300,6 +312,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # info is currently a global variable
     ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
     ref_traj = jp.hstack(ref_traj)
+    
+    # now being a local variable
     #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
