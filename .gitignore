@@ -4,5 +4,7 @@
 # h5 files
 *.h5
 
+.brax-imitation
+
 # Python 
 __pycache__/
