@@ -302,11 +302,10 @@ class RodentSingleClipTrack(PipelineEnv):
     # control force from actions
     ract = -0.015 * jp.sum(jp.square(action)) / len(action)
    
-    # end effector
-    # app_c = 
-    # app_ref = 
-    # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
-    rapp = 0
+    # end effector postions
+    app_c = data_c.xpos[jp.array(self._end_eff_idx)]
+    app_ref = self._ref_traj.end_effectors[:, state.info['start_frame']]
+    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
 
     return rcom, rvel, rquat, ract, rapp
   
