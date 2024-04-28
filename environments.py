@@ -1,5 +1,6 @@
 import jax
 from jax import numpy as jp
+from typing import Any
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
@@ -33,6 +34,16 @@ class ReferenceClip(PyTreeNode):
   quaternion: jp.ndarray
   scaling: jp.ndarray
   velocity: jp.ndarray
+
+  def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
+        def slicer(x: Any) -> Any:
+            return x[...,start:end]
+        return jax.tree_map(slicer, self)
+
+  def flatten_attributes(self):
+        leaves = jax.tree_leaves(self)
+        flat_arrays = [leaf.ravel() for leaf in leaves]
+        return jp.concatenate(flat_arrays)
   
   
 def unpack_clip(file_path):
@@ -296,7 +307,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # app_ref = 
     # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
     rapp = 0
-    
+
     return rcom, rvel, rquat, ract, rapp
   
 
@@ -310,8 +321,11 @@ class RodentSingleClipTrack(PipelineEnv):
     # Then transform it before returning with the rest of the obs
     
     # info is currently a global variable
-    ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    ref_traj = jp.hstack(ref_traj)
+    # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    # ref_traj = jp.hstack(ref_traj)
+
+    ref_traj = self._ref_traj.slice_clip(info['next_frame'], info['next_frame']+self._ref_traj_length)
+    ref_traj_flat = ref_traj.flatten_attributes()
     
     # now being a local variable
     #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
@@ -321,7 +335,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     return jp.concatenate([
       # put the traj obs first
-        ref_traj,
+        ref_traj_flat,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
