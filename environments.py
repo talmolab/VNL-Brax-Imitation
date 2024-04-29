@@ -153,7 +153,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
-      self._ref_traj['position'][:, start_frame],
+      self._ref_traj.position[:, start_frame],
       self._ref_traj.quaternion[:, start_frame],
       self._ref_traj.joints[:, start_frame],
     ])
@@ -302,6 +302,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # info is currently a global variable
     # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
     # ref_traj = jp.hstack(ref_traj)
+    
     def f(x):
       if len(x.shape) == 2:
         return jax.lax.dynamic_slice_in_dim(x, start_frame, self._ref_traj_length, axis=1)
