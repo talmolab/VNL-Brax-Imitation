@@ -124,6 +124,8 @@ class RodentSingleClipTrack(PipelineEnv):
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
     # self._ref_traj = unpack_clip(params["clip_path"])
+    
+    # fix jax array previous can't converted issue
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
       
@@ -151,7 +153,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
-      self._ref_traj.position[:, start_frame],
+      self._ref_traj['position'][:, start_frame],
       self._ref_traj.quaternion[:, start_frame],
       self._ref_traj.joints[:, start_frame],
     ])
