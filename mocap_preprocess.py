@@ -14,9 +14,11 @@ import argparse
 from scipy.io import loadmat
 from typing import Text, List, Tuple, Dict, Union
 import subprocess
-
+import jax
+from jax import numpy as jp
+from flax import struct
 from walker import Rat
-
+from typing import Any
 def start(
         stac_path: Text,
         save_file: Text,
@@ -78,9 +80,10 @@ def start(
                 verbatim,
             )
 
-            mocap_features["scaling"] = []
-            mocap_features["markers"] = []
-            save_features(file, mocap_features, "clip_%d" % (start_step))
+            mocap_features["scaling"] = np.array([])
+            mocap_features["markers"] = np.array([])
+            save_features(file, mocap_features, f"clip_{start_step}")
+            save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
 
 
 def get_mocap_features(
@@ -301,28 +304,71 @@ def compute_velocity_from_kinematics(
     return np.concatenate([qvel_translation, qvel_gyro, qvel_joints], axis=1)
 
 
-def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):
-        """Save features to hdf5 dataset
+# 13 features
+@struct.dataclass
+class ReferenceClip():
+  angular_velocity: jp.ndarray
+  appendages: jp.ndarray
+  body_positions: jp.ndarray
+  body_quaternions: jp.ndarray
+  center_of_mass: jp.ndarray
+  end_effectors: jp.ndarray
+  joints: jp.ndarray
+  joints_velocity: jp.ndarray
+  markers: jp.ndarray
+  position: jp.ndarray
+  quaternion: jp.ndarray
+  scaling: jp.ndarray
+  velocity: jp.ndarray
 
-        Args:
-            file (h5py.File): Hdf5 dataset
-            mocap_features (Dict): Features extracted through rollout
-            clip_name (Text): Name of the clip stored in the hdf5 dataset.
-        """
-        clip_group = file.create_group(clip_name)
-        n_steps = len(mocap_features["center_of_mass"])
-        clip_group.attrs["num_steps"] = n_steps
-        clip_group.attrs["dt"] = 0.02
-        file.create_group("/" + clip_name + "/walkers")
-        file.create_group("/" + clip_name + "/props")
-        walker_group = file.create_group("/" + clip_name + "/walkers/walker_0")
-        for k, v in mocap_features.items():
-            if len(np.array(v).shape) == 3:
-                v = np.transpose(v, (1, 2, 0))
-                # print(v.shape)
-                walker_group[k] = np.reshape(np.array(v), (-1, n_steps))
-            elif len(np.array(v).shape) == 2:
-                v = np.swapaxes(v, 0, 1)
-                walker_group[k] = v
-            else:
-                walker_group[k] = v
+  def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
+        def slicer(x: Any) -> Any:
+            return x[...,start:end]
+        return jax.tree_map(slicer, self)
+
+  def flatten_attributes(self):
+        leaves = jax.tree_leaves(self)
+        flat_arrays = [leaf.ravel() for leaf in leaves]
+        return jp.concatenate(flat_arrays)
+    
+def save_dataclass_pickle(pickle_path, mocap_features):
+    n_steps = len(mocap_features["center_of_mass"])
+    def f(v):
+        if len(jp.array(v).shape) == 3:
+            v = np.transpose(v, (1, 2, 0))
+            return jp.reshape(np.array(v), (-1, n_steps))
+        elif len(np.array(v).shape) == 2:
+            return jp.swapaxes(v, 0, 1)
+        else:
+            return v
+    data = ReferenceClip(**mocap_features)
+    data = jax.tree_map(f, data)
+    with open(pickle_path, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):
+    """Save features to hdf5 dataset
+
+    Args:
+        file (h5py.File): Hdf5 dataset
+        mocap_features (Dict): Features extracted through rollout
+        clip_name (Text): Name of the clip stored in the hdf5 dataset.
+    """
+    clip_group = file.create_group(clip_name)
+    n_steps = len(mocap_features["center_of_mass"])
+    clip_group.attrs["num_steps"] = n_steps
+    clip_group.attrs["dt"] = 0.02
+    file.create_group("/" + clip_name + "/walkers")
+    file.create_group("/" + clip_name + "/props")
+    walker_group = file.create_group("/" + clip_name + "/walkers/walker_0")
+    for k, v in mocap_features.items():
+        if len(np.array(v).shape) == 3:
+            v = np.transpose(v, (1, 2, 0))
+            # print(v.shape)
+            walker_group[k] = np.reshape(np.array(v), (-1, n_steps))
+        elif len(np.array(v).shape) == 2:
+            v = np.swapaxes(v, 0, 1)
+            walker_group[k] = v
+        else:
+            walker_group[k] = v

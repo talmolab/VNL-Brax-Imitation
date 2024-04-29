@@ -15,35 +15,9 @@ import h5py
 import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
+import pickle
 
 _XML_PATH = "assets/rodent.xml"
-
-# 13 features
-# TODO: currently stores np arrays
-class ReferenceClip(PyTreeNode):
-  angular_velocity: jp.ndarray
-  appendages: jp.ndarray
-  body_positions: jp.ndarray
-  body_quaternions: jp.ndarray
-  center_of_mass: jp.ndarray
-  end_effectors: jp.ndarray
-  joints: jp.ndarray
-  joints_velocity: jp.ndarray
-  markers: jp.ndarray
-  position: jp.ndarray
-  quaternion: jp.ndarray
-  scaling: jp.ndarray
-  velocity: jp.ndarray
-
-  def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
-        def slicer(x: Any) -> Any:
-            return x[...,start:end]
-        return jax.tree_map(slicer, self)
-
-  def flatten_attributes(self):
-        leaves = jax.tree_leaves(self)
-        flat_arrays = [leaf.ravel() for leaf in leaves]
-        return jp.concatenate(flat_arrays)
   
   
 def unpack_clip(file_path):
@@ -102,8 +76,8 @@ def env_setup(params):
   # gets the indices for end effectors: [11, 15, 59, 64]
   axis = physics.named.model.body_pos._axes[0]
   # app_idx = {key: int(axis.convert_key_item(key)) for key in utils.params["KEYPOINT_MODEL_PAIRS"].keys()}
-  end_eff_idx = [int(axis.convert_key_item(key)) 
-                 for key in params['end_eff_names']]
+  end_eff_idx = jp.array([int(axis.convert_key_item(key)) 
+                 for key in params['end_eff_names']])
   walker_bodies = walker.mocap_tracking_bodies
   # body_pos_idx
   walker_bodies_names = [bdy.name for bdy in walker_bodies]
@@ -147,8 +121,10 @@ class RodentSingleClipTrack(PipelineEnv):
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    self._ref_traj = unpack_clip(params["clip_path"])
-    
+    # self._ref_traj = unpack_clip(params["clip_path"])
+    with open(params["clip_path"], 'rb') as f:
+      self._ref_traj = pickle.load(f)
+      
     if self._episode_length > self._clip_length:
       raise ValueError("episode_length cannot be greater than clip_length!")
     
@@ -259,9 +235,8 @@ class RodentSingleClipTrack(PipelineEnv):
     bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
     bpos_ref = self._ref_traj.body_position[:, state.info['start_frame']]
 
-    if 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
-                      (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0:
-      return True
+    return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
+                      (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
     
   def _calculate_reward(self, state, action):
     """
@@ -295,7 +270,7 @@ class RodentSingleClipTrack(PipelineEnv):
     qpos_ref = jp.hstack([
       self._ref_traj.position[:, state.info['start_frame']],
       self._ref_traj.quaternion[:, state.info['start_frame']],
-      self._ref_traj.joints[:, ],state.info['start_frame']
+      self._ref_traj.joints[:, state.info['start_frame']],
     ])
     rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
@@ -305,8 +280,9 @@ class RodentSingleClipTrack(PipelineEnv):
     # end effector postions
     app_c = data_c.xpos[jp.array(self._end_eff_idx)]
     app_ref = self._ref_traj.end_effectors[:, state.info['start_frame']]
-    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
 
+    app_c = app_c.flatten()
+    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
     return rcom, rvel, rquat, ract, rapp
   
 
@@ -330,7 +306,8 @@ class RodentSingleClipTrack(PipelineEnv):
     #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
-    # end_effectors = data.xpos[self._end_eff_idx] 
+    
+    end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
       # put the traj obs first
@@ -338,7 +315,7 @@ class RodentSingleClipTrack(PipelineEnv):
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        # end_effectors,
+        end_effectors,
     ])
   
   
