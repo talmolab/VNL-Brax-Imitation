@@ -151,20 +151,19 @@ class RodentSingleClipTrack(PipelineEnv):
     # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
-      self._ref_traj.position[:, start_frame],
-      self._ref_traj.quaternion[:, start_frame],
-      self._ref_traj.joints[:, start_frame],
+      self._ref_traj.position[start_frame, :],
+      self._ref_traj.quaternion[start_frame, :],
+      self._ref_traj.joints[start_frame, :],
     ])
     qvel = jp.hstack([
-      self._ref_traj.velocity[:, start_frame],
-      self._ref_traj.angular_velocity[:, start_frame],
-      self._ref_traj.joints_velocity[:, start_frame],
+      self._ref_traj.velocity[start_frame, :],
+      self._ref_traj.angular_velocity[start_frame, :],
+      self._ref_traj.joints_velocity[start_frame, :],
     ])
     data = self.pipeline_init(qpos, qvel) # jp.zeros(self.sys.nv) 
 
     info = {
-      "start_frame": start_frame,
-      "next_frame": start_frame + 1
+      "cur_frame": start_frame,
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -190,9 +189,6 @@ class RodentSingleClipTrack(PipelineEnv):
     com_after = data.subtree_com[1]
     velocity = (com_after - com_before) / self.dt
 
-    # increment frame tracker
-    state.info['next_frame'] += 1
-    
     obs = self._get_obs(data, action, state.info)
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
@@ -211,6 +207,9 @@ class RodentSingleClipTrack(PipelineEnv):
         x_velocity=velocity[0],
         y_velocity=velocity[1],
     )
+    # increment frame tracker
+    state.info['cur_frame'] += 1
+    
     return state.replace(
         pipeline_state=data, obs=obs, reward=total_reward, done=done
     )
@@ -229,13 +228,13 @@ class RodentSingleClipTrack(PipelineEnv):
 
     qpos_c = data_c.qpos
     qpos_ref = jp.hstack([
-      self._ref_traj.position[:, state.info['start_frame']],
-      self._ref_traj.quaternion[:, state.info['start_frame']],
-      self._ref_traj.joints[:, ],state.info['start_frame']
+      self._ref_traj.position[state.info['cur_frame'], :],
+      self._ref_traj.quaternion[state.info['cur_frame'], :],
+      self._ref_traj.joints[state.info['cur_frame'], :]
     ])
 
     bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
-    bpos_ref = self._ref_traj.body_position[:, state.info['start_frame']]
+    bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :]
 
     return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
                       (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
@@ -255,35 +254,34 @@ class RodentSingleClipTrack(PipelineEnv):
 
     # location using com (dim=3)
     com_c = data_c.subtree_com[1]
-    com_ref = self._ref_traj.center_of_mass[:, state.info['start_frame']]
+    com_ref = self._ref_traj.center_of_mass[state.info['cur_frame'], :]
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
     # joint angle velocity
     qvel_c = data_c.qvel
     qvel_ref = jp.hstack([
-      self._ref_traj.velocity[:, state.info['start_frame']],
-      self._ref_traj.angular_velocity[:, state.info['start_frame']],
-      self._ref_traj.joints_velocity[:, state.info['start_frame']],
+      self._ref_traj.velocity[state.info['cur_frame'], :],
+      self._ref_traj.angular_velocity[state.info['cur_frame'], :],
+      self._ref_traj.joints_velocity[state.info['cur_frame'], :],
     ])
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
     # joint angle posiotion
     qpos_c = data_c.qpos
     qpos_ref = jp.hstack([
-      self._ref_traj.position[:, state.info['start_frame']],
-      self._ref_traj.quaternion[:, state.info['start_frame']],
-      self._ref_traj.joints[:, state.info['start_frame']],
+      self._ref_traj.position[state.info['cur_frame'], :],
+      self._ref_traj.quaternion[state.info['cur_frame'], :],
+      self._ref_traj.joints[state.info['cur_frame'], :],
     ])
     rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
     # control force from actions
     ract = -0.015 * jp.sum(jp.square(action)) / len(action)
    
-    # end effector postions
-    app_c = data_c.xpos[jp.array(self._end_eff_idx)]
-    app_ref = self._ref_traj.end_effectors[:, state.info['start_frame']]
+    # end effector positions
+    app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
+    app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
 
-    app_c = app_c.flatten()
     rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
     return rcom, rvel, rquat, ract, rapp
   
@@ -302,17 +300,19 @@ class RodentSingleClipTrack(PipelineEnv):
     # ref_traj = jp.hstack(ref_traj)
     def f(x):
       if len(x.shape) == 2:
-        return jax.lax.dynamic_slice_in_dim(x, start_frame, self._ref_traj_length, axis=1)
+        return jax.lax.dynamic_slice_in_dim(
+          x, 
+          info['cur_frame'] + 1, 
+          self._ref_traj_length, 
+        )
       
       return jp.array([])
     
-    start_frame = info['next_frame']
     ref_traj = jax.tree_util.tree_map(
       f, 
       self._ref_traj
       )
 
-    # ref_traj = self._ref_traj.slice_clip(info['next_frame'], info['next_frame']+self._ref_traj_length)
     ref_traj_flat = ref_traj.flatten_attributes()
     
     # now being a local variable
