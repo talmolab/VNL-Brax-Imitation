@@ -321,23 +321,28 @@ class ReferenceClip():
     scaling: jp.ndarray
     velocity: jp.ndarray
 
+    # def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
+    #     def slicer(x: Any) -> Any:
+    #         return x[...,start:end]
+    #     return jax.tree_map(slicer, self)
+
     def flatten_attributes(self):
         leaves = jax.tree_leaves(self)
         flat_arrays = [leaf.ravel() for leaf in leaves]
         return jp.concatenate(flat_arrays)
     
 def save_dataclass_pickle(pickle_path, mocap_features):
-    # n_steps = len(mocap_features["center_of_mass"])
-    # def f(v):
-    #     if len(jp.array(v).shape) == 3:
-    #         v = np.transpose(v, (1, 2, 0))
-    #         return jp.reshape(np.array(v), (-1, n_steps))
-    #     elif len(np.array(v).shape) == 2:
-    #         return jp.swapaxes(v, 0, 1)
-    #     else:
-    #         return v
+    n_steps = len(mocap_features["center_of_mass"])
+    def f(v):
+        if len(jp.array(v).shape) == 3:
+            v = np.transpose(v, (1, 2, 0))
+            return jp.reshape(np.array(v), (-1, n_steps))
+        elif len(np.array(v).shape) == 2:
+            return jp.swapaxes(v, 0, 1)
+        else:
+            return v
     data = ReferenceClip(**mocap_features)
-    data = jax.tree_map(lambda x: jp.array(x), data)
+    data = jax.tree_map(f, data)
     with open(pickle_path, 'wb') as f:
         pickle.dump(data, f)
 
