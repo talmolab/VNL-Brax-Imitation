@@ -307,26 +307,26 @@ def compute_velocity_from_kinematics(
 # 13 features
 @struct.dataclass
 class ReferenceClip():
-  angular_velocity: jp.ndarray
-  appendages: jp.ndarray
-  body_positions: jp.ndarray
-  body_quaternions: jp.ndarray
-  center_of_mass: jp.ndarray
-  end_effectors: jp.ndarray
-  joints: jp.ndarray
-  joints_velocity: jp.ndarray
-  markers: jp.ndarray
-  position: jp.ndarray
-  quaternion: jp.ndarray
-  scaling: jp.ndarray
-  velocity: jp.ndarray
+    angular_velocity: jp.ndarray
+    appendages: jp.ndarray
+    body_positions: jp.ndarray
+    body_quaternions: jp.ndarray
+    center_of_mass: jp.ndarray
+    end_effectors: jp.ndarray
+    joints: jp.ndarray
+    joints_velocity: jp.ndarray
+    markers: jp.ndarray
+    position: jp.ndarray
+    quaternion: jp.ndarray
+    scaling: jp.ndarray
+    velocity: jp.ndarray
 
-  def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
-        def slicer(x: Any) -> Any:
-            return x[...,start:end]
-        return jax.tree_map(slicer, self)
+    # def slice_clip(self, start: int, end: int) -> 'ReferenceClip':
+    #     def slicer(x: Any) -> Any:
+    #         return x[...,start:end]
+    #     return jax.tree_map(slicer, self)
 
-  def flatten_attributes(self):
+    def flatten_attributes(self):
         leaves = jax.tree_leaves(self)
         flat_arrays = [leaf.ravel() for leaf in leaves]
         return jp.concatenate(flat_arrays)
