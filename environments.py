@@ -17,6 +17,8 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
 
+from mocap_preprocess import ReferenceClip
+
 _XML_PATH = "assets/rodent.xml"
   
   
@@ -149,7 +151,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
-      self._ref_traj.position[:, start_frame],
+      self._ref_traj.body_positions[:, start_frame],
       self._ref_traj.quaternion[:, start_frame],
       self._ref_traj.joints[:, start_frame],
     ])
