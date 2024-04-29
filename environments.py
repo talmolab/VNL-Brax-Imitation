@@ -4,6 +4,8 @@ from typing import Any
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
+from brax.base import Motion, Transform
+from brax.mjx.pipeline import _reformat_contact
 
 from dm_control import mjcf
 from dm_control.locomotion.walkers import rescale
@@ -372,4 +374,17 @@ class RodentSingleClipTrack(PipelineEnv):
                                              - data.qpos[self.body_idxs])[:, self.body_idxs])
     
     return jp.concatenate([o.flatten() for o in obs])
+  
+  def mjx_to_brax(self, data):
+    """ 
+    Apply the brax wrapper on the core MJX data structure.
+    """
+    q, qd = data.qpos, data.qvel
+    x = Transform(pos=data.xpos[1:], rot=data.xquat[1:])
+    cvel = Motion(vel=data.cvel[1:, 3:], ang=data.cvel[1:, :3])
+    offset = data.xpos[1:, :] - data.subtree_com[self.sys.body_rootid[1:]]
+    offset = Transform.create(pos=offset)
+    xd = offset.vmap().do(cvel)
+    data = _reformat_contact(self.sys, data)
+    return data.replace(q=q, qd=qd, x=x, xd=xd)
     

@@ -337,7 +337,7 @@ def save_dataclass_pickle(pickle_path, mocap_features):
     #     else:
     #         return v
     data = ReferenceClip(**mocap_features)
-    data = jax.tree_map(lambda x: x, data)
+    data = jax.tree_map(lambda x: jp.array(x), data)
     with open(pickle_path, 'wb') as f:
         pickle.dump(data, f)
 
