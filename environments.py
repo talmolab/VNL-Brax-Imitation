@@ -195,7 +195,7 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
     
-    done = False #self._calculate_termination
+    done = self._calculate_termination
 
     state.metrics.update(
         rcom=rcom,
@@ -235,8 +235,8 @@ class RodentSingleClipTrack(PipelineEnv):
       self._ref_traj.joints[state.info['cur_frame'], :]
     ])
 
-    bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
-    bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :]
+    bpos_c = data_c.xpos # is xpos the same with bpos? (66 (spots) x 3 dimension(x,y,z))
+    bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :] # (18 (spots) x 3 dimension (x,y,z))
 
     return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
                       (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
@@ -300,6 +300,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # info is currently a global variable
     # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
     # ref_traj = jp.hstack(ref_traj)
+    
+    # slicing function apply outside of data class
     def f(x):
       if len(x.shape) == 2:
         return jax.lax.dynamic_slice_in_dim(
@@ -310,14 +312,12 @@ class RodentSingleClipTrack(PipelineEnv):
       return jp.array([])
     
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-
     ref_traj_flat = ref_traj.flatten_attributes()
     
     # now being a local variable
     #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
     
     # TODO: end effectors pos and appendages pos are two different features?
-    
     end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
