@@ -103,9 +103,12 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
+      termination_threshold: float=.3,
+      body_error_multiplier: float=1.0,
       **kwargs,
   ):
-    mj_model, self._end_eff_idx, self.body_idxs = env_setup(params)
+    # body_idxs => walker_bodies => body_positions
+    mj_model, self._end_eff_idx, self._body_idxs = env_setup(params)
 
     sys = mjcf_brax.load_model(mj_model)
 
@@ -121,11 +124,12 @@ class RodentSingleClipTrack(PipelineEnv):
     self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
-    
+    self._termination_threshold = termination_threshold
+    self._body_error_multiplier = body_error_multiplier
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    # self._ref_traj = unpack_clip(params["clip_path"])
+    
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
       
@@ -180,7 +184,14 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
     }
-    return State(data, obs, reward, done, metrics, info)
+    state = State(data, obs, reward, done, metrics, info)
+    
+    self._calculate_termination(state)
+    # if self._termination_error > 1e-2:
+    #   print(self._termination_error)
+    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
+    #                     'This is likely due to a proto/walker mismatch.'))
+    return state
 
   def step(self, state: State, action: jp.ndarray) -> State:
     """Runs one timestep of the environment's dynamics."""
@@ -195,8 +206,8 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
     
-    done = False #self._calculate_termination
-
+    self._calculate_termination(state)
+    done = self._termination_error > self._termination_threshold
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
@@ -217,7 +228,7 @@ class RodentSingleClipTrack(PipelineEnv):
     )
 
 
-  def _calculate_termination(self, state, ref) -> bool:
+  def _calculate_termination(self, state) -> None:
     """
     calculates whether the termination condition is met
     Args:
@@ -226,20 +237,28 @@ class RodentSingleClipTrack(PipelineEnv):
     Returns:
         bool: _description_
     """
-    data_c = state.pipeline_state
+    data = state.pipeline_state
 
-    qpos_c = data_c.qpos
-    qpos_ref = jp.hstack([
-      self._ref_traj.position[state.info['cur_frame'], :],
-      self._ref_traj.quaternion[state.info['cur_frame'], :],
-      self._ref_traj.joints[state.info['cur_frame'], :]
-    ])
+    # qpos_c = data_c.qpos
+    # qpos_ref = jp.hstack([
+    #   self._ref_traj.position[state.info['cur_frame'], :],
+    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
+    #   self._ref_traj.joints[state.info['cur_frame'], :]
+    # ])
 
-    bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
-    bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :]
-
-    return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
-                      (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
+    # bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
+    # bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :]
+############################
+    target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
+    error_joints = jp.mean(jp.abs(target_joints - data.qpos[7:]))
+    target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
+    error_bodies = jp.mean(
+        jp.abs((target_bodies - data.xpos[self._body_idxs])))
+    self._termination_error = (
+        0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    print(f"termination error: {self._termination_error}")
+    # return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
+    #                   (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
     
   def _calculate_reward(self, state, action):
     """
@@ -365,13 +384,13 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
-    # TODO: self._body_postioins_idx does not exist yet (how is it different from body_idxs?)
 
     time_steps = frame + jp.arange(self._ref_traj_length)
 
+    # TODO: not sure if this is set up right.. check usage of self.body_idxs
     obs = self.global_vector_to_local_frame(data.qpos,
-                                            (clip_reference_features[self.body_idxs][time_steps]
-                                             - data.qpos[self.body_idxs])[:, self.body_idxs])
+                                            (clip_reference_features[self._body_idxs][time_steps]
+                                             - data.qpos[self._body_idxs]))
     
     return jp.concatenate([o.flatten() for o in obs])
   

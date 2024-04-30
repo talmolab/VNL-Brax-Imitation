@@ -145,6 +145,7 @@ def get_mocap_features(
     feet_height = []
     walker_bodies = walker.mocap_tracking_bodies
     body_names = [b.name for b in walker_bodies]
+    # print(len(walker_bodies), body_names)
     if adjust_z_offset:
         left_foot_index = body_names.index("foot_L")
         right_foot_index = body_names.index("foot_R")
@@ -327,15 +328,6 @@ class ReferenceClip():
         return jp.concatenate(flat_arrays)
     
 def save_dataclass_pickle(pickle_path, mocap_features):
-    # n_steps = len(mocap_features["center_of_mass"])
-    # def f(v):
-    #     if len(jp.array(v).shape) == 3:
-    #         v = np.transpose(v, (1, 2, 0))
-    #         return jp.reshape(np.array(v), (-1, n_steps))
-    #     elif len(np.array(v).shape) == 2:
-    #         return jp.swapaxes(v, 0, 1)
-    #     else:
-    #         return v
     data = ReferenceClip(**mocap_features)
     data = jax.tree_map(lambda x: jp.array(x), data)
     with open(pickle_path, 'wb') as f:
