@@ -186,11 +186,12 @@ class RodentSingleClipTrack(PipelineEnv):
     }
     state = State(data, obs, reward, done, metrics, info)
     
-    self._calculate_termination(state)
-    # if self._termination_error > 1e-2:
-    #   print(self._termination_error)
+    termination_error = self._calculate_termination(state)
+    info['termination_error'] = termination_error
+    # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
     #                     'This is likely due to a proto/walker mismatch.'))
+    state = state.replace(info=info)
     return state
 
   def step(self, state: State, action: jp.ndarray) -> State:
@@ -206,8 +207,13 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
     
-    self._calculate_termination(state)
-    done = self._termination_error > self._termination_threshold
+    termination_error = self._calculate_termination(state)
+    # increment frame tracker and update termination error
+    info = state.info.copy()
+    info['termination_error'] = termination_error
+    info['cur_frame'] += 1
+
+    done = termination_error > self._termination_threshold
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
@@ -220,15 +226,13 @@ class RodentSingleClipTrack(PipelineEnv):
         x_velocity=velocity[0],
         y_velocity=velocity[1],
     )
-    # increment frame tracker
-    state.info['cur_frame'] += 1
     
     return state.replace(
-        pipeline_state=data, obs=obs, reward=total_reward, done=done
+        pipeline_state=data, obs=obs, reward=total_reward, done=done, info=info
     )
 
 
-  def _calculate_termination(self, state) -> None:
+  def _calculate_termination(self, state) -> float:
     """
     calculates whether the termination condition is met
     Args:
@@ -238,27 +242,15 @@ class RodentSingleClipTrack(PipelineEnv):
         bool: _description_
     """
     data = state.pipeline_state
-
-    # qpos_c = data_c.qpos
-    # qpos_ref = jp.hstack([
-    #   self._ref_traj.position[state.info['cur_frame'], :],
-    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
-    #   self._ref_traj.joints[state.info['cur_frame'], :]
-    # ])
-
-    # bpos_c = data_c.xpos # is xpos the same with bpos? 54 (expert) compare to 66 (agent)
-    # bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :]
-############################
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
     error_joints = jp.mean(jp.abs(target_joints - data.qpos[7:]))
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(
         jp.abs((target_bodies - data.xpos[self._body_idxs])))
-    self._termination_error = (
+    termination_error = (
         0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
-    print(f"termination error: {self._termination_error}")
-    # return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
-    #                   (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
+    return termination_error
+    
     
   def _calculate_reward(self, state, action):
     """
