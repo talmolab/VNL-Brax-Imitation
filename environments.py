@@ -103,6 +103,8 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
+      termination_threshold: float=.3,
+      body_error_multiplier: float=1.0,
       **kwargs,
   ):
     mj_model, self._end_eff_idx, self.body_idxs = env_setup(params)
@@ -126,6 +128,10 @@ class RodentSingleClipTrack(PipelineEnv):
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
     # self._ref_traj = unpack_clip(params["clip_path"])
+    self._termination_threshold = termination_threshold
+    self._body_error_multiplier = body_error_multiplier
+
+
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
       
@@ -180,7 +186,16 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
     }
-    return State(data, obs, reward, done, metrics, info)
+
+    state = State(data, obs, reward, done, metrics, info)
+    termination_error = self._calculate_termination(state)
+    info['termination_error'] = termination_error
+    # if termination_error > 3e-2:
+    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
+    #                     'This is likely due to a proto/walker mismatch.'))
+    state = state.replace(info=info)
+    
+    return state
 
   def step(self, state: State, action: jp.ndarray) -> State:
     """Runs one timestep of the environment's dynamics."""
@@ -195,7 +210,14 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     total_reward = rcom + rvel + rapp + rquat + ract
     
-    done = self._calculate_termination
+    termination_error = self._calculate_termination(state)
+    
+    # increment frame tracker and update termination error
+    info = state.info.copy()
+    info['termination_error'] = termination_error
+    info['cur_frame'] += 1
+
+    done = termination_error > self._termination_threshold
 
     state.metrics.update(
         rcom=rcom,
@@ -209,15 +231,13 @@ class RodentSingleClipTrack(PipelineEnv):
         x_velocity=velocity[0],
         y_velocity=velocity[1],
     )
-    # increment frame tracker
-    state.info['cur_frame'] += 1
     
     return state.replace(
-        pipeline_state=data, obs=obs, reward=total_reward, done=done
+        pipeline_state=data, obs=obs, reward=total_reward, done=done, info=info
     )
 
 
-  def _calculate_termination(self, state, ref) -> bool:
+  def _calculate_termination(self, state) -> float:
     """
     calculates whether the termination condition is met
     Args:
@@ -226,20 +246,27 @@ class RodentSingleClipTrack(PipelineEnv):
     Returns:
         bool: _description_
     """
+    # qpos_c = data_c.qpos
+    # qpos_ref = jp.hstack([
+    #   self._ref_traj.position[state.info['cur_frame'], :],
+    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
+    #   self._ref_traj.joints[state.info['cur_frame'], :]
+    # ])
+    # bpos_c = data_c.xpos[self.body_idxs] # (18 (spots) x 3 dimension(x,y,z))
+    # bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :] # (18 (spots) x 3 dimension (x,y,z))
+    # return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
+    #                   (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
+
     data_c = state.pipeline_state
-
-    qpos_c = data_c.qpos
-    qpos_ref = jp.hstack([
-      self._ref_traj.position[state.info['cur_frame'], :],
-      self._ref_traj.quaternion[state.info['cur_frame'], :],
-      self._ref_traj.joints[state.info['cur_frame'], :]
-    ])
-
-    bpos_c = data_c.xpos # is xpos the same with bpos? (66 (spots) x 3 dimension(x,y,z))
-    bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :] # (18 (spots) x 3 dimension (x,y,z))
-
-    return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
-                      (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
+    
+    target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
+    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
+    target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self.body_idxs])))
+    
+    termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    
+    return termination_error
     
   def _calculate_reward(self, state, action):
     """
