@@ -68,6 +68,7 @@ def env_setup(params):
 
   # get mjmodel from physics and set up solver configs
   mj_model = physics.model.ptr
+  mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
   
   mj_model.opt.solver = {
     'cg': mujoco.mjtSolver.mjSOL_CG,
@@ -108,8 +109,6 @@ class RodentSingleClipTrack(PipelineEnv):
       **kwargs,
   ):
     mj_model, self._end_eff_idx, self.body_idxs = env_setup(params)
-
-    mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
 
     sys = mjcf_brax.load_model(mj_model)
 
