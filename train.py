@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.90'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
 
 n_gpus = jax.device_count(backend="gpu")
 print(f"Using {n_gpus} GPUs")
@@ -32,11 +32,11 @@ config = {
     "env_name": "rodent",
     "algo_name": "ppo",
     "task_name": "run",
-    "num_envs": 3072*n_gpus,
+    "num_envs": 2048*n_gpus,
     "num_timesteps": 500_000_000,
     "eval_every": 5_000_000,
     "episode_length": 1000,
-    "batch_size": 3072*n_gpus,
+    "batch_size": 2048*n_gpus,
     "learning_rate": 5e-5,
     "terminate_when_unhealthy": True,
     "run_platform": "Harvard",
@@ -45,21 +45,14 @@ config = {
     "ls_iterations": 3,
 }
 
-envs.register_environment('rodent', RodentSingleClipTrack)
+envs.register_environment(config["env_name"], RodentSingleClipTrack)
 
-# instantiate the environment
-env_name = config["env_name"]
-env = envs.get_environment(env_name, 
+env = envs.get_environment(config["env_name"], 
                            terminate_when_unhealthy=config["terminate_when_unhealthy"],
                            solver=config['solver'],
                            iterations=config['iterations'],
                            ls_iterations=config['ls_iterations'],
                            vision=config['vision'])
-
-# define the jit reset/step functions
-jit_reset = jax.jit(env.reset)
-jit_step = jax.jit(env.step)
-
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
@@ -76,7 +69,7 @@ run_id = uuid.uuid4()
 model_path = f"./model_checkpoints/{run_id}"
 
 run = wandb.init(
-    project="vnl_debug",
+    project="VNL_SingleClipImitationPPO",
     config=config,
     notes=f"{config['batch_size']} batchsize, " + 
         f"{config['solver']}, {config['iterations']}/{config['ls_iterations']}"
@@ -97,6 +90,6 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
 
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn)
 
-final_save_path = f"{model_path}/brax_ppo_rodent_run_finished"
+final_save_path = f"{model_path}/finished"
 model.save_params(final_save_path, params)
 print(f"Run finished. Model saved to {final_save_path}")

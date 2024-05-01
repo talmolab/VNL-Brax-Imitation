@@ -85,10 +85,11 @@ def env_setup(params):
   walker_bodies = walker.mocap_tracking_bodies
   # body_pos_idx
   walker_bodies_names = [bdy.name for bdy in walker_bodies]
+  axis = physics.named.data.xpos._axes[0]
   body_idxs = jp.array(
-    [walker_bodies_names.index(bdy) for bdy in walker_bodies_names]
+    [int(axis.convert_key_item(bdy))  for bdy in walker_bodies_names]
   )
-  
+  # print(f"walker body names: {walker_bodies_names}")
   return mj_model, end_eff_idx, body_idxs
   
   
@@ -109,7 +110,6 @@ class RodentSingleClipTrack(PipelineEnv):
   ):
     # body_idxs => walker_bodies => body_positions
     mj_model, self._end_eff_idx, self._body_idxs = env_setup(params)
-
     sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
@@ -312,7 +312,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
     # ref_traj = jp.hstack(ref_traj)
     def f(x):
-      if len(x.shape) == 2:
+      if len(x.shape) != 1:
         return jax.lax.dynamic_slice_in_dim(
           x, 
           info['cur_frame'] + 1, 
@@ -325,11 +325,10 @@ class RodentSingleClipTrack(PipelineEnv):
       f, 
       self._ref_traj
       )
-
-    ref_traj_flat = ref_traj.flatten_attributes()
     
-    # now being a local variable
-    #ref_traj = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['next_frame'])
+    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
+      data, ref_traj, info['cur_frame'] + 1
+      )
     
     # TODO: end effectors pos and appendages pos are two different features?
     
@@ -337,7 +336,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     return jp.concatenate([
       # put the traj obs first
-        ref_traj_flat,
+        ref_traj,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
@@ -345,7 +344,7 @@ class RodentSingleClipTrack(PipelineEnv):
     ])
   
   
-  def global_vector_to_local_frame(self, mjxData, vec_in_world_frame):
+  def global_vector_to_local_frame(self, data, vec_in_world_frame):
     """Linearly transforms a world-frame vector into entity's local frame.
 
     Note that this function does not perform an affine transformation of the
@@ -358,7 +357,8 @@ class RodentSingleClipTrack(PipelineEnv):
     
     Returns the resulting vector
     """
-    xmat = jp.reshape(mjxData.xmat, (3, 3))
+    # [0] is the root_body index
+    xmat = jp.reshape(data.xmat[0], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
     # matrix whose final dimensions are (2,) or (3,).
     if vec_in_world_frame.shape[-1] == 2:
@@ -371,31 +371,19 @@ class RodentSingleClipTrack(PipelineEnv):
                            vec_in_world_frame.shape))
 
   
-  def get_reference_rel_bodies_pos_local(self, data, clip_reference_features, frame):
+  def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
     time_steps = frame + jp.arange(self._ref_traj_length)
-
-    # TODO: not sure if this is set up right.. check usage of self.body_idxs
-    obs = self.global_vector_to_local_frame(data.qpos,
-                                            (clip_reference_features[self._body_idxs][time_steps]
-                                             - data.qpos[self._body_idxs]))
+    thing = (ref_traj.body_positions[time_steps] - data.xpos[self._body_idxs])
+    # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
+    obs = self.global_vector_to_local_frame(
+      data,
+      thing[:, self._body_idxs]
+    )
     
     return jp.concatenate([o.flatten() for o in obs])
-  
-  def mjx_to_brax(self, data):
-    """ 
-    Apply the brax wrapper on the core MJX data structure.
-    """
-    q, qd = data.qpos, data.qvel
-    x = Transform(pos=data.xpos[1:], rot=data.xquat[1:])
-    cvel = Motion(vel=data.cvel[1:, 3:], ang=data.cvel[1:, :3])
-    offset = data.xpos[1:, :] - data.subtree_com[self.sys.body_rootid[1:]]
-    offset = Transform.create(pos=offset)
-    xd = offset.vmap().do(cvel)
-    data = _reformat_contact(self.sys, data)
-    return data.replace(q=q, qd=qd, x=x, xd=xd)
     
