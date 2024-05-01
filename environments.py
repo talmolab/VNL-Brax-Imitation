@@ -109,6 +109,8 @@ class RodentSingleClipTrack(PipelineEnv):
   ):
     mj_model, self._end_eff_idx, self.body_idxs = env_setup(params)
 
+    mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
+
     sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
