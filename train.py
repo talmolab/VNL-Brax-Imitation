@@ -51,8 +51,7 @@ env = envs.get_environment(config["env_name"],
                            terminate_when_unhealthy=config["terminate_when_unhealthy"],
                            solver=config['solver'],
                            iterations=config['iterations'],
-                           ls_iterations=config['ls_iterations'],
-                           vision=config['vision'])
+                           ls_iterations=config['ls_iterations'])
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
