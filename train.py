@@ -45,13 +45,28 @@ config = {
     "ls_iterations": 3,
 }
 
+params = {
+    "scale_factor": .9,
+    "solver": "cg",
+    "iterations": 6,
+    "ls_iterations": 3,
+    "clip_path": "12_22_1_250_clip_0.p",
+    "end_eff_names": [
+        "foot_L",
+        "foot_R",
+        "hand_L",
+        "hand_R",
+    ],
+}
+
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
 
 env = envs.get_environment(config["env_name"], 
                            terminate_when_unhealthy=config["terminate_when_unhealthy"],
                            solver=config['solver'],
                            iterations=config['iterations'],
-                           ls_iterations=config['ls_iterations'])
+                           ls_iterations=config['ls_iterations'],
+                           params = params)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
