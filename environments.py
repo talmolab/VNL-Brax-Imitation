@@ -399,4 +399,60 @@ class RodentSingleClipTrack(PipelineEnv):
     )
     
     return jp.concatenate([o.flatten() for o in obs])
+  
+
+
+  def get_reference_ego_bodies_quats(self, unused_physics: 'mjcf.Physics'):
+    """Body quat of the reference relative to the reference root quat."""
+    time_steps = self._time_step + self._ref_steps
+    obs = []
+    quats_for_clip = self._reference_ego_bodies_quats[self._current_clip_index]
+    for t in time_steps:
+      if t not in quats_for_clip:
+        root_quat = self._clip_reference_features['quaternion'][t, :]
+        quats_for_clip[t] = [
+            tr.quat_diff(  # pylint: disable=g-complex-comprehension
+                root_quat,
+                self._clip_reference_features['body_quaternions'][t, b, :])
+            for b in self._body_idxs
+        ]
+      obs.extend(quats_for_clip[t])
+    return np.concatenate([o.flatten() for o in obs])
+
+
+
+
+  def get_reference_rel_root_quat(self, physics: 'mjcf.Physics'):
+    """Root quaternion of reference relative to current root quat."""
+    del physics  # physics unused by reference observations.
+
+    time_steps = self._time_step + self._ref_steps
+    obs = []
+    for t in time_steps:
+      obs.append(
+          tr.quat_diff(self._walker_features['quaternion'],
+                       self._clip_reference_features['quaternion'][t, :]))
+    return np.concatenate([o.flatten() for o in obs])
+
+
+
+
+  def get_reference_appendages_pos(self, physics: 'mjcf.Physics'):
+    """Reference appendage positions in reference frame."""
+    del physics  # physics unused by reference observations.
+
+    time_steps = self._time_step + self._ref_steps
+    return self._clip_reference_features['appendages'][time_steps].flatten()
+
+
+
+
+  def get_reference_rel_root_pos_local(self, physics: 'mjcf.Physics'):
+    """Reference position relative to current root position in root frame."""
+    time_steps = self._time_step + self._ref_steps
+    obs = self._walker.transform_vec_to_egocentric_frame(
+        physics, (self._clip_reference_features['position'][time_steps] -
+                  self._walker_features['position']))
+    return np.concatenate([o.flatten() for o in obs])
+
     
