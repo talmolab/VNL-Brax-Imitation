@@ -90,6 +90,6 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
 
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn)
 
-final_save_path = f"{model_path}/finished"
+final_save_path = f"{model_path}/finished_mlp"
 model.save_params(final_save_path, params)
 print(f"Run finished. Model saved to {final_save_path}")
