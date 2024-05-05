@@ -344,6 +344,9 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # now being a local variable
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
+    reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
     
     # TODO: end effectors pos and appendages pos are two different features?
     end_effectors = data.xpos[self._end_eff_idx].flatten()
@@ -351,6 +354,10 @@ class RodentSingleClipTrack(PipelineEnv):
     return jp.concatenate([
       # put the traj obs first
         reference_rel_bodies_pos_local,
+        reference_rel_root_pos_local,
+        reference_rel_joints,
+        reference_appendages,
+        end_effectors,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
@@ -368,12 +375,15 @@ class RodentSingleClipTrack(PipelineEnv):
     where the innermost vectors are replaced by their values computed in the
     local frame.
     
-    Returns the resulting vector
+    Returns the resulting vector, converting to ego-centric frame
     """
     # [0] is the root_body index
     xmat = jp.reshape(data.xmat[0], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
     # matrix whose final dimensions are (2,) or (3,).
+
+    # Each element in xmat is a 3x3 matrix that describes the rotation of a body relative to the global coordinate frame, so 
+    # use rotation matrix to dot the vectors in the world frame, transform basis
     if vec_in_world_frame.shape[-1] == 2:
       return jp.dot(vec_in_world_frame, xmat[:2, :2])
     elif vec_in_world_frame.shape[-1] == 3:
@@ -383,18 +393,50 @@ class RodentSingleClipTrack(PipelineEnv):
                        'dimension 2 or 3: got {}'.format(
                            vec_in_world_frame.shape))
     
+
   def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
-    time_steps = frame + jp.arange(self._ref_traj_length)
+    time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
     thing = (ref_traj.body_positions[time_steps] - data.xpos[self.body_idxs])
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
       thing[:, self.body_idxs]
     )
-    
     return jp.concatenate([o.flatten() for o in obs])
+  
+  
+  def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
+    """Reference position relative to current root position in root frame."""
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    com = data.subtree_com[0] # root body index
+    
+    thing = (ref_traj.position[time_steps] - com) # correct as position?
+    obs = self.global_vector_to_local_frame(data, thing)
+    return jp.concatenate([o.flatten() for o in obs])
+
+
+  def get_reference_rel_joints(self, data, ref_traj, frame):
+    """Observation of the reference joints relative to walker."""
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    
+    qpos_ref = jp.hstack([ref_traj.position[frame, :],
+                          ref_traj.quaternion[frame, :],
+                          ref_traj.joints[frame, :],
+                          ])
+    diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
+    
+    # what would be a  equivalents of this?
+    # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
+    return diff.flatten()
+  
+  
+  def get_reference_appendages_pos(self, ref_traj, frame):
+    """Reference appendage positions in reference frame, not relative."""
+
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    return ref_traj.appendages[time_steps].flatten()
