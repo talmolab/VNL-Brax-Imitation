@@ -1,0 +1,18 @@
+name: vnl
+dependencies:
+  - python=3.11
+  - numpy
+  - matplotlib
+  - pandas
+  - pip
+  - ipykernel
+  - pip:
+    - brax
+    - mujoco
+    - mujoco-mjx
+    - dm_control
+    - numba
+    - "flax[all]"
+    - wandb
+    - tqdm
+    - hydra-core
