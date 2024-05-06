@@ -424,11 +424,8 @@ class RodentSingleClipTrack(PipelineEnv):
     """Observation of the reference joints relative to walker."""
     time_steps = frame + jp.arange(self._ref_traj_length)
     
-    qpos_ref = jp.hstack([ref_traj.position[frame, :],
-                          ref_traj.quaternion[frame, :],
-                          ref_traj.joints[frame, :],
-                          ])
-    diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
+    qpos_ref = ref_traj.joints[frame, :]
+    diff = (qpos_ref[time_steps] - data.qpos[7:]) # not sure if correct?
     
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
