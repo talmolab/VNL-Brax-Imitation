@@ -437,16 +437,8 @@ class RodentSingleClipTrack(PipelineEnv):
   def get_reference_rel_joints(self, data, ref_traj, frame):
     """Observation of the reference joints relative to walker."""
     time_steps = frame + jp.arange(self._ref_traj_length)
-    
-    # qpos_ref = ref_traj.joints[frame, :]
-    # diff = (qpos_ref[time_steps] - data.qpos[7:]) # not sure if correct?
-
-    qpos_ref = jp.hstack([ref_traj.position[frame, :],
-                          ref_traj.quaternion[frame, :],
-                          ref_traj.joints[frame, :],
-                          ])
-    diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
-    
+    qpos_ref = ref_traj.joints
+    diff = (qpos_ref[time_steps] - data.qpos[7:]) 
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()
