@@ -19,7 +19,7 @@ from jax import numpy as jp
 from flax import struct
 from walker import Rat
 from typing import Any
-def start(
+def process(
         stac_path: Text,
         save_file: Text,
         scale_factor: float = 0.9,
@@ -321,25 +321,8 @@ class ReferenceClip():
     quaternion: jp.ndarray
     scaling: jp.ndarray
     velocity: jp.ndarray
-
-    def flatten_attributes(self):
-        leaves = jax.tree_leaves(self)
-        flat_arrays = [leaf.ravel() for leaf in leaves]
-        return jp.concatenate(flat_arrays)
     
 def save_dataclass_pickle(pickle_path, mocap_features):
-<<<<<<< HEAD
-=======
-    # n_steps = len(mocap_features["center_of_mass"])
-    # def f(v):
-    #     if len(jp.array(v).shape) == 3:
-    #         v = np.transpose(v, (1, 2, 0))
-    #         return jp.reshape(np.array(v), (-1, n_steps))
-    #     elif len(np.array(v).shape) == 2:
-    #         return jp.swapaxes(v, 0, 1)
-    #     else:
-    #         return v
->>>>>>> kevin-dev-main
     data = ReferenceClip(**mocap_features)
     data = jax.tree_map(lambda x: jp.array(x), data)
     with open(pickle_path, 'wb') as f:

@@ -344,7 +344,6 @@ class RodentSingleClipTrack(PipelineEnv):
       return jp.array([])
     
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-    # ref_traj_flat = ref_traj.flatten_attributes()
     
     # now being a local variable
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)

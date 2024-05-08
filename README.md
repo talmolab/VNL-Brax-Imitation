@@ -1,5 +1,5 @@
 # Brax-Imitation
-rodent imitation learning using brax
+Rodent imitation learning using Brax and MJX
 
 setup:
 - jax
@@ -10,26 +10,10 @@ setup:
 - dmcontrol
 - h5py
   
-## Current Progress (04/23/2024)
-Below is the current progress in each of the files. Bear in mind that our implementation needs to be fully compatible with jax, since much of the logic will be jitted. This means using jax.numpy (jnp) instead of numpy, and making sure there are no side-effects in our functions so they can be jitted properly. Read through the quickstart pages in the jax documentation [here](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html). However, some initial setup stuff that dmcontrol/mjcf would help with could work!
+## Current Progress (05/8/2024)
+#### Preprocessing
+The preprocessing step is fully implemented in `mocap_preprocess.py`, with a usage example in `process_traj.ipynb`, with `mocap_preprocess.process()` being the main function you interact with. Here's a quick rundown: Suppose you have a stac'd trajectory called `transform_snips.p`. You pass this into `process()` along with the name of the .h5 save file as the two required arguments (there are many other optional arguments, view the docstring for more info). After calling `process()`, you will end up with two new files: an .h5 save file in the same format that was used in MiMic, as well as a set of .p save files containing the same data but in the format currently being used by our new Brax imitation learning environment: the `ReferenceTrajectory` Jax dataclass defined in `mocap_preprocess.py` (This format is subject to change). The number of save files depends on the number of clips that you choose to process, determined by the arguments `start_step`, `clip_length`, and `n_steps`. This is because our initial imitation learning environment only handles single clip imitation, so the clips should be separated during preprocessing.
 
-- `losses.py`: I copied over the brax losses.py file for PPO, because our imitation learning needs a KL divergence term in the loss for regularizing the variational component. I added the function (`kl_divergence`) and added it as a term in the total loss (line 184, 186)
-
-- `networks.py`: I added a basic VAE implementation for our policy network, and used a brax's MLP for the value network (as outlined in the Mimic paper). There are probably some details in the network architecture that are not implementation yet--The VAE current doesn't have a stochastic layer at the end for example.
-
-- `obs_util.py`:  This file contains some functions required for transforming the trajectories to be reletive to the current state of the agent (see the Mimic methods section). The logic is taken from [the dmcontrol tracking task](
-https://github.com/google-deepmind/dm_control/blob/7a6a5309e3ef79a720081d6d90958a2fb78fd3fe/dm_control/locomotion/tasks/reference_pose/tracking.py#L604). Needs some edits to have to work properly.
-
-- `preprocessing.py`/`preprocessing_utils.py`: According to the Mimic paper, the input trajectories are more than just the qpos that we get from stac. So these files get the rest of the data. Not finished. In the end we want it in the h5 file format. refer to the npmp_embeddings file I shared for how it was previously implemented
-
-- `environments.py` The brax environments. the imitation env is mostly the same as RodentRun for now, I just removed some of the running related logic and added more obs. Need to implement the whole reward calculation, and some good way of loading the trajectory data as part of the obs. THere is also a "NullEnv" that has no reward and is used during the stac data preprocessing step
-
-- `train.py`: the high level wandb stuff and actually running ppo. We will use our environment, and pass in our `network_factory` argument. That's it! 
-
-## Things to think about:
-- How do we manage reference trajectory input in the environment?
-  - We need to mark where in the clip each environment is at
-  - We store the whole trajectory once as a class attribute and the `_get_obs` function takes the 5 frames it needs from there
-  - 
-
+#### Imitation environment
+The environment logic is largely completed (found in `environments.py`). However, we still need to verify its correctness by comparing it with the original dmcontrol tracking environment. Specifically, there are a number of transformations used to convert the expert trajectory data from global frame to a local frame relative to the agent's current state. These transformations were lifted from dmcontrol and there are some bits where we are uncertain about. Thus, some verification is needed.
 
