@@ -251,23 +251,12 @@ class RodentSingleClipTrack(PipelineEnv):
     Returns:
         bool: _description_
     """
-    # qpos_c = data_c.qpos
-    # qpos_ref = jp.hstack([
-    #   self._ref_traj.position[state.info['cur_frame'], :],
-    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
-    #   self._ref_traj.joints[state.info['cur_frame'], :]
-    # ])
-    # bpos_c = data_c.xpos[self.body_idxs] # (18 (spots) x 3 dimension(x,y,z))
-    # bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :] # (18 (spots) x 3 dimension (x,y,z))
-    # return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
-    #                   (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
-
     data_c = state.pipeline_state
     
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
     error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self.body_idxs])))
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self._body_idxs])))
 
     termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
@@ -404,11 +393,11 @@ class RodentSingleClipTrack(PipelineEnv):
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
     time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
-    thing = (ref_traj.body_positions[time_steps] - data.xpos[self.body_idxs])
+    thing = (ref_traj.body_positions[time_steps] - data.xpos[self._body_idxs])
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
-      thing[:, self.body_idxs]
+      thing[:, self._body_idxs]
     )
     return jp.concatenate([o.flatten() for o in obs])
   

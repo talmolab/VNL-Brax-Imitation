@@ -5,6 +5,9 @@
 *.h5
 
 .brax-imitation
-
+wandb/
+# Cluster scripts
+scripts/
+*.out
 # Python 
 __pycache__/

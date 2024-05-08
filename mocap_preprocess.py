@@ -63,6 +63,7 @@ def process(
     if n_steps is None:
         n_steps = mocap_qpos.shape[0]
 
+    jax_paths = []
     max_reference_index = np.max(ref_steps) + 1
     with h5py.File(save_file, "w") as file:
         for start_step in range(0, n_steps, clip_length):
@@ -83,7 +84,10 @@ def process(
             mocap_features["scaling"] = np.array([])
             mocap_features["markers"] = np.array([])
             save_features(file, mocap_features, f"clip_{start_step}")
-            save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
+            jax_paths.append(
+                save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
+            )
+    return jax_paths
 
 
 def get_mocap_features(
@@ -327,6 +331,7 @@ def save_dataclass_pickle(pickle_path, mocap_features):
     data = jax.tree_map(lambda x: jp.array(x), data)
     with open(pickle_path, 'wb') as f:
         pickle.dump(data, f)
+    return pickle_path
 
 
 def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):

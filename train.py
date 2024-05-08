@@ -33,38 +33,32 @@ config = {
     "algo_name": "ppo",
     "task_name": "run",
     "num_envs": 2048*n_gpus,
-<<<<<<< HEAD
     "num_timesteps": 500_000_000,
-=======
-    "num_timesteps": 100_000_000,
->>>>>>> kevin-dev-main
     "eval_every": 5_000_000,
     "episode_length": 1000,
     "batch_size": 2048*n_gpus,
     "learning_rate": 5e-5,
     "terminate_when_unhealthy": True,
-    "run_platform": "Salk",
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
 }
 
-<<<<<<< HEAD
-envs.register_environment(config["env_name"], RodentSingleClipTrack)
+# Preprocess step
+import mocap_preprocess as mp
+data_path = "/n/home05/charleszhang/stac-mjx/transform_snips.p"
+clip_paths = mp.process(data_path, 
+         "transform_snips_250.h5", 
+         n_steps=250,
+         ref_steps=(1,2,3,4,5))
 
-env = envs.get_environment(config["env_name"], 
-                           terminate_when_unhealthy=config["terminate_when_unhealthy"],
-                           solver=config['solver'],
-                           iterations=config['iterations'],
-                           ls_iterations=config['ls_iterations'],
-                           vision=config['vision'])
-=======
+
 params = {
     "scale_factor": .9,
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    "clip_path": "12_22_1_250_clip_0.p",
+    "clip_path": clip_paths[0],
     "end_eff_names": [
         "foot_L",
         "foot_R",
@@ -74,8 +68,7 @@ params = {
 }
 
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
-env = envs.get_environment(config["env_name"], params = params)
->>>>>>> kevin-dev-main
+env = envs.get_environment(config["env_name"], params=params)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
@@ -109,10 +102,6 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn)
 
-<<<<<<< HEAD
-final_save_path = f"{model_path}/finished"
-=======
 final_save_path = f"{model_path}/finished_mlp"
->>>>>>> kevin-dev-main
 model.save_params(final_save_path, params)
 print(f"Run finished. Model saved to {final_save_path}")
