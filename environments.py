@@ -6,6 +6,8 @@ from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
 from brax.base import Motion, Transform
 from brax.mjx.pipeline import _reformat_contact
+from brax.base import Motion, Transform
+from brax.mjx.pipeline import _reformat_contact
 
 from dm_control import mjcf
 from dm_control.locomotion.walkers import rescale
@@ -68,6 +70,7 @@ def env_setup(params):
 
   # get mjmodel from physics and set up solver configs
   mj_model = physics.model.ptr
+  mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
   
   mj_model.opt.solver = {
     'cg': mujoco.mjtSolver.mjSOL_CG,
@@ -129,7 +132,11 @@ class RodentSingleClipTrack(PipelineEnv):
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    
+    # self._ref_traj = unpack_clip(params["clip_path"])
+    self._termination_threshold = termination_threshold
+    self._body_error_multiplier = body_error_multiplier
+
+
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
       
@@ -184,14 +191,15 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
     }
+
     state = State(data, obs, reward, done, metrics, info)
-    
     termination_error = self._calculate_termination(state)
     info['termination_error'] = termination_error
     # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
     #                     'This is likely due to a proto/walker mismatch.'))
     state = state.replace(info=info)
+    
     return state
 
   def step(self, state: State, action: jp.ndarray) -> State:
@@ -208,12 +216,14 @@ class RodentSingleClipTrack(PipelineEnv):
     total_reward = rcom + rvel + rapp + rquat + ract
     
     termination_error = self._calculate_termination(state)
+    
     # increment frame tracker and update termination error
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
 
     done = termination_error > self._termination_threshold
+
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
@@ -241,16 +251,27 @@ class RodentSingleClipTrack(PipelineEnv):
     Returns:
         bool: _description_
     """
-    data = state.pipeline_state
-    target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
-    error_joints = jp.mean(jp.abs(target_joints - data.qpos[7:]))
-    target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.mean(
-        jp.abs((target_bodies - data.xpos[self._body_idxs])))
-    termination_error = (
-        0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
-    return termination_error
+    # qpos_c = data_c.qpos
+    # qpos_ref = jp.hstack([
+    #   self._ref_traj.position[state.info['cur_frame'], :],
+    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
+    #   self._ref_traj.joints[state.info['cur_frame'], :]
+    # ])
+    # bpos_c = data_c.xpos[self.body_idxs] # (18 (spots) x 3 dimension(x,y,z))
+    # bpos_ref = self._ref_traj.body_position[state.info['cur_frame'], :] # (18 (spots) x 3 dimension (x,y,z))
+    # return 1 - (1/0.3) * ((jp.linalg.norm(bpos_c - (bpos_ref))) + 
+    #                   (jp.linalg.norm(qpos_c - (qpos_ref)))) < 0
+
+    data_c = state.pipeline_state
     
+    target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
+    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
+    target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self.body_idxs])))
+
+    termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    
+    return termination_error
     
   def _calculate_reward(self, state, action):
     """
@@ -311,6 +332,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # info is currently a global variable
     # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
     # ref_traj = jp.hstack(ref_traj)
+    
+    # slicing function apply outside of data class
     def f(x):
       if len(x.shape) != 1:
         return jax.lax.dynamic_slice_in_dim(
@@ -318,31 +341,32 @@ class RodentSingleClipTrack(PipelineEnv):
           info['cur_frame'] + 1, 
           self._ref_traj_length, 
         )
-      
       return jp.array([])
     
-    ref_traj = jax.tree_util.tree_map(
-      f, 
-      self._ref_traj
-      )
+    ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+    # ref_traj_flat = ref_traj.flatten_attributes()
     
-    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
-      data, ref_traj, info['cur_frame'] + 1
-      )
+    # now being a local variable
+    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
+    reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
     
     # TODO: end effectors pos and appendages pos are two different features?
-    
     end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
       # put the traj obs first
-        ref_traj,
+        reference_rel_bodies_pos_local,
+        reference_rel_root_pos_local,
+        reference_rel_joints,
+        reference_appendages,
+        end_effectors,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
         end_effectors,
     ])
-  
   
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
     """Linearly transforms a world-frame vector into entity's local frame.
@@ -355,12 +379,15 @@ class RodentSingleClipTrack(PipelineEnv):
     where the innermost vectors are replaced by their values computed in the
     local frame.
     
-    Returns the resulting vector
+    Returns the resulting vector, converting to ego-centric frame
     """
     # [0] is the root_body index
     xmat = jp.reshape(data.xmat[0], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
     # matrix whose final dimensions are (2,) or (3,).
+
+    # Each element in xmat is a 3x3 matrix that describes the rotation of a body relative to the global coordinate frame, so 
+    # use rotation matrix to dot the vectors in the world frame, transform basis
     if vec_in_world_frame.shape[-1] == 2:
       return jp.dot(vec_in_world_frame, xmat[:2, :2])
     elif vec_in_world_frame.shape[-1] == 3:
@@ -369,21 +396,48 @@ class RodentSingleClipTrack(PipelineEnv):
       raise ValueError('`vec_in_world_frame` should have shape with final '
                        'dimension 2 or 3: got {}'.format(
                            vec_in_world_frame.shape))
+    
 
-  
   def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
-    time_steps = frame + jp.arange(self._ref_traj_length)
-    thing = (ref_traj.body_positions[time_steps] - data.xpos[self._body_idxs])
+    time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
+    thing = (ref_traj.body_positions[time_steps] - data.xpos[self.body_idxs])
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
-      thing[:, self._body_idxs]
+      thing[:, self.body_idxs]
     )
-    
     return jp.concatenate([o.flatten() for o in obs])
+  
+  
+  def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
+    """Reference position relative to current root position in root frame."""
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    com = data.subtree_com[0] # root body index
     
+    thing = (ref_traj.position[time_steps] - com) # correct as position?
+    obs = self.global_vector_to_local_frame(data, thing)
+    return jp.concatenate([o.flatten() for o in obs])
+
+
+  def get_reference_rel_joints(self, data, ref_traj, frame):
+    """Observation of the reference joints relative to walker."""
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    
+    qpos_ref = ref_traj.joints[frame, :]
+    diff = (qpos_ref[time_steps] - data.qpos[7:]) # not sure if correct?
+    
+    # what would be a  equivalents of this?
+    # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
+    return diff.flatten()
+  
+  
+  def get_reference_appendages_pos(self, ref_traj, frame):
+    """Reference appendage positions in reference frame, not relative."""
+
+    time_steps = frame + jp.arange(self._ref_traj_length)
+    return ref_traj.appendages[time_steps].flatten()
