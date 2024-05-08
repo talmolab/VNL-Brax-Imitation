@@ -182,6 +182,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'rapp': zero,
         'rquat': zero,
         'ract': zero,
+        'x_position': zero,
         'y_position': zero,
         'distance_from_origin': zero,
         'x_velocity': zero,
