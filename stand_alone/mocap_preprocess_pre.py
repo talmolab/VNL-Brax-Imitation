@@ -1,4 +1,5 @@
 """Preprocessing for embedding motion capture/dannce data."""
+
 import dm_control
 import h5py
 from dm_control.locomotion.walkers import rodent
@@ -19,19 +20,21 @@ from jax import numpy as jp
 from flax import struct
 from walker import Rat
 from typing import Any
+
+
 def start(
-        stac_path: Text,
-        save_file: Text,
-        scale_factor: float = 0.9,
-        start_step: int = 0,
-        clip_length: int = 250,
-        n_steps: int = None,
-        max_qvel: float = 20.0,
-        dt: float = 0.02,
-        adjust_z_offset: float = 0.0,
-        verbatim: bool = False,
-        ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
-    ):
+    stac_path: Text,
+    save_file: Text,
+    scale_factor: float = 0.9,
+    start_step: int = 0,
+    clip_length: int = 250,
+    n_steps: int = None,
+    max_qvel: float = 20.0,
+    dt: float = 0.02,
+    adjust_z_offset: float = 0.0,
+    verbatim: bool = False,
+    ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+):
     """Summary
 
     Args:
@@ -49,7 +52,7 @@ def start(
     with open(stac_path, "rb") as file:
         d = pickle.load(file)
         mocap_qpos = np.array(d["qpos"])
-    
+
     # load rodent mjcf
     walker = Rat(foot_mods=False)
     rescale.rescale_subtree(
@@ -67,9 +70,7 @@ def start(
     with h5py.File(save_file, "w") as file:
         for start_step in range(0, n_steps, clip_length):
             print(f"start_step: {start_step}", flush=True)
-            end_step = np.min(
-                [start_step + clip_length + max_reference_index, n_steps]
-            )
+            end_step = np.min([start_step + clip_length + max_reference_index, n_steps])
             mocap_features = get_mocap_features(
                 mocap_qpos[start_step:end_step, :],
                 walker,
@@ -83,7 +84,9 @@ def start(
             mocap_features["scaling"] = np.array([])
             mocap_features["markers"] = np.array([])
             save_features(file, mocap_features, f"clip_{start_step}")
-            save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
+            save_dataclass_pickle(
+                f"{save_file[:-3]}_clip_{start_step}.p", mocap_features
+            )
 
 
 def get_mocap_features(
@@ -164,14 +167,18 @@ def get_mocap_features(
             position_shift=shift_position,
             rotation_shift=shift_rotation,
         )
-        freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+        freejoint = walker.mjcf_model.find(
+            "joint", "root"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
         root_pos = physics.bind(freejoint).qpos[:3].copy()
         mocap_features["position"].append(root_pos)
         root_quat = physics.bind(freejoint).qpos[3:].copy()
         mocap_features["quaternion"].append(root_quat)
         joints = np.array(physics.bind(walker.mocap_joints).qpos)
         mocap_features["joints"].append(joints)
-        freejoint_frame = walker.mjcf_model.find("body", 'torso') # mjcf.get_attachment_frame(walker.mjcf_model)
+        freejoint_frame = walker.mjcf_model.find(
+            "body", "torso"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model)
         com = np.array(physics.bind(freejoint_frame).subtree_com)
         mocap_features["center_of_mass"].append(com)
         end_effectors = np.copy(
@@ -266,7 +273,9 @@ def set_walker(
         quat = tr.euler_to_quat(euler, ordering="ZYX")
         qpos[3:7] = quat
     qpos[:3] += offset
-    freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+    freejoint = walker.mjcf_model.find(
+        "joint", "root"
+    )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
     physics.bind(freejoint).qpos = qpos[:7]
     physics.bind(freejoint).qvel = qvel[:6]
     physics.bind(walker.mocap_joints).qpos = qpos[7:]
@@ -306,7 +315,7 @@ def compute_velocity_from_kinematics(
 
 # 13 features
 @struct.dataclass
-class ReferenceClip():
+class ReferenceClip:
     angular_velocity: jp.ndarray
     appendages: jp.ndarray
     body_positions: jp.ndarray
@@ -330,9 +339,11 @@ class ReferenceClip():
         leaves = jax.tree_leaves(self)
         flat_arrays = [leaf.ravel() for leaf in leaves]
         return jp.concatenate(flat_arrays)
-    
+
+
 def save_dataclass_pickle(pickle_path, mocap_features):
     n_steps = len(mocap_features["center_of_mass"])
+
     def f(v):
         if len(jp.array(v).shape) == 3:
             v = np.transpose(v, (1, 2, 0))
@@ -341,9 +352,10 @@ def save_dataclass_pickle(pickle_path, mocap_features):
             return jp.swapaxes(v, 0, 1)
         else:
             return v
+
     data = ReferenceClip(**mocap_features)
     data = jax.tree_map(f, data)
-    with open(pickle_path, 'wb') as f:
+    with open(pickle_path, "wb") as f:
         pickle.dump(data, f)
 
 

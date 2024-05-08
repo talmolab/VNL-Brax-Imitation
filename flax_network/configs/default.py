@@ -16,15 +16,15 @@ import ml_collections
 
 
 def get_config():
-  """Get the default hyperparameter configuration."""
-  config = ml_collections.ConfigDict()
+    """Get the default hyperparameter configuration."""
+    config = ml_collections.ConfigDict()
 
-  config.learning_rate = 0.1
-  config.momentum = 0.9
-  config.batch_size = 4096
-  config.num_epochs = 5000
-  return config
+    config.learning_rate = 0.1
+    config.momentum = 0.9
+    config.batch_size = 4096
+    config.num_epochs = 5000
+    return config
 
 
 def metrics():
-  return []
+    return []
