@@ -121,7 +121,8 @@ def create_logger(name, project, config, notes=None):
   return wandb.init(name=name, project=project, config=config, notes=notes)
 
 def train_and_evaluate(
-    config: ml_collections.ConfigDict
+    config: ml_collections.ConfigDict,
+    train_ds, test_ds
 ) -> train_state.TrainState:
   """Execute model training and evaluation loop.
 
@@ -132,7 +133,6 @@ def train_and_evaluate(
   Returns:
     The train state (which includes the `.params`).
   """
-  train_ds, test_ds = get_datasets()
   rng = jax.random.key(0)
 
   run = create_logger("flax_test", "flax_train", config.to_dict(), "added last layer of stochasicity")
