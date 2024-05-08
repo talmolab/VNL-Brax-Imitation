@@ -398,7 +398,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
     #time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
-    thing = (ref_traj.body_positions - data.xpos[self.body_idxs])
+    thing = (ref_traj.body_positions - data.xpos[self._body_idxs])
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
@@ -411,7 +411,7 @@ class RodentSingleClipTrack(PipelineEnv):
     """Observation of the reference bodies relative to walker, global frame directly"""
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
-    diff = (ref_traj.body_positions - data.xpos[self.body_idxs])[:, self.body_idxs]
+    diff = (ref_traj.body_positions - data.xpos[self._body_idxs])[:, self._body_idxs]
     
     return diff.flatten()
   
