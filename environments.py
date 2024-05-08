@@ -405,8 +405,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
-    time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
-    thing = (ref_traj.body_positions[time_steps] - data.xpos[self.body_idxs])
+    thing = (ref_traj.body_positions - data.xpos[self.body_idxs])
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
@@ -418,19 +417,17 @@ class RodentSingleClipTrack(PipelineEnv):
   def get_reference_rel_bodies_pos_global(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker, global frame directly"""
 
-    time_steps = frame + jp.arange(self._ref_traj_length)
-    diff = (ref_traj.body_positions[time_steps] - data.xpos[self.body_idxs])[:, self.body_idxs]
+    diff = (ref_traj.body_positions - data.xpos[self.body_idxs])[:, self.body_idxs]
     
     return diff.flatten()
   
 
   def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
     """Reference position relative to current root position in root frame."""
-    time_steps = frame + jp.arange(self._ref_traj_length)
     com = data.subtree_com[0] # root body index
     
-    thing = (ref_traj.position[time_steps] - com) # correct as position?
-    obs = self.global_vector_to_local_frame(data, thing)
+    diff = (ref_traj.position - com) # correct as position?
+    obs = self.global_vector_to_local_frame(data, diff)
     return jp.concatenate([o.flatten() for o in obs])
 
 
@@ -438,14 +435,14 @@ class RodentSingleClipTrack(PipelineEnv):
     """Observation of the reference joints relative to walker."""
     time_steps = frame + jp.arange(self._ref_traj_length)
     
-    qpos_ref = ref_traj.joints
-    diff = (qpos_ref[time_steps] - data.qpos[7:]) 
+    # qpos_ref = ref_traj.joints[frame, :]
+    # diff = (qpos_ref[time_steps] - data.qpos[7:]) # not sure if correct?
 
-    # qpos_ref = jp.hstack([ref_traj.position[frame, :],
-    #                       ref_traj.quaternion[frame, :],
-    #                       ref_traj.joints[frame, :],
-    #                       ])
-    # diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
+    qpos_ref = jp.hstack([ref_traj.position[frame, :],
+                          ref_traj.quaternion[frame, :],
+                          ref_traj.joints[frame, :],
+                          ])
+    diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
     
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
@@ -454,6 +451,4 @@ class RodentSingleClipTrack(PipelineEnv):
   
   def get_reference_appendages_pos(self, ref_traj, frame):
     """Reference appendage positions in reference frame, not relative."""
-
-    time_steps = frame + jp.arange(self._ref_traj_length)
-    return ref_traj.appendages[time_steps].flatten()
+    return ref_traj.appendages.flatten()
