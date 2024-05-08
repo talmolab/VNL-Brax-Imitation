@@ -219,7 +219,7 @@ class RodentSingleClipTrack(PipelineEnv):
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
 
-    done = termination_error > self._termination_threshold
+    done = int(termination_error > self._termination_threshold)
 
     state.metrics.update(
         rcom=rcom,
