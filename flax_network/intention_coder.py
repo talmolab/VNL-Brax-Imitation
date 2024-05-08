@@ -11,8 +11,8 @@ import wandb
 
 class Encoder(nn.Module):
     """
-    Encoder that maps the sensory input to the intention
-    latent space.
+    Encoder that maps the reference encoder to the intention
+    latent space. This is for the imitation learning
     """
 
     latents: int
