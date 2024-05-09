@@ -9,7 +9,6 @@ from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
 import mujoco
-import moviepy
 import imageio
 
 from environments import RodentSingleClipTrack
