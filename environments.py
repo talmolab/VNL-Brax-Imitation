@@ -265,8 +265,12 @@ class RodentSingleClipTrack(PipelineEnv):
     info['cur_frame'] += 1
     info['episode_frame'] += 1
 
-    done = termination_error > self._termination_threshold or \
-           info['episode_frame'] > self._episode_length
+    # done = termination_error > self._termination_threshold or \
+    #        info['episode_frame'] > self._episode_length
+    done = jp.any(
+      jax.lax.gt(termination_error, self._termination_threshold),
+      jax.lax.gt(info['episode_frame'], self._episode_length)
+    )
     done = jp.array(done, float)
 
     state.metrics.update(
