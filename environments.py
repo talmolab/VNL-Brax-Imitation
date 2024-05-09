@@ -146,8 +146,7 @@ class RodentSingleClipTrack(PipelineEnv):
   def reset(self, rng) -> State:
     """
     Resets the environment to an initial state.
-    TODO: Must reset this to the start of a trajectory (set the appropriate qpos)
-    Can still add a small amt of noise (qpos + epsilon) for randomization purposes
+    TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
     """
     rng, subkey = jax.random.split(rng)
     
@@ -173,10 +172,10 @@ class RodentSingleClipTrack(PipelineEnv):
       self._ref_traj.angular_velocity[start_frame, :],
       self._ref_traj.joints_velocity[start_frame, :],
     ])
-    data = self.pipeline_init(qpos, qvel) # jp.zeros(self.sys.nv) 
-
+    data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
+      "episode_frame": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -187,6 +186,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'rapp': zero,
         'rquat': zero,
         'ract': zero,
+        'healthy_time': zero,
+        'termination_error': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -219,8 +220,7 @@ class RodentSingleClipTrack(PipelineEnv):
       self._ref_traj.angular_velocity[start_frame, :],
       self._ref_traj.joints_velocity[start_frame, :],
     ])
-    data = self.pipeline_init(qpos, qvel) # jp.zeros(self.sys.nv) 
-
+    data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
       "episode_frame": 0
@@ -234,6 +234,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'rapp': zero,
         'rquat': zero,
         'ract': zero,
+        'healthy_time': zero,
+        'termination_error': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -263,18 +265,18 @@ class RodentSingleClipTrack(PipelineEnv):
     info['cur_frame'] += 1
     info['episode_frame'] += 1
 
-    # TODO: track "healthy reward" in wandb
     done = termination_error > self._termination_threshold or \
            info['episode_frame'] > self._episode_length
     done = jp.array(done, float)
 
     state.metrics.update(
-        total_reward=total_reward,
         rcom=rcom,
         rvel=rvel,
         rapp=rapp,
         rquat=rquat,
         ract=ract,
+        healthy_time=info['episode_frame'],
+        termination_error=termination_error
     )
     
     return state.replace(

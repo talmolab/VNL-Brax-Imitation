@@ -108,24 +108,30 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     env = envs.get_environment(config["env_name"], params=params)
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
-
-    # mjxdata is a pytree so i can vectorize? batch dim = frames. what opteration do i concat same pytrees together?
-    def body_fun(carry, _):
-        state, rollout, act_rng = carry
+    rollout = [state.pipeline_state]
+    act_rng = jax.random.PRNGKey(0)
+    for _ in range(env._clip_length - env._ref_traj_length):
         ctrl = jit_inference_fn(state.obs, act_rng)
         state = jit_step(state, ctrl)
-        act_rng = jax.random.split(act_rng)[0]  # Update random key for next step
-        return (state, act_rng, state.pipeline_state), None
+        rollout.append(state.pipeline_state)
+        
+    # # mjxdata is a pytree so i can vectorize? batch dim = frames. what opteration do i concat same pytrees together?
+    # def body_fun(carry, _):
+    #     state, rollout, act_rng = carry
+    #     ctrl = jit_inference_fn(state.obs, act_rng)
+    #     state = jit_step(state, ctrl)
+    #     act_rng = jax.random.split(act_rng)[0]  # Update random key for next step
+    #     return (state, act_rng, state.pipeline_state), None
 
-    # Initial state for scan
-    init_state = env.reset_to_frame(0)
+    # # Initial state for scan
+    # init_state = env.reset_to_frame(0)
 
-    # Scan over a dummy range (doesn't matter for the logic)
-    rollout, _ = jax.lax.scan(
-        body_fun, 
-        (init_state, jp.array([state.pipeline_state]), jax.random.PRNGKey(0)), 
-        jp.arange(env._clip_length - env._ref_traj_length)
-    )
+    # # Scan over a dummy range (doesn't matter for the logic)
+    # rollout, _ = jax.lax.scan(
+    #     body_fun, 
+    #     (init_state, jp.array([state.pipeline_state]), jax.random.PRNGKey(0)), 
+    #     jp.arange(env._clip_length - env._ref_traj_length)
+    # )
 
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
