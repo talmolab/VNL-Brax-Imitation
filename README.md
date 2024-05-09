@@ -9,6 +9,7 @@ setup:
 - optax
 - dmcontrol
 - h5py
+- moviepy
   
 ## Current Progress (05/8/2024)
 #### Preprocessing

@@ -5,7 +5,9 @@
 *.h5
 
 .brax-imitation
+# Training files
 wandb/
+model_checkpoints/
 # Cluster scripts
 scripts/
 *.out
