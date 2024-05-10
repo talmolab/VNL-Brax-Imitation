@@ -100,7 +100,7 @@ def make_intention_policy(
     traj_size: int,  # the size of the intended trajectory
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
     encoder_layer_sizes: Sequence[int] = (1024, 1024),
-    decoder_layer_sizes: Sequence[int] = (1024,),
+    decoder_layer_sizes: Sequence[int] = (1024, 1024),
 ) -> IntentionNetwork:
     """Creates an intention policy network."""
 
