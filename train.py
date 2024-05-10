@@ -8,6 +8,7 @@ from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
 from environments import RodentSingleClipTrack
+from ppo_imitation import train
 
 import warnings
 
@@ -63,8 +64,10 @@ params = {
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
 env = envs.get_environment(config["env_name"], params=params)
 
+
+# Inject our custom network factory here.
 train_fn = functools.partial(
-    ppo.train,
+    train,
     num_timesteps=config["num_timesteps"],
     num_evals=int(config["num_timesteps"] / config["eval_every"]),
     reward_scaling=1,

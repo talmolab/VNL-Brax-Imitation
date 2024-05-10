@@ -3,6 +3,9 @@ from flax.training import train_state
 import jax
 from jax import random
 import jax.numpy as jnp
+from brax.training import distribution, networks
+
+from typing import Any, Callable, Sequence, Tuple
 import ml_collections
 import numpy as np
 import optax
@@ -15,7 +18,8 @@ class Encoder(nn.Module):
     latent space. This is for the imitation learning
     """
 
-    latents: int
+    intention_size: int
+    hidden_layer_size: int
 
     @nn.compact
     def __call__(self, x):
@@ -29,11 +33,15 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     """VAE Decoder."""
 
+    latents: int
+    observationSpace: int
+    actionSpace: int
+
     @nn.compact
     def __call__(self, z):
         z = nn.Dense(15, name="dec1")(z)
         z = nn.relu(z)
-        mean_z = nn.Dense(10, name="dec2_mean_est")(z)
+        mean_z = nn.Dense(self.actionSpace, name="dec2_mean_est")(z)
         return mean_z
 
 
@@ -54,6 +62,9 @@ class IntentionMapper(nn.Module):
 
 
 def reparameterize(rng, mean, logvar):
+    """
+    sample from the stochastic output
+    """
     std = jnp.exp(0.5 * logvar)
     eps = random.normal(rng, logvar.shape)
     return mean + eps * std

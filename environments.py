@@ -326,7 +326,23 @@ class RodentSingleClipTrack(PipelineEnv):
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """
-        Gets reference trajectory obs along with env state obs
+        Gets state obs
+        """
+        return jp.concatenate(
+            [
+                # put the traj obs first
+                data.qpos,
+                data.qvel,
+                # added second order info
+                data.cinert[1:].ravel(),
+                data.cvel[1:].ravel(),
+                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
+            ]
+        )
+
+    def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
+        """
+        Gets reference trajectory
         """
         # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
         # Then transform it before returning with the rest of the obs
@@ -346,7 +362,6 @@ class RodentSingleClipTrack(PipelineEnv):
             return jp.array([])
 
         ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-        # ref_traj_flat = ref_traj.flatten_attributes()
 
         # now being a local variable
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
@@ -362,21 +377,12 @@ class RodentSingleClipTrack(PipelineEnv):
             ref_traj, info["cur_frame"] + 1
         )
 
-        # TODO: end effectors pos and appendages pos are two different features?
-        end_effectors = data.xpos[self._end_eff_idx].flatten()
-
         return jp.concatenate(
             [
-                # put the traj obs first
                 reference_rel_bodies_pos_local,
                 reference_rel_root_pos_local,
                 reference_rel_joints,
                 reference_appendages,
-                end_effectors,
-                data.qpos,
-                data.qvel,
-                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
-                end_effectors,
             ]
         )
 
