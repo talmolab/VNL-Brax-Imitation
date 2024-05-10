@@ -77,7 +77,7 @@ def make_intention_ppo_networks(
     action_size: int,
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
     encoder_layer_sizes: Sequence[int] = (1024, 1024),
-    decoder_layer_sizes: Sequence[int] = (1024),
+    decoder_layer_sizes: Sequence[int] = (1024, 1024),
     value_hidden_layer_sizes: Sequence[int] = (256,) * 5,
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
