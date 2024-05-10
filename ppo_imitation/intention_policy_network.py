@@ -19,10 +19,10 @@ from flax import linen as nn
 
 class Encoder(nn.Module):
     layer_sizes: Sequence[int]
+    latents: int  # intention size
     activation: networks.ActivationFn = nn.tanh
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
     bias: bool = True
-    latents: int
 
     @nn.compact
     def __call__(self, x: jnp.ndarray):
@@ -100,7 +100,7 @@ def make_intention_policy(
     traj_size: int,  # the size of the intended trajectory
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
     encoder_layer_sizes: Sequence[int] = (1024, 1024),
-    decoder_layer_sizes: Sequence[int] = (1024),
+    decoder_layer_sizes: Sequence[int] = (1024,),
 ) -> IntentionNetwork:
     """Creates an intention policy network."""
 
@@ -116,7 +116,7 @@ def make_intention_policy(
 
     dummy_obs = jnp.zeros((1, obs_size))
     dummy_traj = jnp.zeros((1, traj_size))
-    
+
     return networks.FeedForwardNetwork(
         init=lambda key: policy_module.init(key, dummy_obs, dummy_traj), apply=apply
     )

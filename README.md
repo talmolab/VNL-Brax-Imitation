@@ -9,7 +9,31 @@ setup:
 - optax
 - dmcontrol
 - h5py
-  
+
+## Modification Made
+1. Explicitly separated the observation and trajectory
+2. Modified the `ppo.train` and `IntentionNetwork` as our encoder decoder structure
+
+
+## Objective:
+
+1. Train a encoder decoder network for the imitation learning.
+
+I should start with simple algorithm such as trajectory cloning. I don't know how to apply RL algorithm at this low-level skill train such as PPO.
+
+According to the CoMic Paper:
+
+> We use a reward that compares
+the current pose of the humanoid to the target pose from
+the motion capture reference (see section 4) and maximize
+the sum of discounted rewards using V-MPO (Song et al.,
+2020), an on-policy variant of Maximum a Posteriori Policy Optimization (Abdolmaleki et al., 2018).
+
+
+
+---
+
+> Belows are the progress from Kevin's branch.
 ## Current Progress (04/23/2024)
 Below is the current progress in each of the files. Bear in mind that our implementation needs to be fully compatible with jax, since much of the logic will be jitted. This means using jax.numpy (jnp) instead of numpy, and making sure there are no side-effects in our functions so they can be jitted properly. Read through the quickstart pages in the jax documentation [here](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html). However, some initial setup stuff that dmcontrol/mjcf would help with could work!
 

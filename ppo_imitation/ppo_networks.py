@@ -13,6 +13,7 @@ from brax.training import networks
 from brax.training import types
 from brax.training import distribution
 from brax.training.networks import MLP
+
 # import brax.training.agents.ppo.networks as ppo_networks
 from brax.training.types import PRNGKey
 
@@ -23,8 +24,8 @@ from jax import random
 import flax
 from flax import linen as nn
 
-import intention_policy_network as ipn
-from intention_policy_network import IntentionNetwork
+from . import intention_policy_network as ipn
+from .intention_policy_network import IntentionNetwork
 
 
 @flax.struct.dataclass
@@ -85,6 +86,7 @@ def make_intention_ppo_networks(
     )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
+        latent_size=64,  # TODO Hard coded for now
         traj_size=traj_size,
         obs_size=observation_size,
         preprocess_observations_fn=preprocess_observations_fn,

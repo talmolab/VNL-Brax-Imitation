@@ -8,7 +8,7 @@ from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
 from environments import RodentSingleClipTrack
-from ppo_imitation import train
+from ppo_imitation.train import train
 
 import warnings
 
@@ -52,7 +52,7 @@ params = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    "clip_path": "12_22_1_250_clip_0.p",
+    "clip_path": "data/12_22_1_250_clip_0.p",
     "end_eff_names": [
         "foot_L",
         "foot_R",
@@ -94,8 +94,7 @@ model_path = f"./model_checkpoints/{run_id}"
 run = wandb.init(
     project="VNL_SingleClipImitationPPO",
     config=config,
-    notes=f"{config['batch_size']} batchsize, "
-    + f"{config['solver']}, {config['iterations']}/{config['ls_iterations']}",
+    notes=f"Explicitly separate the",
 )
 
 wandb.run.name = (

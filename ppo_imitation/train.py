@@ -31,6 +31,7 @@ from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
 from brax.training.agents.ppo import losses as ppo_losses
+
 # we inject our custom network
 # from brax.training.agents.ppo import networks as ppo_networks\
 from brax.training.types import Params
@@ -42,7 +43,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-import ppo_networks
+from . import ppo_networks
 
 
 InferenceParams = Tuple[running_statistics.NestedMeanStd, Params]
@@ -238,7 +239,10 @@ def train(
         normalize = running_statistics.normalize
     # TODO Traj size
     ppo_network = network_factory(
-        env_state.obs.shape[-1], env.action_size, preprocess_observations_fn=normalize
+        env_state.info["traj"].shape[-1],
+        env_state.obs.shape[-1],
+        env.action_size,
+        preprocess_observations_fn=normalize,
     )
 
     make_policy = ppo_networks.make_inference_fn(ppo_network)
