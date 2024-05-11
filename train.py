@@ -4,7 +4,7 @@ from typing import Dict
 import wandb
 
 from brax import envs
-from brax.training.agents.ppo import train as ppo
+from ppo_imitation.train import train
 from brax.io import model
 
 from environments import RodentSingleClipTrack
@@ -45,12 +45,20 @@ config = {
     "ls_iterations": 3,
 }
 
+# # Preprocess step
+# import mocap_preprocess as mp
+# data_path = "/n/home05/charleszhang/stac-mjx/transform_snips.p"
+# clip_paths = mp.process(data_path, 
+#          "transform_snips_250.h5", 
+#          n_steps=250,
+#          ref_steps=(1,2,3,4,5))
+
 params = {
     "scale_factor": .9,
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    "clip_path": "12_22_1_250_clip_0.p",
+    "clip_path": "12_21_1_250_clip_0.p",
     "end_eff_names": [
         "foot_L",
         "foot_R",
@@ -63,7 +71,7 @@ envs.register_environment(config["env_name"], RodentSingleClipTrack)
 env = envs.get_environment(config["env_name"], params = params)
 
 train_fn = functools.partial(
-    ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
+    train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
     reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
     unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
     discounting=0.99, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
@@ -91,7 +99,7 @@ def wandb_progress(num_steps, metrics):
 def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     os.makedirs(model_path, exist_ok=True)
     model.save_params(f"{model_path}/{num_steps}", params)
-    
+
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn)
 
 final_save_path = f"{model_path}/finished_mlp"

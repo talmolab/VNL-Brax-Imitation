@@ -128,7 +128,6 @@ class RodentSingleClipTrack(PipelineEnv):
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    # self._ref_traj = unpack_clip(params["clip_path"])
     self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
 
@@ -143,7 +142,7 @@ class RodentSingleClipTrack(PipelineEnv):
     """
     Resets the environment to an initial state.
     TODO: Must reset this to the start of a trajectory (set the appropriate qpos)
-    Can still add a small amt of noise (qpos + epsilon) for randomization purposes
+    TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
     """
     rng, subkey = jax.random.split(rng)
     
@@ -152,12 +151,6 @@ class RodentSingleClipTrack(PipelineEnv):
       subkey, (), 0, 
       self._clip_length - self._episode_length - self._ref_traj_length
     )
-
-    # qpos = position + quaternion + joints
-    # pos = self._ref_traj.position[:, start_frame]
-    # quat = self._ref_traj.quaternion[:, start_frame]
-    # joints = self._ref_traj.joints[:, start_frame]
-    # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -173,6 +166,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     info = {
       "cur_frame": start_frame,
+      "episode_frame": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -187,6 +181,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'distance_from_origin': zero,
         'x_velocity': zero,
         'y_velocity': zero,
+        'healthy_time': zero,
+        'termination_error': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -219,8 +215,15 @@ class RodentSingleClipTrack(PipelineEnv):
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
 
-    done = termination_error > self._termination_threshold
-    done = jp.array(done, float)
+    # done = termination_error > self._termination_threshold
+    # done = jp.array(done, float)
+
+    done = jp.where(
+      (termination_error > self._termination_threshold) | 
+      (info['episode_frame'] > self._episode_length), 
+      jp.array(1, float),
+      jp.array(0, float)
+      )
 
     state.metrics.update(
         rcom=rcom,
@@ -233,6 +236,8 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
+        healthy_time=info['episode_frame'],
+        termination_error=termination_error
     )
     
     return state.replace(
@@ -351,7 +356,6 @@ class RodentSingleClipTrack(PipelineEnv):
     reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
     reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
 
-    
     # TODO: end effectors pos and appendages pos are two different features?
     end_effectors = data.xpos[self._end_eff_idx].flatten()
 
@@ -369,6 +373,52 @@ class RodentSingleClipTrack(PipelineEnv):
         end_effectors,
     ])
   
+  def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
+        """
+        Gets reference trajectory
+        """
+        # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
+        # Then transform it before returning with the rest of the obs
+
+        # info is currently a global variable
+        # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+        # ref_traj = jp.hstack(ref_traj)
+
+        # slicing function apply outside of data class
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    info["cur_frame"] + 1,
+                    self._ref_traj_length,
+                )
+            return jp.array([])
+
+        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+
+        # now being a local variable
+        reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
+            data, ref_traj, info["cur_frame"] + 1
+        )
+        reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
+            data, ref_traj, info["cur_frame"] + 1
+        )
+        reference_rel_joints = self.get_reference_rel_joints(
+            data, ref_traj, info["cur_frame"] + 1
+        )
+        reference_appendages = self.get_reference_appendages_pos(
+            ref_traj, info["cur_frame"] + 1
+        )
+
+        return jp.concatenate(
+            [
+                reference_rel_bodies_pos_local,
+                reference_rel_root_pos_local,
+                reference_rel_joints,
+                reference_appendages,
+            ]
+        )
+
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
     """Linearly transforms a world-frame vector into entity's local frame.
 
