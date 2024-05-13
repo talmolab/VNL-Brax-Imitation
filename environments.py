@@ -99,7 +99,7 @@ class RodentSingleClipTrack(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(0.01, 0.5),
+      healthy_z_range=(0.09, 4.5),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
@@ -265,6 +265,11 @@ class RodentSingleClipTrack(PipelineEnv):
 
     # done = termination_error > self._termination_threshold
     # done = jp.array(done, float)
+
+    min_z, max_z = self._healthy_z_range
+    is_healthy = jp.where(data.q[2] < min_z, 0.0, 1.0)
+    is_healthy = jp.where(data.q[2] > max_z, 0.0, is_healthy)
+    done = 1.0 - is_healthy if self._terminate_when_unhealthy else 0.0
 
     done = jp.where(
       (termination_error > self._termination_threshold) | 
