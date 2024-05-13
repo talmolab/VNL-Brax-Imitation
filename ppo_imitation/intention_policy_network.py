@@ -35,7 +35,7 @@ class Encoder(nn.Module):
                 kernel_init=self.kernel_init,
                 use_bias=self.bias,
             )(x)
-            x = nn.LayerNorm(x)
+            x = nn.LayerNorm()(x)
             x = self.activation(x)
 
         mean_x = nn.Dense(self.latents, name="fc2_mean")(x)
@@ -80,13 +80,15 @@ class IntentionNetwork(nn.Module):
     def setup(self):
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
+        
 
     def __call__(self, traj, obs):
+        """Construct the policy network that takes two inputs"""
         encoder_rng, decoder_rng = self.make_rng("encoder"), self.make_rng("decoder")
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action_mean = self.decoder(z.cat(obs))
+        action_mean = self.decoder(jnp.concatenate([z, obs], axis=1))
         action_sample = reparameterize(
             decoder_rng, action_mean, jnp.ones_like(action_mean)
         )
@@ -111,12 +113,14 @@ def make_intention_policy(
     )
 
     def apply(processor_params, policy_params, traj, obs):
+        obs = jnp.concatenate([traj, obs], axis=1)
         obs = preprocess_observations_fn(obs, processor_params)
         return policy_module.apply(policy_params, traj=traj, obs=obs)
 
+    # create dummy observation for size hinting
     dummy_obs = jnp.zeros((1, obs_size))
     dummy_traj = jnp.zeros((1, traj_size))
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, dummy_obs, dummy_traj), apply=apply
+        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs), apply=apply
     )

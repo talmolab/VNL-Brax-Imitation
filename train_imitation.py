@@ -1,4 +1,6 @@
 import functools
+import brax.training
+import brax.training.acting
 import jax
 from typing import Dict
 import wandb
@@ -11,6 +13,47 @@ from environments import RodentSingleClipTrack
 from ppo_imitation.train import train
 
 import warnings
+
+## duck tape
+
+from typing import Sequence, Tuple, Union
+import brax
+from brax import envs
+from brax.training.types import Policy
+from brax.training.types import PRNGKey
+from brax.training.types import Transition
+from brax.v1 import envs as envs_v1
+import jax
+import numpy as np
+
+State = Union[envs.State, envs_v1.State]
+Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
+
+
+def actor_step(
+    env: Env,
+    env_state: State,
+    policy: Policy,
+    key: PRNGKey,
+    extra_fields: Sequence[str] = (),
+) -> Tuple[State, Transition]:
+    """Collect data."""
+    actions, policy_extras = policy(env_state.obs, env_state.info["traj"], key)
+    nstate = env.step(env_state, actions)
+    state_extras = {x: nstate.info[x] for x in extra_fields}
+    return nstate, Transition(  # pytype: disable=wrong-arg-types  # jax-ndarray
+        observation=env_state.obs,
+        action=actions,
+        reward=nstate.reward,
+        discount=1 - nstate.done,
+        next_observation=nstate.obs,
+        extras={"policy_extras": policy_extras, "state_extras": state_extras},
+    )
+
+
+brax.training.acting.actor_step = actor_step
+
+# END TAPE
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -72,7 +115,7 @@ train_fn = functools.partial(
     num_evals=int(config["num_timesteps"] / config["eval_every"]),
     reward_scaling=1,
     episode_length=config["episode_length"],
-    normalize_observations=True,
+    normalize_observations=False, # temporary change to false
     action_repeat=1,
     unroll_length=10,
     num_minibatches=64,
