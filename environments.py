@@ -278,7 +278,7 @@ class RodentSingleClipTrack(PipelineEnv):
         rapp=rapp,
         rquat=rquat,
         ract=ract,
-        healthy_time=info['episode_frame'],
+        healthy_time=jp.array(info['episode_frame'], float),
         termination_error=termination_error
     )
     
