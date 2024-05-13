@@ -1,21 +1,3 @@
-# Copyright 2024 The Brax Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Proximal policy optimization training.
-
-See: https://arxiv.org/pdf/1707.06347.pdf
-"""
-
 from typing import Any, Tuple
 
 from brax.training import types
@@ -36,9 +18,9 @@ class PPONetworkParams:
   value: Params
 
 
-
 # @jax.vmap
 def kl_divergence(mean, logvar):
+  '''kl_divergence for latent space regularization'''
   return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
 
 
@@ -114,7 +96,7 @@ def compute_ppo_loss_vae(
     gae_lambda: float = 0.95,
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True) -> Tuple[jnp.ndarray, types.Metrics]:
-  """Computes PPO loss.
+  """Computes PPO loss. stochatsic suffled data update
 
   Args:
     params: Network parameters,
@@ -139,14 +121,15 @@ def compute_ppo_loss_vae(
   value_apply = ppo_network.value_network.apply
 
   # Put the time dimension first.
+  # data is dynamically passed in to update, in a mini batch fashion
   data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
-  policy_logits, mean, logvar = policy_apply(normalizer_params, params.policy,
-                               data.observation)
 
-  baseline = value_apply(normalizer_params, params.value, data.observation)
+  policy_logits, mean, logvar = policy_apply(normalizer_params, params.policy, data.observation)
 
-  bootstrap_value = value_apply(normalizer_params, params.value,
-                                data.next_observation[-1])
+  baseline = value_apply(normalizer_params, params.value, data.observation) # current prediction
+
+  # smart move from brax, value network direclty bootstrap one instance
+  bootstrap_value = value_apply(normalizer_params, params.value, data.next_observation[-1])
 
   rewards = data.reward * reward_scaling
   truncation = data.extras['state_extras']['truncation']
@@ -164,6 +147,7 @@ def compute_ppo_loss_vae(
       bootstrap_value=bootstrap_value,
       lambda_=gae_lambda,
       discount=discounting)
+  
   if normalize_advantage:
     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
   rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)

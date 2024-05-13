@@ -12,7 +12,7 @@ from brax.training.acme import running_statistics
 from brax.training.acme import specs
 # from brax.training.agents.ppo import losses as ppo_losses
 # from brax.training.agents.ppo import networks as ppo_networks
-import losses as ppo_losses
+import ppo_imitation.intention_losses as ppo_losses
 import networks_factory as ppo_networks
 from brax.training.types import Params
 from brax.training.types import PRNGKey
@@ -291,7 +291,7 @@ def train(
     training_state, state, key = carry
     key_sgd, key_generate_unroll, new_key = jax.random.split(key, 3)
 
-    # make policy
+    # make policy to act with
     policy = make_policy((training_state.normalizer_params, training_state.params.policy))
 
     def f(carry, unused_t):

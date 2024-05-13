@@ -373,51 +373,51 @@ class RodentSingleClipTrack(PipelineEnv):
         end_effectors,
     ])
   
-  def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
-        """
-        Gets reference trajectory
-        """
-        # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
-        # Then transform it before returning with the rest of the obs
+  # def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
+  #       """
+  #       Gets reference trajectory
+  #       """
+  #       # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
+  #       # Then transform it before returning with the rest of the obs
 
-        # info is currently a global variable
-        # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-        # ref_traj = jp.hstack(ref_traj)
+  #       # info is currently a global variable
+  #       # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+  #       # ref_traj = jp.hstack(ref_traj)
 
-        # slicing function apply outside of data class
-        def f(x):
-            if len(x.shape) != 1:
-                return jax.lax.dynamic_slice_in_dim(
-                    x,
-                    info["cur_frame"] + 1,
-                    self._ref_traj_length,
-                )
-            return jp.array([])
+  #       # slicing function apply outside of data class
+  #       def f(x):
+  #           if len(x.shape) != 1:
+  #               return jax.lax.dynamic_slice_in_dim(
+  #                   x,
+  #                   info["cur_frame"] + 1,
+  #                   self._ref_traj_length,
+  #               )
+  #           return jp.array([])
 
-        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+  #       ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
 
-        # now being a local variable
-        reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
-            data, ref_traj, info["cur_frame"] + 1
-        )
-        reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
-            data, ref_traj, info["cur_frame"] + 1
-        )
-        reference_rel_joints = self.get_reference_rel_joints(
-            data, ref_traj, info["cur_frame"] + 1
-        )
-        reference_appendages = self.get_reference_appendages_pos(
-            ref_traj, info["cur_frame"] + 1
-        )
+  #       # now being a local variable
+  #       reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
+  #           data, ref_traj, info["cur_frame"] + 1
+  #       )
+  #       reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
+  #           data, ref_traj, info["cur_frame"] + 1
+  #       )
+  #       reference_rel_joints = self.get_reference_rel_joints(
+  #           data, ref_traj, info["cur_frame"] + 1
+  #       )
+  #       reference_appendages = self.get_reference_appendages_pos(
+  #           ref_traj, info["cur_frame"] + 1
+  #       )
 
-        return jp.concatenate(
-            [
-                reference_rel_bodies_pos_local,
-                reference_rel_root_pos_local,
-                reference_rel_joints,
-                reference_appendages,
-            ]
-        )
+  #       return jp.concatenate(
+  #           [
+  #               reference_rel_bodies_pos_local,
+  #               reference_rel_root_pos_local,
+  #               reference_rel_joints,
+  #               reference_appendages,
+  #           ]
+  #       )
 
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
     """Linearly transforms a world-frame vector into entity's local frame.

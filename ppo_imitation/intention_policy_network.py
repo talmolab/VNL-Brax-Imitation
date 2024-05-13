@@ -85,6 +85,7 @@ class IntentionNetwork(nn.Module):
 
     def __call__(self, traj, obs):
         encoder_rng, decoder_rng = self.make_rng("encoder"), self.make_rng("decoder")
+        
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
