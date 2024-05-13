@@ -259,7 +259,7 @@ class RodentSingleClipTrack(PipelineEnv):
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
-    info = state.info.copy()
+    info = state.info #.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
     info['episode_frame'] += 1
@@ -299,7 +299,7 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
-        healthy_time=jp.array(info['episode_frame'], float),
+        healthy_time=jp.array(info['episode_frame'], float), # episode frame did not reset to zero, it sky rocks cumulatively
         termination_error=termination_error
     )
     
