@@ -194,6 +194,54 @@ class RodentSingleClipTrack(PipelineEnv):
     state = state.replace(info=info)
     
     return state
+  
+  def reset_to_frame(self, start_frame) -> State:
+    """
+    Resets the environment to the initial frame
+    """
+    # qpos = position + quaternion + joints
+    # pos = self._ref_traj.position[:, start_frame]
+    # quat = self._ref_traj.quaternion[:, start_frame]
+    # joints = self._ref_traj.joints[:, start_frame]
+    # qpos = jp.concatenate((pos, quat, joints))
+    
+    qpos = jp.hstack([
+      self._ref_traj.position[start_frame, :],
+      self._ref_traj.quaternion[start_frame, :],
+      self._ref_traj.joints[start_frame, :],
+    ])
+    qvel = jp.hstack([
+      self._ref_traj.velocity[start_frame, :],
+      self._ref_traj.angular_velocity[start_frame, :],
+      self._ref_traj.joints_velocity[start_frame, :],
+    ])
+    data = self.pipeline_init(qpos, qvel)
+    info = {
+      "cur_frame": start_frame,
+      "episode_frame": 0
+    }
+    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+    reward, done, zero = jp.zeros(3)
+    metrics = {
+        'total_reward': zero,
+        'rcom': zero,
+        'rvel': zero,
+        'rapp': zero,
+        'rquat': zero,
+        'ract': zero,
+        'healthy_time': zero,
+        'termination_error': zero
+    }
+
+    state = State(data, obs, reward, done, metrics, info)
+    termination_error = self._calculate_termination(state)
+    info['termination_error'] = termination_error
+    # if termination_error > 3e-2:
+    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
+    #                     'This is likely due to a proto/walker mismatch.'))
+    state = state.replace(info=info)
+    
+    return state
 
   def step(self, state: State, action: jp.ndarray) -> State:
     """Runs one timestep of the environment's dynamics."""
