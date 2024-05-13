@@ -76,15 +76,19 @@ class IntentionNetwork(nn.Module):
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
+    # length of traj
+    # traj = obs[:traj], env_obs = obs[traj:] # style like this?
 
     def setup(self):
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
-        
 
     def __call__(self, traj, obs):
+        key = jax.random.PRNGKey(0)
         """Construct the policy network that takes two inputs"""
-        encoder_rng, decoder_rng = self.make_rng("encoder"), self.make_rng("decoder")
+        key, encoder_rng, decoder_rng = jax.random.split(
+            key, 3
+        )  # not sure whether this is the correct way
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
@@ -113,7 +117,6 @@ def make_intention_policy(
     )
 
     def apply(processor_params, policy_params, traj, obs):
-        obs = jnp.concatenate([traj, obs], axis=1)
         obs = preprocess_observations_fn(obs, processor_params)
         return policy_module.apply(policy_params, traj=traj, obs=obs)
 
@@ -122,5 +125,6 @@ def make_intention_policy(
     dummy_traj = jnp.zeros((1, traj_size))
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs), apply=apply
+        init=lambda key: policy_module.init(key, traj=dummy_traj, obs=dummy_obs),
+        apply=apply,
     )

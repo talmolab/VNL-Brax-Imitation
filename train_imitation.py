@@ -38,7 +38,7 @@ def actor_step(
     extra_fields: Sequence[str] = (),
 ) -> Tuple[State, Transition]:
     """Collect data."""
-    actions, policy_extras = policy(env_state.obs, env_state.info["traj"], key)
+    actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
     nstate = env.step(env_state, actions)
     state_extras = {x: nstate.info[x] for x in extra_fields}
     return nstate, Transition(  # pytype: disable=wrong-arg-types  # jax-ndarray
@@ -115,7 +115,7 @@ train_fn = functools.partial(
     num_evals=int(config["num_timesteps"] / config["eval_every"]),
     reward_scaling=1,
     episode_length=config["episode_length"],
-    normalize_observations=False, # temporary change to false
+    normalize_observations=True, # temporary change to false
     action_repeat=1,
     unroll_length=10,
     num_minibatches=64,

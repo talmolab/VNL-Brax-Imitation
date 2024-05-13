@@ -187,11 +187,12 @@ class RodentSingleClipTrack(PipelineEnv):
             "rquat": zero,
             "ract": zero,
             "y_position": zero,
+            "x_position": zero,
             "distance_from_origin": zero,
             "x_velocity": zero,
             "y_velocity": zero,
         }
-
+        done = done == 1
         state = State(data, obs, reward, done, metrics, info)
         termination_error = self._calculate_termination(state)
         info["termination_error"] = termination_error
@@ -214,7 +215,6 @@ class RodentSingleClipTrack(PipelineEnv):
         obs = self._get_obs(data, action, state.info)
         rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
         total_reward = rcom + rvel + rapp + rquat + ract
-        traj = self._get_traj(data, action, info)
 
         termination_error = self._calculate_termination(state)
 
@@ -222,7 +222,7 @@ class RodentSingleClipTrack(PipelineEnv):
         info = state.info.copy()
         info["termination_error"] = termination_error
         info["cur_frame"] += 1
-        info["traj"] = traj
+        info["traj"] = self._get_traj(data, action, info)
 
         done = termination_error > self._termination_threshold
 

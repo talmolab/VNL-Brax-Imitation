@@ -228,12 +228,10 @@ def train(
         action_repeat=action_repeat,
         randomization_fn=v_randomization_fn,
     )
-
     reset_fn = jax.jit(jax.vmap(env.reset))
     key_envs = jax.random.split(key_env, num_envs // process_count)
     key_envs = jnp.reshape(key_envs, (local_devices_to_use, -1) + key_envs.shape[1:])
     env_state = reset_fn(key_envs)
-
     normalize = lambda x, y: x
     if normalize_observations:
         normalize = running_statistics.normalize
@@ -311,6 +309,8 @@ def train(
 
         def f(carry, unused_t):
             current_state, current_key = carry
+            # WHY?
+            current_state.info['truncation'] = current_state.info['truncation'].astype(jnp.float32)
             current_key, next_key = jax.random.split(current_key)
             next_state, data = acting.generate_unroll(
                 env,
@@ -360,6 +360,7 @@ def train(
     def training_epoch(
         training_state: TrainingState, state: envs.State, key: PRNGKey
     ) -> Tuple[TrainingState, envs.State, Metrics]:
+        state.info['truncation'] = state.info['truncation'].astype(jnp.float32)
         (training_state, state, _), loss_metrics = jax.lax.scan(
             training_step,
             (training_state, state, key),
@@ -378,6 +379,7 @@ def train(
         nonlocal training_walltime
         t = time.time()
         training_state, env_state = _strip_weak_type((training_state, env_state))
+        env_state.info['truncation'] = env_state.info['truncation'].astype(jnp.float32)
         result = training_epoch(training_state, env_state, key)
         training_state, env_state, metrics = _strip_weak_type(result)
 
