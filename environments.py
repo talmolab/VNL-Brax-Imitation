@@ -104,7 +104,7 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.3,
+      termination_threshold: float=.8,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -266,16 +266,17 @@ class RodentSingleClipTrack(PipelineEnv):
     # done = termination_error > self._termination_threshold
     # done = jp.array(done, float)
 
-    min_z, max_z = self._healthy_z_range
-    is_healthy = jp.where(data.q[2] < min_z,
-                          jp.array(1, float),
-                          jp.array(0, float))
+    # shouldn't need this
+    # min_z, max_z = self._healthy_z_range
+    # is_healthy = jp.where(data.q[2] < min_z,
+    #                       jp.array(1, float),
+    #                       jp.array(0, float))
     
-    is_healthy = jp.where(data.q[2] > max_z,
-                          jp.array(0, float),
-                          is_healthy)
+    # is_healthy = jp.where(data.q[2] > max_z,
+    #                       jp.array(0, float),
+    #                       is_healthy)
     
-    done = 1.0 - is_healthy
+    # done = 1.0 - is_healthy
 
     done = jp.where(
       (termination_error > self._termination_threshold) | 
