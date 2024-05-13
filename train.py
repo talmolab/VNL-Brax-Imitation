@@ -4,7 +4,8 @@ from typing import Dict
 import wandb
 
 from brax import envs
-from ppo_imitation.train import train
+# from ppo_imitation.train import train
+from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
 from environments import RodentSingleClipTrack
@@ -13,6 +14,9 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 import os
+
+import mujoco
+import imageio
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
 
@@ -53,7 +57,7 @@ config = {
 #          n_steps=250,
 #          ref_steps=(1,2,3,4,5))
 
-params = {
+env_params = {
     "scale_factor": .9,
     "solver": "cg",
     "iterations": 6,
@@ -68,7 +72,7 @@ params = {
 }
 
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
-env = envs.get_environment(config["env_name"], params = params)
+env = envs.get_environment(config["env_name"], params = env_params)
 
 train_fn = functools.partial(
     train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
@@ -96,9 +100,38 @@ def wandb_progress(num_steps, metrics):
     metrics["num_steps"] = num_steps
     wandb.log(metrics)
     
+# def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
+#     os.makedirs(model_path, exist_ok=True)
+#     model.save_params(f"{model_path}/{num_steps}", params)
+
+# TODO: make the rollout into a scan (or call brax's rollout fn?)
 def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     os.makedirs(model_path, exist_ok=True)
     model.save_params(f"{model_path}/{num_steps}", params)
+    # print(params)
+    # rollout starting from frame 0
+    jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
+    env = envs.get_environment(config["env_name"], params=env_params)
+    jit_step = jax.jit(env.step)
+    state = env.reset_to_frame(0)
+    rollout = [state.pipeline_state]
+    act_rng = jax.random.PRNGKey(0)
+    for _ in range(env._clip_length - env._ref_traj_length):
+        ctrl, _ = jit_inference_fn(state.obs, act_rng)
+        # print(ctrl)
+        state = jit_step(state, ctrl)
+        rollout.append(state.pipeline_state)
+
+# save rendering and log to wandb
+    os.environ["MUJOCO_GL"] = "osmesa"
+
+    video_path = f"{model_path}/{num_steps}.mp4"
+    with imageio.get_writer(video_path, fps=50.0) as video:
+        imgs = env.render(rollout, camera='close_profile', height=512, width=512)
+        for im in imgs:
+            video.append_data(im)
+
+    wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
 make_inference_fn, params, _ = train_fn(environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn)
 

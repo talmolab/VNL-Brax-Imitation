@@ -236,7 +236,7 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
-        healthy_time=info['episode_frame'],
+        healthy_time=jp.array(info['episode_frame'], float),
         termination_error=termination_error
     )
     
