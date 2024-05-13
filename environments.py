@@ -104,7 +104,7 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=0.3,
+      termination_threshold: float=0.5,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -262,6 +262,7 @@ class RodentSingleClipTrack(PipelineEnv):
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
+    info['episode_frame'] += 1
 
     # done = termination_error > self._termination_threshold
     # done = jp.array(done, float)
@@ -278,6 +279,8 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # done = 1.0 - is_healthy
 
+    # 1 if the error is greater, correct
+    # this changes seems to be crucial? termination error is an array
     done = jp.where(
       (termination_error > self._termination_threshold) | 
       (info['episode_frame'] > self._episode_length), 
