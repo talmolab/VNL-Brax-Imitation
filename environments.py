@@ -267,9 +267,15 @@ class RodentSingleClipTrack(PipelineEnv):
     # done = jp.array(done, float)
 
     min_z, max_z = self._healthy_z_range
-    is_healthy = jp.where(data.q[2] < min_z, 0.0, 1.0)
-    is_healthy = jp.where(data.q[2] > max_z, 0.0, is_healthy)
-    done = 1.0 - is_healthy if self._terminate_when_unhealthy else 0.0
+    is_healthy = jp.where(data.q[2] < min_z,
+                          jp.array(1, float),
+                          jp.array(0, float))
+    
+    is_healthy = jp.where(data.q[2] > max_z,
+                          jp.array(0, float),
+                          is_healthy)
+    
+    done = 1.0 - is_healthy
 
     done = jp.where(
       (termination_error > self._termination_threshold) | 
