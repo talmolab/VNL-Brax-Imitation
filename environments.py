@@ -144,6 +144,8 @@ class RodentSingleClipTrack(PipelineEnv):
     TODO: Must reset this to the start of a trajectory (set the appropriate qpos)
     TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
     """
+
+    print('env been reset')
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
