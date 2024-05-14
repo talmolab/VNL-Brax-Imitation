@@ -49,13 +49,13 @@ config = {
     "ls_iterations": 3,
 }
 
-# Preprocess step
-import mocap_preprocess as mp
-data_path = "all_snips.p"
-clip_paths = mp.process(data_path, 
-         "all_snips_250_clip_500.p", 
-         n_steps=750,
-         ref_steps=(1,2,3,4,5))
+# # Preprocess step
+# import mocap_preprocess as mp
+# data_path = "all_snips.p"
+# clip_paths = mp.process(data_path, 
+#          "all_snips_250_clip_500.p", 
+#          n_steps=750,
+#          ref_steps=(1,2,3,4,5))
 
 env_params = {
     "scale_factor": .9,
