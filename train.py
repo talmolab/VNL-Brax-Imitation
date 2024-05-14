@@ -79,7 +79,7 @@ train_fn = functools.partial(
     reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
     unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
     discounting=0.99, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
-    batch_size=config["batch_size"], seed=100
+    batch_size=config["batch_size"], seed=123
 )
 
 import uuid

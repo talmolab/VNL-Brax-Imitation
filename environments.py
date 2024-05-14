@@ -281,11 +281,12 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # done = 1.0 - is_healthy
 
-    # 1 if the error is greater, correct
+    # 0 is don't terminate, if the error is greater -> give 1
     # this changes seems to be crucial? termination error is an array
     done = jp.where(
-      (termination_error > self._termination_threshold) | 
-      (info['episode_frame'] > self._episode_length), 
+      ((termination_error > self._termination_threshold) | 
+      (info['episode_frame'] > self._episode_length)) &
+      self._terminate_when_unhealthy, 
       jp.array(1, float),
       jp.array(0, float)
       )
@@ -301,7 +302,7 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
-        healthy_time=jp.array(info['episode_frame'], float), # episode frame did not reset to zero, it sky rocks cumulatively
+        healthy_time=jp.array(info['episode_frame'], float), # episode frame did reset to zero, env did not reset
         termination_error=termination_error
     )
     
