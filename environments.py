@@ -193,7 +193,7 @@ class RodentSingleClipTrack(PipelineEnv):
     #                     'This is likely due to a proto/walker mismatch.'))
     state = state.replace(info=info)
 
-    print(f'env been reset: {state.info['episode_frame']}')
+    print(f'env been reset: {state.info}')
     
     return state
   
