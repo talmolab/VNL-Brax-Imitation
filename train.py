@@ -62,7 +62,7 @@ env_params = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    "clip_path": clip_paths[0], #"12_21_1_250_clip_0.p",
+    "clip_path": "all_snips_250_clip_500.p",
     "end_eff_names": [
         "foot_L",
         "foot_R",
