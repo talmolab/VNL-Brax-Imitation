@@ -166,7 +166,8 @@ class RodentSingleClipTrack(PipelineEnv):
 
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0
+      "episode_frame": 0,
+      "step_in_one_reset": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -182,7 +183,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
         'healthy_time': zero,
-        'termination_error': zero
+        'termination_error': zero,
+        'reset_correct': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -220,7 +222,8 @@ class RodentSingleClipTrack(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0
+      "episode_frame": 0,
+      "step_in_one_reset": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -232,7 +235,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
-        'termination_error': zero
+        'termination_error': zero,
+        'reset_correct': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -264,7 +268,8 @@ class RodentSingleClipTrack(PipelineEnv):
     info = state.info #.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
-    info['episode_frame'] += 1
+    # info['episode_frame'] += 1
+    info['step_in_one_reset'] += 1
 
     # done = termination_error > self._termination_threshold
     # done = jp.array(done, float)
@@ -284,8 +289,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # 0 is don't terminate, if the error is greater -> give 1
     # this changes seems to be crucial? termination error is an array
     done = jp.where(
-      (termination_error > self._termination_threshold) &
-      # (info['episode_frame'] > self._episode_length)) &
+      ((termination_error > self._termination_threshold) |
+      (info['episode_frame'] > self._episode_length)) &
       self._terminate_when_unhealthy, 
       jp.array(1, float),
       jp.array(0, float)
@@ -303,7 +308,8 @@ class RodentSingleClipTrack(PipelineEnv):
         x_velocity=velocity[0],
         y_velocity=velocity[1],
         healthy_time=jp.array(info['episode_frame'], float), # episode frame did reset to zero, env did not reset
-        termination_error=termination_error
+        termination_error=termination_error,
+        reset_correct = jp.array(info['step_in_one_reset', float])
     )
     
     return state.replace(
