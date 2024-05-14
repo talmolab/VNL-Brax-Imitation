@@ -307,9 +307,9 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
-        healthy_time=jp.array(info['episode_frame'], float), # episode frame did reset to zero, env did not reset
+        healthy_time=jp.array(info['step_in_one_reset'], float), # episode frame did reset to zero, env did not reset
         termination_error=termination_error,
-        reset_correct = jp.array(info['step_in_one_reset', float])
+        reset_correct = jp.array(info['step_in_one_reset'], float)
     )
     
     return state.replace(
