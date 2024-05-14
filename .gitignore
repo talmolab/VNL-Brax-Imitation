@@ -1,8 +1,8 @@
 # STAC data files
-*.p
+all_snips.p
 
 # h5 files
-12_21_1_250_clip_0.h5
+*.h5
 
 .brax-imitation
 
