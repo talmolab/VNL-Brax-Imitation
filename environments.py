@@ -284,8 +284,8 @@ class RodentSingleClipTrack(PipelineEnv):
     # 0 is don't terminate, if the error is greater -> give 1
     # this changes seems to be crucial? termination error is an array
     done = jp.where(
-      ((termination_error > self._termination_threshold) | 
-      (info['episode_frame'] > self._episode_length)) &
+      (termination_error > self._termination_threshold) &
+      # (info['episode_frame'] > self._episode_length)) &
       self._terminate_when_unhealthy, 
       jp.array(1, float),
       jp.array(0, float)
