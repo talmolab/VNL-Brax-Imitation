@@ -66,10 +66,10 @@ def process(
     jax_paths = []
     max_reference_index = np.max(ref_steps) + 1
     with h5py.File(save_file, "w") as file:
-        for start_step in range(0, n_steps, clip_length):
+        for start_step in range(start_step, start_step + n_steps, clip_length):
             print(f"start_step: {start_step}", flush=True)
             end_step = np.min(
-                [start_step + clip_length + max_reference_index, n_steps]
+                [start_step + clip_length + max_reference_index, start_step + n_steps]
             )
             mocap_features = get_mocap_features(
                 mocap_qpos[start_step:end_step, :],

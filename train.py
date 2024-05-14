@@ -51,6 +51,7 @@ data_path = "/n/home05/charleszhang/stac-mjx/transform_snips.p"
 clip_paths = mp.process(data_path, 
          "transform_snips_250.h5", 
          n_steps=250,
+         start_step=750,
          ref_steps=(1,2,3,4,5))
 
 
@@ -69,7 +70,7 @@ env_params = {
 }
 
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
-env = envs.get_environment(config["env_name"], params=env_params)
+env = envs.get_environment(config["env_name"], params=env_params, termination_threshold=.3)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
