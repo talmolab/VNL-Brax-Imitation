@@ -104,7 +104,7 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=0.5,
+      termination_threshold: float=0.1,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -166,8 +166,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
-      "step_in_one_reset": 0
+      "step_after_reset": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -183,8 +182,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'x_velocity': zero,
         'y_velocity': zero,
         'healthy_time': zero,
-        'termination_error': zero,
-        'reset_correct': zero
+        'termination_error': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -195,7 +193,7 @@ class RodentSingleClipTrack(PipelineEnv):
     #                     'This is likely due to a proto/walker mismatch.'))
     state = state.replace(info=info)
 
-    print(f'env been reset: {state.info}')
+    # print(f'env been reset: {state.info}')
     
     return state
   
@@ -222,8 +220,7 @@ class RodentSingleClipTrack(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
-      "step_in_one_reset": 0
+      "step_after_reset": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -235,8 +232,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
-        'termination_error': zero,
-        'reset_correct': zero
+        'termination_error': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -265,11 +261,10 @@ class RodentSingleClipTrack(PipelineEnv):
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
-    info = state.info #.copy()
+    info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
-    # info['episode_frame'] += 1
-    info['step_in_one_reset'] += 1
+    info['step_after_reset'] += 1
 
     # done = termination_error > self._termination_threshold
     # done = jp.array(done, float)
@@ -288,13 +283,18 @@ class RodentSingleClipTrack(PipelineEnv):
 
     # 0 is don't terminate, if the error is greater -> give 1
     # this changes seems to be crucial? termination error is an array
-    done = jp.where(
-      ((termination_error > self._termination_threshold) |
-      (info['episode_frame'] > self._episode_length)) &
-      self._terminate_when_unhealthy, 
-      jp.array(1, float),
-      jp.array(0, float)
-      )
+    one = jp.array(1, float)
+    zero = jp.array(0, float)
+    
+    # done = jp.where(
+    #   ((termination_error > self._termination_threshold) |
+    #   (info['episode_frame'] > self._episode_length)) &
+    #   self._terminate_when_unhealthy, 
+    #   one,
+    #   zero
+    #   )
+    
+    done = one
 
     state.metrics.update(
         rcom=rcom,
@@ -307,9 +307,8 @@ class RodentSingleClipTrack(PipelineEnv):
         distance_from_origin=jp.linalg.norm(com_after),
         x_velocity=velocity[0],
         y_velocity=velocity[1],
-        healthy_time=jp.array(info['step_in_one_reset'], float), # episode frame did reset to zero, env did not reset
-        termination_error=termination_error,
-        reset_correct = jp.array(info['step_in_one_reset'], float)
+        healthy_time=jp.array(info['step_after_reset'], float), # episode frame did reset to zero, env did not reset
+        termination_error=termination_error
     )
     
     return state.replace(
