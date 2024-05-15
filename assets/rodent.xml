@@ -156,10 +156,10 @@
     </default>
   
     <worldbody>
-      <geom name="floor" class="collision_floor" pos="0 0 -0.005" size="10 10 0.025" type="plane" material="grid"/>
+      <!-- <geom name="floor" class="collision_floor" pos="0 0 -0.005" size="10 10 0.025" type="plane" material="grid"/> -->
       <light name="spotlight" mode="targetbody" target="torso"/>
       <body name="torso" pos="0.03099526054578288 2.058524937651458e-07 0.06808957263119967">
-        <freejoint name="root"/>
+        <!-- <freejoint name="root"/> -->
         <light name="tracking_light" mode="targetbodycom" pos="0 0 3"/>
         <camera name="back" mode="targetbody" pos="-1 0 0.5" xyaxes="0 -1 0 1 0 2"/>
         <camera name="side" mode="targetbody" pos="0 -3 1" xyaxes="1 0 0 0 1 2"/>
