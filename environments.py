@@ -431,15 +431,14 @@ class RodentSingleClipTrack(PipelineEnv):
     return jp.concatenate([
       # put the traj obs first
         reference_rel_bodies_pos_local,
-        reference_rel_bodies_pos_global,
-        reference_rel_root_pos_local,
-        reference_rel_joints,
-        reference_appendages,
-        end_effectors,
+        # reference_rel_bodies_pos_global,
+        # reference_rel_root_pos_local,
+        # reference_rel_joints,
+        # reference_appendages,
+        # end_effectors,
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        end_effectors,
     ])
   
   # def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
@@ -501,6 +500,8 @@ class RodentSingleClipTrack(PipelineEnv):
     
     Returns the resulting vector, converting to ego-centric frame
     """
+
+
     # [0] is the root_body index
     xmat = jp.reshape(data.xmat[0], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
@@ -508,6 +509,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     # Each element in xmat is a 3x3 matrix that describes the rotation of a body relative to the global coordinate frame, so 
     # use rotation matrix to dot the vectors in the world frame, transform basis
+    
     if vec_in_world_frame.shape[-1] == 2:
       return jp.dot(vec_in_world_frame, xmat[:2, :2])
     elif vec_in_world_frame.shape[-1] == 3:
@@ -529,7 +531,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
-      thing[:, self.body_idxs]
+      thing #[:, self.body_idxs]
     )
     return jp.concatenate([o.flatten() for o in obs])
 
