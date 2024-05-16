@@ -104,7 +104,7 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=0.3, # strct error threshold
+      termination_threshold: float=0.021, # strct error threshold
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
