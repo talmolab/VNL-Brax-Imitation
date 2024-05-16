@@ -104,7 +104,7 @@ class RodentSingleClipTrack(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=0.2, # strct error threshold
+      termination_threshold: float=0.3, # strct error threshold
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -286,10 +286,16 @@ class RodentSingleClipTrack(PipelineEnv):
     one = jp.array(1, float)
     zero = jp.array(0, float)
     
+    # done = jp.where(
+    #   ((termination_error > self._termination_threshold) |
+    #   (info['step_after_reset'] > self._episode_length)) &
+    #   self._terminate_when_unhealthy, 
+    #   one,
+    #   zero
+    #   )
+    
     done = jp.where(
-      ((termination_error > self._termination_threshold) |
-      (info['step_after_reset'] > self._episode_length)) &
-      self._terminate_when_unhealthy, 
+      termination_error > self._termination_threshold,
       one,
       zero
       )
@@ -347,7 +353,7 @@ class RodentSingleClipTrack(PipelineEnv):
     
   def _calculate_reward(self, state, action):
     """
-    calculates the tracking reward:
+    calculates the tracking reward (some sort of gaussian radial basis function tracking distance):
     1. rcom: comparing center of mass
     2. rvel: comparing joint angle velcoity
     3. rquat: comprae joint angle position
@@ -432,7 +438,7 @@ class RodentSingleClipTrack(PipelineEnv):
       # put the traj obs first
         reference_rel_bodies_pos_local,
         # reference_rel_bodies_pos_global,
-        # reference_rel_root_pos_local,
+        reference_rel_root_pos_local,
         # reference_rel_joints,
         # reference_appendages,
         # end_effectors,
