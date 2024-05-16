@@ -286,15 +286,13 @@ class RodentSingleClipTrack(PipelineEnv):
     one = jp.array(1, float)
     zero = jp.array(0, float)
     
-    # done = jp.where(
-    #   ((termination_error > self._termination_threshold) |
-    #   (info['episode_frame'] > self._episode_length)) &
-    #   self._terminate_when_unhealthy, 
-    #   one,
-    #   zero
-    #   )
-    
-    done = one
+    done = jp.where(
+      ((termination_error > self._termination_threshold) |
+      (info['episode_frame'] > self._episode_length)) &
+      self._terminate_when_unhealthy, 
+      one,
+      zero
+      )
 
     state.metrics.update(
         rcom=rcom,
