@@ -286,19 +286,19 @@ class RodentSingleClipTrack(PipelineEnv):
     one = jp.array(1, float)
     zero = jp.array(0, float)
     
-    # done = jp.where(
-    #   ((termination_error > self._termination_threshold) |
-    #   (info['step_after_reset'] > self._episode_length)) &
-    #   self._terminate_when_unhealthy, 
-    #   one,
-    #   zero
-    #   )
-    
     done = jp.where(
-      termination_error > self._termination_threshold,
+      ((termination_error > self._termination_threshold) |
+      (info['step_after_reset'] > self._episode_length)) &
+      self._terminate_when_unhealthy, 
       one,
       zero
       )
+    
+    # done = jp.where(
+    #   termination_error > self._termination_threshold,
+    #   one,
+    #   zero
+    #   )
 
     state.metrics.update(
         rcom=rcom,
@@ -370,21 +370,24 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
     # joint angle velocity
-    qvel_c = data_c.qvel
-    qvel_ref = jp.hstack([
-      self._ref_traj.velocity[state.info['cur_frame'], :],
-      self._ref_traj.angular_velocity[state.info['cur_frame'], :],
-      self._ref_traj.joints_velocity[state.info['cur_frame'], :],
-    ])
+    qvel_c = data_c.qvel[7:]
+    # qvel_ref = jp.hstack([
+    #   self._ref_traj.velocity[state.info['cur_frame'], :],
+    #   self._ref_traj.angular_velocity[state.info['cur_frame'], :],
+    #   self._ref_traj.joints_velocity[state.info['cur_frame'], :],
+    # ])
+    qvel_ref = self._ref_traj.joints_velocity[state.info['cur_frame'], :]
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
     # joint angle posiotion
-    qpos_c = data_c.qpos
-    qpos_ref = jp.hstack([
-      self._ref_traj.position[state.info['cur_frame'], :],
-      self._ref_traj.quaternion[state.info['cur_frame'], :],
-      self._ref_traj.joints[state.info['cur_frame'], :],
-    ])
+    qpos_c = data_c.qpos[7:]
+    # qpos_ref = jp.hstack([
+    #   self._ref_traj.position[state.info['cur_frame'], :],
+    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
+    #   self._ref_traj.joints[state.info['cur_frame'], :],
+    # ])
+
+    qpos_ref = self._ref_traj.joints[state.info['cur_frame'], :]
     rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
     # control force from actions
