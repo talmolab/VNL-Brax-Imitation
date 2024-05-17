@@ -370,7 +370,7 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
     # joint angle velocity
-    qvel_c = data_c.qvel[7:]
+    qvel_c = data_c.qvel[6:]
     # qvel_ref = jp.hstack([
     #   self._ref_traj.velocity[state.info['cur_frame'], :],
     #   self._ref_traj.angular_velocity[state.info['cur_frame'], :],
