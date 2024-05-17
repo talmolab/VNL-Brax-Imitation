@@ -362,6 +362,8 @@ class RodentSingleClipTrack(PipelineEnv):
     Args:
         state (_type_): _description_
     """
+    # TODO: is the slicing here really legit for good comparison?
+
     data_c = state.pipeline_state
 
     # location using com (dim=3)
@@ -370,24 +372,25 @@ class RodentSingleClipTrack(PipelineEnv):
     rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
 
     # joint angle velocity
-    qvel_c = data_c.qvel[6:]
-    # qvel_ref = jp.hstack([
-    #   self._ref_traj.velocity[state.info['cur_frame'], :],
-    #   self._ref_traj.angular_velocity[state.info['cur_frame'], :],
-    #   self._ref_traj.joints_velocity[state.info['cur_frame'], :],
-    # ])
-    qvel_ref = self._ref_traj.joints_velocity[state.info['cur_frame'], :]
+    qvel_c = data_c.qvel #[6:]
+    qvel_ref = jp.hstack([
+      self._ref_traj.velocity[state.info['cur_frame'], :],
+      self._ref_traj.angular_velocity[state.info['cur_frame'], :],
+      self._ref_traj.joints_velocity[state.info['cur_frame'], :],
+    ])
+
+    # qvel_ref = self._ref_traj.joints_velocity[state.info['cur_frame'], :]
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
     # joint angle posiotion
-    qpos_c = data_c.qpos[7:]
-    # qpos_ref = jp.hstack([
-    #   self._ref_traj.position[state.info['cur_frame'], :],
-    #   self._ref_traj.quaternion[state.info['cur_frame'], :],
-    #   self._ref_traj.joints[state.info['cur_frame'], :],
-    # ])
+    qpos_c = data_c.qpos #[7:]
+    qpos_ref = jp.hstack([
+      self._ref_traj.position[state.info['cur_frame'], :],
+      self._ref_traj.quaternion[state.info['cur_frame'], :],
+      self._ref_traj.joints[state.info['cur_frame'], :],
+    ])
 
-    qpos_ref = self._ref_traj.joints[state.info['cur_frame'], :]
+    # qpos_ref = self._ref_traj.joints[state.info['cur_frame'], :]
     rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
     # control force from actions
@@ -427,27 +430,30 @@ class RodentSingleClipTrack(PipelineEnv):
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
     # ref_traj_flat = ref_traj.flatten_attributes()
     
-    # now being a local variable
+    # local reference variable
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
     reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
 
-    # TODO: end effectors pos and appendages pos are two different features?
+    # agent's data
     end_effectors = data.xpos[self._end_eff_idx].flatten()
+    velocity = data.qvel
+    position = data.qpos
+    ac_force =  data.qfrc_actuator # Actuator force <==> joint torque sensor?
 
     return jp.concatenate([
       # put the traj obs first
         reference_rel_bodies_pos_local,
-        # reference_rel_bodies_pos_global,
+        reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        # reference_rel_joints,
-        # reference_appendages,
-        # end_effectors,
-        data.qpos, 
-        data.qvel, 
-        data.qfrc_actuator, # Actuator force <==> joint torque sensor?
+        reference_rel_joints,
+        reference_appendages,
+        end_effectors,
+        velocity,
+        position,
+        ac_force,
     ])
   
   # def _get_traj(self, data: mjx.Data, action, info) -> jp.ndarray:
@@ -509,8 +515,6 @@ class RodentSingleClipTrack(PipelineEnv):
     
     Returns the resulting vector, converting to ego-centric frame
     """
-
-
     # [0] is the root_body index
     xmat = jp.reshape(data.xmat[0], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
@@ -568,6 +572,7 @@ class RodentSingleClipTrack(PipelineEnv):
     """Observation of the reference joints relative to walker."""
     #time_steps = frame + jp.arange(self._ref_traj_length)
     
+    # TODO: there might be certain order of joints? (diff[:, self._walker.mocap_to_observable_joint_order].flatten())
     qpos_ref = ref_traj.joints
     diff = (qpos_ref - data.qpos[7:]) 
 
@@ -577,8 +582,6 @@ class RodentSingleClipTrack(PipelineEnv):
     #                       ])
     # diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
     
-    # what would be a  equivalents of this?
-    # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()
   
   
