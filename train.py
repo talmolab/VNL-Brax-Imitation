@@ -39,7 +39,7 @@ config = {
     "num_envs": 2048*n_gpus,
     "num_timesteps": 100_000_000,
     "eval_every": 5_000_000,
-    "episode_length": 1000,
+    "episode_length": 150,
     "batch_size": 2048*n_gpus,
     "learning_rate": 5e-5,
     "terminate_when_unhealthy": True,

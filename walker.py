@@ -321,3 +321,8 @@ class RodentObservables(legacy_base.WalkerObservables):
                                  width=64, height=64,
                                  scene_option=self._scene_options
                                 )
+  
+  @composer.cached_property
+  def mocap_to_observable_joint_order(self):
+    mocap_to_obs = [self.mocap_joints.index(j) for j in self.observable_joints]
+    return mocap_to_obs

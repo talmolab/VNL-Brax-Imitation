@@ -89,7 +89,7 @@ def env_setup(params):
   body_idxs = jp.array(
     [walker_bodies_names.index(bdy) for bdy in walker_bodies_names]
   )
-  joints_order = walker.joint_actuator_order
+  joints_order = walker.mocap_to_observable_joint_order #joint_actuator_order
   
   return mj_model, end_eff_idx, body_idxs, joints_order
   
@@ -100,7 +100,6 @@ class RodentSingleClipTrack(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(0.01, 0.5),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
@@ -123,7 +122,6 @@ class RodentSingleClipTrack(PipelineEnv):
     super().__init__(sys, **kwargs)
     
     self._terminate_when_unhealthy = terminate_when_unhealthy
-    self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
     
     self._clip_length = clip_length
@@ -177,11 +175,6 @@ class RodentSingleClipTrack(PipelineEnv):
         'rapp': zero,
         'rquat': zero,
         'ract': zero,
-        'x_position': zero,
-        'y_position': zero,
-        'distance_from_origin': zero,
-        'x_velocity': zero,
-        'y_velocity': zero,
         'healthy_time': zero,
         'termination_error': zero
     }
@@ -276,13 +269,10 @@ class RodentSingleClipTrack(PipelineEnv):
     zero = jp.array(0, float)
     
     # more termination error, more reset, less step_after_reset
-    done = jp.where(
-      ((termination_error > self._termination_threshold) |
-      (info['step_after_reset'] > self._episode_length)) &
-      self._terminate_when_unhealthy, 
-      one,
-      zero
-      )
+    done = jp.where((termination_error > self._termination_threshold) & (self._terminate_when_unhealthy), 
+                    one,
+                    zero
+                    )
 
     state.metrics.update(
         rcom=rcom,
@@ -290,11 +280,6 @@ class RodentSingleClipTrack(PipelineEnv):
         rapp=rapp,
         rquat=rquat,
         ract=ract,
-        x_position=com_after[0],
-        y_position=com_after[1],
-        distance_from_origin=jp.linalg.norm(com_after),
-        x_velocity=velocity[0],
-        y_velocity=velocity[1],
         healthy_time=jp.array(info['step_after_reset'], float),
         termination_error=termination_error
     )
@@ -326,7 +311,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :] #(18 (spots) x 3 dimension(x,y,z))
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self.body_idxs])))
-    termination_error = (1/0.3) * (jp.linalg.norm(error_bodies) + jp.linalg.norm(error_joints))
+    termination_error = (1/0.3) * (jp.sum(jp.abs(error_bodies)) + jp.sum(jp.abs(error_joints)))
     
     # termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
@@ -503,15 +488,15 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # TODO: there are certain orders in the joints?
     
-    # qpos_ref = ref_traj.joints
-    # diff = (qpos_ref - data.qpos[7:]) 
+    qpos_ref = ref_traj.joints
+    diff = (qpos_ref - data.qpos[7:]) # shape(67) array
 
-    qpos_ref = jp.hstack([ref_traj.position,
-                          ref_traj.quaternion,
-                          ref_traj.joints,
-                          ]) # this is shape(74) array
-    
-    diff = (qpos_ref - data.qpos)
+    # stacking qpos, dm_control implemented just joints, no need stacking, just need pos (3), quaternion (4), 7 on wards.
+    # qpos_ref = jp.hstack([ref_traj.position,
+    #                       ref_traj.quaternion,
+    #                       ref_traj.joints,
+    #                       ]) # this is shape(74) array
+    # diff = (qpos_ref - data.qpos)
     
     return diff[:, self.joint_order].flatten() # this gives a shape(30) array
   
