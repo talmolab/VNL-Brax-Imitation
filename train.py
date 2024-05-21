@@ -87,7 +87,6 @@ train_fn = functools.partial(
     episode_length=config["episode_length"],
     normalize_observations=True,
     action_repeat=1,
-    unroll_length=10,
     num_minibatches=64,
     num_updates_per_batch=8,
     discounting=0.99,
