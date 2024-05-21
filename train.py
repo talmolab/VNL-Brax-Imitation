@@ -48,6 +48,7 @@ config = {
     "iterations": 6,
     "ls_iterations": 3,
     'num_eval_envs': 1,
+    'num_resets_per_eval': 1
 }
 
 # # Preprocess step
@@ -79,6 +80,7 @@ train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"],
     num_evals=int(config["num_timesteps"]/config["eval_every"]),
     num_eval_envs=config['num_eval_envs'],
+    num_resets_per_eval=config['num_resets_per_eval'],
     reward_scaling=1,
     episode_length=config["episode_length"],
     normalize_observations=True,
