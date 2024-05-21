@@ -36,17 +36,18 @@ config = {
     "env_name": "rodent_single_clip",
     "algo_name": "ppo",
     "task_name": "run",
-    "num_envs": 1, #2048*n_gpus,
+    "num_envs": 2048*n_gpus,
     "num_timesteps": 100_000_000,
     "eval_every": 5_000_000,
     "episode_length": 150,
-    "batch_size": 1, #2048*n_gpus,
+    "batch_size": 2048*n_gpus,
     "learning_rate": 5e-5,
     "terminate_when_unhealthy": True,
     "run_platform": "Salk",
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
+    'num_eval_envs': 1,
 }
 
 # # Preprocess step
@@ -75,11 +76,22 @@ envs.register_environment(config["env_name"], RodentSingleClipTrack)
 env = envs.get_environment(config["env_name"], params = env_params)
 
 train_fn = functools.partial(
-    ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
-    reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
-    unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
-    discounting=0.99, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
-    batch_size=config["batch_size"], seed=123
+    ppo.train, num_timesteps=config["num_timesteps"],
+    num_evals=int(config["num_timesteps"]/config["eval_every"]),
+    num_eval_envs=config['num_eval_envs'],
+    reward_scaling=1,
+    episode_length=config["episode_length"],
+    normalize_observations=True,
+    action_repeat=1,
+    unroll_length=10,
+    num_minibatches=64,
+    num_updates_per_batch=8,
+    discounting=0.99,
+    learning_rate=config["learning_rate"],
+    entropy_cost=1e-3,
+    num_envs=config["num_envs"],
+    batch_size=config["batch_size"],
+    seed=123
 )
 
 import uuid
