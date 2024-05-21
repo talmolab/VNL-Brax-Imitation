@@ -48,7 +48,8 @@ config = {
     "iterations": 6,
     "ls_iterations": 3,
     'num_eval_envs': 1,
-    'num_resets_per_eval': 1
+    'num_resets_per_eval': 1,
+    'unroll_length': 1,
 }
 
 # # Preprocess step
@@ -81,6 +82,7 @@ train_fn = functools.partial(
     num_evals=int(config["num_timesteps"]/config["eval_every"]),
     num_eval_envs=config['num_eval_envs'],
     num_resets_per_eval=config['num_resets_per_eval'],
+    unroll_length=config['unroll_length'],
     reward_scaling=1,
     episode_length=config["episode_length"],
     normalize_observations=True,
