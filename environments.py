@@ -181,7 +181,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     state = State(data, obs, reward, done, metrics, info)
     termination_error = self._calculate_termination(state)
-    info['termination_error'] = termination_error
+    info['termination_error_vnl'] = termination_error
     
     # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 3e-2 at initialization. '
@@ -231,7 +231,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     state = State(data, obs, reward, done, metrics, info)
     termination_error = self._calculate_termination(state)
-    info['termination_error'] = termination_error
+    info['termination_error_vnl'] = termination_error
 
     # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 3e-2 at initialization. '
@@ -259,7 +259,7 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # increment frame tracker (independent of the increment in get_obs) and update termination error
     info = state.info.copy()
-    info['termination_error'] = termination_error
+    info['termination_error_vnl'] = termination_error
     info['cur_frame'] += 1
     info['step_after_reset'] += 1
 
