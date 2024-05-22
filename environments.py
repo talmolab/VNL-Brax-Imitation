@@ -165,8 +165,12 @@ class RodentSingleClipTrack(PipelineEnv):
 
     info = {
       "cur_frame": start_frame,
-      "step_after_reset": 0
+      "step_after_reset": 0,
+      "reset_times": 0
     }
+
+    info['reset_times'] += 1
+
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
@@ -176,7 +180,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
-        'termination_error': zero
+        'termination_error': zero,
+        'reset_num': jp.array(info['reset_times'], int)
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -226,7 +231,8 @@ class RodentSingleClipTrack(PipelineEnv):
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
-        'termination_error': zero
+        'termination_error': zero,
+        'reset_num': jp.array(info['reset_times'], int)
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -278,7 +284,8 @@ class RodentSingleClipTrack(PipelineEnv):
         rquat=rquat,
         ract=ract,
         healthy_time=jp.array(info['step_after_reset'], float),
-        termination_error=termination_error
+        termination_error=termination_error,
+        reset_num=info['reset_times']
     )
     
     return state.replace(
