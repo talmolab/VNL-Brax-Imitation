@@ -285,7 +285,9 @@ class RodentSingleClipTrack(PipelineEnv):
     zero = jp.array(0, float)
     
     # more termination error, more reset, less step_after_reset
-    done = jp.where(termination_error > self._termination_threshold, one, zero)
+
+    termination_threshold = self._termination_threshold * min(reset_sum, jp.array(30, float))
+    done = jp.where(termination_error > termination_threshold, one, zero)
 
     state.metrics.update(
         rcom=rcom,
