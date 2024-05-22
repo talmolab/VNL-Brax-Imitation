@@ -169,7 +169,7 @@ class RodentSingleClipTrack(PipelineEnv):
       "reset_times": 0,
     }
 
-    info['reset_times'] += 1
+    # info['reset_times'] += 1
 
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -224,7 +224,7 @@ class RodentSingleClipTrack(PipelineEnv):
       "reset_times": 0,
     }
 
-    info['reset_times'] += 1
+    # info['reset_times'] += 1
 
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -273,9 +273,8 @@ class RodentSingleClipTrack(PipelineEnv):
 
     reset_sum = jp.array(info['reset_times'], float)
     healthy_time = jp.array((self._episode_length - reset_sum), float)
-    # termination_error = jp.array(termination_error, float)
-
     termination_error = self._calculate_termination(state) / reset_sum
+    
     info['termination_error_vnl'] = termination_error
 
     # 0 is don't terminate, if the error is greater -> give 1
@@ -287,6 +286,8 @@ class RodentSingleClipTrack(PipelineEnv):
 
     termination_threshold = self._termination_threshold
     done = jp.where(termination_error > termination_threshold, one, zero)
+    
+    info['reset_times'] += 1 if done else 0
 
     state.metrics.update(
         rcom=rcom,

@@ -47,7 +47,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    'num_eval_envs': 1,
+    'num_eval_envs': 1, # TODO: averages over eval_env?
     'num_resets_per_eval': 0, # carry over state object
     'unroll_length': 10
 }
