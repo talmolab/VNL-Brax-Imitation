@@ -49,7 +49,7 @@ config = {
     "ls_iterations": 3,
     'num_eval_envs': 1,
     'num_resets_per_eval': 1,
-    'unroll_length': 1
+    'unroll_length': 10
 }
 
 # # Preprocess step
