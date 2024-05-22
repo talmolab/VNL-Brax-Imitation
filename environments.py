@@ -148,7 +148,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # start frame minus because get_obs increment 1
     start_frame = jax.random.randint(
       subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length - 1
+      self._clip_length - self._episode_length - self._ref_traj_length #- 1
     )
     
     qpos = jp.hstack([
@@ -281,7 +281,7 @@ class RodentSingleClipTrack(PipelineEnv):
     zero = jp.array(0, float)
     
     # more termination error, more reset, less step_after_reset
-    done = jp.where(termination_error > self._termination_threshold, one, zero)
+    done = zero #jp.where(termination_error > self._termination_threshold, one, zero)
 
     state.metrics.update(
         rcom=rcom,
@@ -291,7 +291,7 @@ class RodentSingleClipTrack(PipelineEnv):
         ract=ract,
         healthy_time=jp.array(info['step_after_reset'], float),
         termination_error=termination_error,
-        reset_num=jp.array(info['reset_times'], float)
+        reset_num=jp.array(done, float) #jp.array(info['reset_times'], float)
     )
     
     return state.replace(
@@ -509,7 +509,6 @@ class RodentSingleClipTrack(PipelineEnv):
     # diff = (qpos_ref - data.qpos)
     
     return diff[:, self.joint_order].flatten() # this gives a shape(30) array
-  
   
   def get_reference_appendages_pos(self, ref_traj):
     """Reference appendage positions in reference frame, not relative."""
