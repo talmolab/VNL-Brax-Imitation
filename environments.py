@@ -173,6 +173,8 @@ class RodentSingleClipTrack(PipelineEnv):
 
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
+    
+    # zero restarts the whole thing
     metrics = {
         'rcom': zero,
         'rvel': zero,
@@ -181,7 +183,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.array(info['reset_times'], float)
+        'reset_num': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -232,7 +234,7 @@ class RodentSingleClipTrack(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.array(info['reset_times'], float)
+        'reset_num': zero
     }
 
     state = State(data, obs, reward, done, metrics, info)
