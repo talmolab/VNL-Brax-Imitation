@@ -187,7 +187,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     state = State(data, obs, reward, done, metrics, info)
     termination_error = self._calculate_termination(state)
-    info['termination_error_vnl'] = termination_error
+    # info['termination_error_vnl'] = termination_error
     
     # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 3e-2 at initialization. '
@@ -242,7 +242,7 @@ class RodentSingleClipTrack(PipelineEnv):
 
     state = State(data, obs, reward, done, metrics, info)
     termination_error = self._calculate_termination(state)
-    info['termination_error_vnl'] = termination_error
+    # info['termination_error_vnl'] = termination_error
 
     # if termination_error > 3e-2:
     #   raise ValueError(('The termination exceeds 3e-2 at initialization. '
@@ -275,7 +275,7 @@ class RodentSingleClipTrack(PipelineEnv):
     healthy_time = jp.array((self._episode_length - reset_sum), float)
     termination_error = self._calculate_termination(state) / reset_sum
     
-    info['termination_error_vnl'] = termination_error
+    # info['termination_error_vnl'] = termination_error
 
     # 0 is don't terminate, if the error is greater -> give 1
     # termination error is an array, parrallel envs
