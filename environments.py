@@ -266,17 +266,16 @@ class RodentSingleClipTrack(PipelineEnv):
 
     total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rapp + 0.01 * rquat + 0.0001 * ract
     
-    termination_error = self._calculate_termination(state)
-    
     # increment frame tracker (independent of the increment in get_obs) and update termination error
     info = state.info.copy()
     info['cur_frame'] += 1
     info['step_after_reset'] += 1
 
     reset_sum = jp.array(info['reset_times'], float)
-    healthy_time = jp.array(info['step_after_reset'], float)
+    healthy_time = jp.array((self._episode_length - reset_sum), float)
     # termination_error = jp.array(termination_error, float)
 
+    termination_error = self._calculate_termination(state) / reset_sum
     info['termination_error_vnl'] = termination_error
 
     # 0 is don't terminate, if the error is greater -> give 1
@@ -286,7 +285,7 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # more termination error, more reset, less step_after_reset
 
-    termination_threshold = reset_sum * self._termination_threshold
+    termination_threshold = self._termination_threshold
     done = jp.where(termination_error > termination_threshold, one, zero)
 
     state.metrics.update(
