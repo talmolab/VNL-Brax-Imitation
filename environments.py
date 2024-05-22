@@ -271,13 +271,14 @@ class RodentSingleClipTrack(PipelineEnv):
     
     # increment frame tracker (independent of the increment in get_obs) and update termination error
     info = state.info.copy()
-    info['termination_error_vnl'] = termination_error
     info['cur_frame'] += 1
     info['step_after_reset'] += 1
 
-    healthy_time = jp.array(info['step_after_reset']/(info['reset_times']), float)
-    termination_error = jp.array(termination_error/(info['reset_times']), float)
     reset_sum = jp.array(info['reset_times'], float)
+    healthy_time = jp.array(info['step_after_reset']/reset_sum, float)
+    termination_error = jp.array(termination_error/reset_sum, float)
+
+    info['termination_error_vnl'] = termination_error
 
     # 0 is don't terminate, if the error is greater -> give 1
     # termination error is an array, parrallel envs
