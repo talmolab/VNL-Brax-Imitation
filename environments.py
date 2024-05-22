@@ -274,8 +274,8 @@ class RodentSingleClipTrack(PipelineEnv):
     info['step_after_reset'] += 1
 
     reset_sum = jp.array(info['reset_times'], float)
-    healthy_time = jp.array(info['step_after_reset']/reset_sum, float)
-    termination_error = jp.array(termination_error/reset_sum, float)
+    healthy_time = jp.array(info['step_after_reset'], float)
+    # termination_error = jp.array(termination_error, float)
 
     info['termination_error_vnl'] = termination_error
 
