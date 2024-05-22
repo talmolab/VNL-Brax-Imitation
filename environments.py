@@ -275,9 +275,9 @@ class RodentSingleClipTrack(PipelineEnv):
     info['cur_frame'] += 1
     info['step_after_reset'] += 1
 
-    healthy_time = jp.array(info['step_after_reset']/(info['reset_times'] + done), float)
-    termination_error = jp.array(termination_error/(info['reset_times']+ done), float)
-    reset_sum = jp.array(info['reset_times'] + done, float)
+    healthy_time = jp.array(info['step_after_reset']/(info['reset_times']), float)
+    termination_error = jp.array(termination_error/(info['reset_times']), float)
+    reset_sum = jp.array(info['reset_times'], float)
 
     # 0 is don't terminate, if the error is greater -> give 1
     # termination error is an array, parrallel envs
