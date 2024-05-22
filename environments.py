@@ -285,7 +285,7 @@ class RodentSingleClipTrack(PipelineEnv):
         ract=ract,
         healthy_time=jp.array(info['step_after_reset'], float),
         termination_error=termination_error,
-        reset_num=info['reset_times']
+        reset_num=jp.array(info['reset_times'], int)
     )
     
     return state.replace(
