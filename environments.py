@@ -221,8 +221,12 @@ class RodentSingleClipTrack(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "step_after_reset": 0
+      "step_after_reset": 0,
+      "reset_times": 0,
     }
+
+    info['reset_times'] += 1
+
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
