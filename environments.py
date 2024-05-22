@@ -272,10 +272,10 @@ class RodentSingleClipTrack(PipelineEnv):
     info['step_after_reset'] += 1
 
     reset_sum = jp.array(info['reset_times'], float)
-    healthy_time = jp.array((self._episode_length - 35), float)
+    healthy_time = jp.array((self._episode_length - reset_sum), float)
     # termination_error = jp.array(termination_error, float)
 
-    termination_error = self._calculate_termination(state) / 35
+    termination_error = self._calculate_termination(state) / reset_sum
     info['termination_error_vnl'] = termination_error
 
     # 0 is don't terminate, if the error is greater -> give 1

@@ -48,7 +48,7 @@ config = {
     "iterations": 6,
     "ls_iterations": 3,
     'num_eval_envs': 1,
-    'num_resets_per_eval': 1,
+    'num_resets_per_eval': 150, #use for max number of resets
     'unroll_length': 10
 }
 
