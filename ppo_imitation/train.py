@@ -1,22 +1,3 @@
-# Copyright 2024 The Brax Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Proximal policy optimization training.
-
-See: https://arxiv.org/pdf/1707.06347.pdf
-"""
-
 import functools
 import time
 from typing import Callable, Optional, Tuple, Union
@@ -232,9 +213,11 @@ def train(
     key_envs = jax.random.split(key_env, num_envs // process_count)
     key_envs = jnp.reshape(key_envs, (local_devices_to_use, -1) + key_envs.shape[1:])
     env_state = reset_fn(key_envs)
+
     normalize = lambda x, y: x
     if normalize_observations:
         normalize = running_statistics.normalize
+    # TODO Traj size
     ppo_network = network_factory(
         env_state.info["traj"].shape[-1],
         env_state.obs.shape[-1],
@@ -309,8 +292,6 @@ def train(
 
         def f(carry, unused_t):
             current_state, current_key = carry
-            # WHY?
-            current_state.info['truncation'] = current_state.info['truncation'].astype(jnp.float32)
             current_key, next_key = jax.random.split(current_key)
             next_state, data = acting.generate_unroll(
                 env,
@@ -360,7 +341,6 @@ def train(
     def training_epoch(
         training_state: TrainingState, state: envs.State, key: PRNGKey
     ) -> Tuple[TrainingState, envs.State, Metrics]:
-        state.info['truncation'] = state.info['truncation'].astype(jnp.float32)
         (training_state, state, _), loss_metrics = jax.lax.scan(
             training_step,
             (training_state, state, key),
@@ -379,7 +359,6 @@ def train(
         nonlocal training_walltime
         t = time.time()
         training_state, env_state = _strip_weak_type((training_state, env_state))
-        env_state.info['truncation'] = env_state.info['truncation'].astype(jnp.float32)
         result = training_epoch(training_state, env_state, key)
         training_state, env_state, metrics = _strip_weak_type(result)
 

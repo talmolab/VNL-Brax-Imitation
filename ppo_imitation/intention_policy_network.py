@@ -18,6 +18,8 @@ from flax import linen as nn
 
 
 class Encoder(nn.Module):
+    """outputs in the form of distributions in latent space"""
+
     layer_sizes: Sequence[int]
     latents: int  # intention size
     activation: networks.ActivationFn = nn.tanh
@@ -35,7 +37,7 @@ class Encoder(nn.Module):
                 kernel_init=self.kernel_init,
                 use_bias=self.bias,
             )(x)
-            x = nn.LayerNorm()(x)
+            x = nn.LayerNorm(x)
             x = self.activation(x)
 
         mean_x = nn.Dense(self.latents, name="fc2_mean")(x)
@@ -44,6 +46,8 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
+    """decode with action output"""
+
     layer_sizes: Sequence[int]
     activation: networks.ActivationFn = nn.tanh
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
@@ -71,28 +75,23 @@ def reparameterize(rng, mean, logvar):
 
 
 class IntentionNetwork(nn.Module):
-    """Full VAE model."""
+    """Full VAE model, encode -> decode with sampled actions"""
 
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
-    # length of traj
-    # traj = obs[:traj], env_obs = obs[traj:] # style like this?
 
     def setup(self):
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
     def __call__(self, traj, obs):
-        key = jax.random.PRNGKey(0)
-        """Construct the policy network that takes two inputs"""
-        key, encoder_rng, decoder_rng = jax.random.split(
-            key, 3
-        )  # not sure whether this is the correct way
+        encoder_rng, decoder_rng = self.make_rng("encoder"), self.make_rng("decoder")
+
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action_mean = self.decoder(jnp.concatenate([z, obs], axis=1))
+        action_mean = self.decoder(z.cat(obs))
         action_sample = reparameterize(
             decoder_rng, action_mean, jnp.ones_like(action_mean)
         )
@@ -120,11 +119,9 @@ def make_intention_policy(
         obs = preprocess_observations_fn(obs, processor_params)
         return policy_module.apply(policy_params, traj=traj, obs=obs)
 
-    # create dummy observation for size hinting
     dummy_obs = jnp.zeros((1, obs_size))
     dummy_traj = jnp.zeros((1, traj_size))
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, traj=dummy_traj, obs=dummy_obs),
-        apply=apply,
+        init=lambda key: policy_module.init(key, dummy_obs, dummy_traj), apply=apply
     )

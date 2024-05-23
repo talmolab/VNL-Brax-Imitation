@@ -14,7 +14,6 @@ from brax.training import types
 from brax.training import distribution
 from brax.training.networks import MLP
 
-# import brax.training.agents.ppo.networks as ppo_networks
 from brax.training.types import PRNGKey
 
 import jax
