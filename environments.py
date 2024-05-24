@@ -596,7 +596,7 @@ class HumanoidTracking(PipelineEnv):
         'total_reward': zero,
         'rcom': zero,
         'rvel': zero,
-        'rapp': zero,
+        # 'rapp': zero,
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
@@ -645,7 +645,7 @@ class HumanoidTracking(PipelineEnv):
         'total_reward': zero,
         'rcom': zero,
         'rvel': zero,
-        'rapp': zero,
+        # 'rapp': zero,
         'rquat': zero,
         'ract': zero,
         'healthy_time': zero,
@@ -668,9 +668,10 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_step(data0, action)
 
     obs = self._get_obs(data, action, state.info)
-    rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rapp + rquat + ract
-    
+    # rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
+    # total_reward = rcom + rvel + rapp + rquat + ract
+    rcom, rvel, rquat, ract = self._calculate_reward(state, action)
+    total_reward = rcom + rvel + rquat + ract
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
@@ -693,7 +694,7 @@ class HumanoidTracking(PipelineEnv):
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
-        rapp=rapp,
+        # rapp=rapp,
         rquat=rquat,
         ract=ract,
         healthy_time=jp.array(info['healthy_time'], float),

@@ -189,6 +189,7 @@
     <contact>
       <exclude body1="waist_lower" body2="thigh_right"/>
       <exclude body1="waist_lower" body2="thigh_left"/>
+      <pair geom1="torso" geom2="floor"/>
       <pair geom1="foot1_left" geom2="floor"/>
       <pair geom1="foot1_right" geom2="floor"/>
       <pair geom1="foot2_left" geom2="floor"/>
