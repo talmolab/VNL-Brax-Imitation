@@ -719,7 +719,7 @@ class HumanoidTracking(PipelineEnv):
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
     error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self._body_idxs])))
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
 
     termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
