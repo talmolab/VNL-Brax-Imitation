@@ -1,3 +1,6 @@
+policies/
+tutorial.ipynb
+
 # STAC data files
 *.p
 
@@ -13,3 +16,5 @@ scripts/
 *.out
 # Python 
 __pycache__/
+
+.DS_Store
