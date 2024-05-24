@@ -9,6 +9,7 @@ from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
 from environments import RodentSingleClipTrack
+from environments_debug import HumanoidTracking
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -33,7 +34,7 @@ os.environ['XLA_FLAGS'] = (
 
 #TODO: Use hydra for configs
 config = {
-    "env_name": "rodent_single_clip",
+    "env_name": "humannoid_debug", #"rodent_single_clip",
     "algo_name": "ppo",
     "task_name": "run",
     "num_envs": 2048*n_gpus,
@@ -60,21 +61,29 @@ config = {
 #          n_steps=750,
 #          ref_steps=(1,2,3,4,5))
 
+# env_params = {
+#     "scale_factor": .9,
+#     "solver": "cg",
+#     "iterations": 6,
+#     "ls_iterations": 3,
+#     "clip_path": "all_snips_250_clip_500.p",
+#     "end_eff_names": [
+#         "foot_L",
+#         "foot_R",
+#         "hand_L",
+#         "hand_R",
+#     ],
+# }
+
 env_params = {
-    "scale_factor": .9,
     "solver": "cg",
     "iterations": 6,
-    "ls_iterations": 3,
-    "clip_path": "all_snips_250_clip_500.p",
-    "end_eff_names": [
-        "foot_L",
-        "foot_R",
-        "hand_L",
-        "hand_R",
-    ],
+    "ls_iterations": 6,
+    "clip_path": "humanoid_traj.p",
 }
 
-envs.register_environment(config["env_name"], RodentSingleClipTrack)
+# envs.register_environment(config["env_name"], RodentSingleClipTrack)
+envs.register_environment(config["env_name"], HumanoidTracking)
 env = envs.get_environment(config["env_name"], params = env_params)
 
 train_fn = functools.partial(
@@ -103,7 +112,7 @@ run_id = uuid.uuid4()
 model_path = f"./model_checkpoints/{run_id}"
 
 run = wandb.init(
-    project="VNL_SingleClipImitationPPO",
+    project="VNL_Huammnoid_Imitation_Debug", #"VNL_SingleClipImitationPPO",
     config=config,
     notes=f"{config['batch_size']} batchsize, " + 
         f"{config['solver']}, {config['iterations']}/{config['ls_iterations']}"
