@@ -151,7 +151,7 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
 
     video_path = f"{model_path}/{num_steps}.mp4"
     with imageio.get_writer(video_path, fps=50.0) as video:
-        imgs = env.render(rollout, camera='close_profile', height=512, width=512)
+        imgs = env.render(rollout, camera='side', height=512, width=512)
         for im in imgs:
             video.append_data(im)
 
