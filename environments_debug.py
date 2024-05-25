@@ -511,7 +511,7 @@ class HumanoidTracking(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.03,
+      termination_threshold: float=1,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -587,7 +587,7 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
+      "step_after_reset": 0,
       "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
@@ -636,7 +636,7 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
+      "step_after_reset": 0,
       "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
@@ -671,17 +671,18 @@ class HumanoidTracking(PipelineEnv):
     # rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
     # total_reward = rcom + rvel + rapp + rquat + ract
     rcom, rvel, rquat, ract = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rquat + ract
+    total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract
+    
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
-    info['episode_frame'] += 1
+    info['step_after_reset'] += 1
     done = jp.where(
       (termination_error > self._termination_threshold) | 
-      (info['episode_frame'] > self._episode_length), 
+      (info['step_after_reset'] > self._episode_length), 
       jp.array(1, float), 
       jp.array(0, float)
     )
@@ -722,7 +723,7 @@ class HumanoidTracking(PipelineEnv):
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
 
-    termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = (1/0.3) * (jp.sum(jp.abs(error_bodies)) + jp.sum(jp.abs(error_joints)))
     
     return termination_error
     
