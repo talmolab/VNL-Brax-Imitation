@@ -271,7 +271,7 @@ class HumanoidTracking(PipelineEnv):
       info['healthy_time'] + 1
     )
 
-    info['reset_times'] = done
+    info['reset_times'] += done
 
     state.metrics.update(
         rcom=rcom,
