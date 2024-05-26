@@ -18,9 +18,7 @@ import numpy as np
 import h5py
 import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
-from walker import Rat
 import pickle
-
 from mocap_preprocess import ReferenceClip
   
 def unpack_clip(file_path):
@@ -196,7 +194,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': zero,
+        'reset_num': zero.astype(float),
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -236,7 +234,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': zero,
+        'reset_num': zero.astype(float),
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -369,10 +367,6 @@ class HumanoidTracking(PipelineEnv):
     # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
     # Then transform it before returning with the rest of the obs
     
-    # info is currently a global variable
-    # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    # ref_traj = jp.hstack(ref_traj)
-    
     # slicing function apply outside of data class
     def f(x):
       if len(x.shape) != 1:
@@ -382,18 +376,16 @@ class HumanoidTracking(PipelineEnv):
           self._ref_traj_length, 
         )
       return jp.array([])
-    
+
+    # info is currently a global variable
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
     
     # now being a local variable
-    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    # reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
-    # reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
-
-    
-    # TODO: end effectors pos and appendages pos are two different features?
+    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj)
+    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
+    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
+    # reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
+    # reference_appendages = self.get_reference_appendages_pos(ref_traj)
     # end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
@@ -406,8 +398,7 @@ class HumanoidTracking(PipelineEnv):
         # end_effectors,
         data.qpos, 
         data.qvel, 
-        data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        # end_effectors,
+        data.qfrc_actuator,
     ])
   
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
@@ -440,13 +431,11 @@ class HumanoidTracking(PipelineEnv):
                            vec_in_world_frame.shape))
     
 
-  def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
+  def get_reference_rel_bodies_pos_local(self, data, ref_traj):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
-
-    #time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
@@ -455,18 +444,15 @@ class HumanoidTracking(PipelineEnv):
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_bodies_pos_global(self, data, ref_traj, frame):
+  def get_reference_rel_bodies_pos_global(self, data, ref_traj):
     """Observation of the reference bodies relative to walker, global frame directly"""
-
-    #time_steps = frame + jp.arange(self._ref_traj_length)
     diff = (ref_traj.body_positions - data.xpos)
     
     return diff.flatten()
   
 
-  def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
+  def get_reference_rel_root_pos_local(self, data, ref_traj):
     """Reference position relative to current root position in root frame."""
-    #time_steps = frame + jp.arange(self._ref_traj_length)
     com = data.subtree_com[0] # root body index
     
     thing = (ref_traj.position - com) # correct as position?
@@ -474,26 +460,14 @@ class HumanoidTracking(PipelineEnv):
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_joints(self, data, ref_traj, frame):
+  def get_reference_rel_joints(self, data, ref_traj):
     """Observation of the reference joints relative to walker."""
-    #time_steps = frame + jp.arange(self._ref_traj_length)
     
     qpos_ref = ref_traj.joints
     diff = (qpos_ref - data.qpos[7:]) 
-
-    # qpos_ref = jp.hstack([ref_traj.position[frame, :],
-    #                       ref_traj.quaternion[frame, :],
-    #                       ref_traj.joints[frame, :],
-    #                       ])
-    # diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
-    
-    # what would be a  equivalents of this?
-    # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()
   
   
-  def get_reference_appendages_pos(self, ref_traj, frame):
+  def get_reference_appendages_pos(self, ref_traj):
     """Reference appendage positions in reference frame, not relative."""
-
-    #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
