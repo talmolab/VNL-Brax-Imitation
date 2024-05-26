@@ -79,7 +79,7 @@ env_params = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 6,
-    "clip_path": "humanoid_traj.p",
+    "clip_path": "clips/humanoid_traj.p",
 }
 
 # envs.register_environment(config["env_name"], RodentSingleClipTrack)

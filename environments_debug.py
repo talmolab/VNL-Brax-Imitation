@@ -194,7 +194,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': zero.astype(float),
+        'reset_num': jp.zero(1, jp.float32),
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -234,7 +234,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': zero.astype(float),
+        'reset_num': jp.zero(1, jp.float32),
     }
 
     state = State(data, obs, reward, done, metrics, info)
