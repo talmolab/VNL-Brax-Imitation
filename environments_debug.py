@@ -266,7 +266,7 @@ class HumanoidTracking(PipelineEnv):
     )
     
     info['healthy_time'] = jp.where(
-      done > 0,
+      done < 1,
       info['healthy_time'],
       info['healthy_time'] + 1
     )
@@ -287,7 +287,6 @@ class HumanoidTracking(PipelineEnv):
     return state.replace(
         pipeline_state=data, obs=obs, reward=total_reward, done=done, info=info
     )
-
 
   def _calculate_termination(self, state) -> float:
     """
@@ -352,7 +351,6 @@ class HumanoidTracking(PipelineEnv):
     # app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
     # app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
     # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
-
     return rcom, rvel, rquat, ract #, rapp
   
 
