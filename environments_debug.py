@@ -165,14 +165,8 @@ class HumanoidTracking(PipelineEnv):
     # do i need to subtract another 1? getobs gives the next n frames
     start_frame = jax.random.randint(
       subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length
+      self._clip_length - self._episode_length - self._ref_traj_length - 1
     )
-
-    # qpos = position + quaternion + joints
-    # pos = self._ref_traj.position[:, start_frame]
-    # quat = self._ref_traj.quaternion[:, start_frame]
-    # joints = self._ref_traj.joints[:, start_frame]
-    # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -202,16 +196,10 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.array(info['reset_times'], float)
+        'reset_num': zero,
     }
 
     state = State(data, obs, reward, done, metrics, info)
-    termination_error = self._calculate_termination(state)
-    info['termination_error'] = termination_error
-    # if termination_error > 1e-1:
-    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
-    #                     'This is likely due to a proto/walker mismatch.'))
-    state = state.replace(info=info)
     
     return state
 
@@ -219,11 +207,6 @@ class HumanoidTracking(PipelineEnv):
     """
     Resets the environment to the initial frame
     """
-    # qpos = position + quaternion + joints
-    # pos = self._ref_traj.position[:, start_frame]
-    # quat = self._ref_traj.quaternion[:, start_frame]
-    # joints = self._ref_traj.joints[:, start_frame]
-    # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -253,16 +236,10 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.array(info['reset_times'], float)
+        'reset_num': zero,
     }
 
     state = State(data, obs, reward, done, metrics, info)
-    termination_error = self._calculate_termination(state)
-    info['termination_error'] = termination_error
-    # if termination_error > 1e-1:
-    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
-    #                     'This is likely due to a proto/walker mismatch.'))
-    state = state.replace(info=info)
     
     return state
   
@@ -283,8 +260,7 @@ class HumanoidTracking(PipelineEnv):
     info['step_after_reset'] += 1
     
     reset_sum = jp.array(info['reset_times'], float)
-    termination_error = self._calculate_termination(state) / reset_sum
-    info['termination_error'] = termination_error
+    termination_error = self._calculate_termination(state)
 
     done = jp.where(
       (termination_error > self._termination_threshold) | 
@@ -294,16 +270,12 @@ class HumanoidTracking(PipelineEnv):
     )
     
     info['healthy_time'] = jp.where(
-      done == 1,
+      done > 0,
       info['healthy_time'],
       info['healthy_time'] + 1
     )
 
-    info['reset_times'] = jp.where(
-      done != 1,
-      info['reset_times'],
-      info['reset_times'] + 1
-    )
+    info['reset_times'] = done
 
     state.metrics.update(
         rcom=rcom,
