@@ -19,7 +19,6 @@ import h5py
 import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
-from walker_debug import CMUHumanoidObservables
 import pickle
 
 from mocap_preprocess import ReferenceClip
@@ -48,52 +47,52 @@ def unpack_clip(file_path):
     )
   return clip
 
-def env_setup(params):
-  """sets up the mj_model on intialization with help from dmcontrol
-  rescales model, gets end effector indices, and more?
+# def env_setup(params):
+#   """sets up the mj_model on intialization with help from dmcontrol
+#   rescales model, gets end effector indices, and more?
 
-  Args:
-      params (_type_): _description_
+#   Args:
+#       params (_type_): _description_
 
-  Returns:
-      _type_: _description_
-  """
-  walker = CMUHumanoidObservables()
-  # rescale.rescale_subtree(
-  #     walker.mjcf_model,
-  #     params["scale_factor"],
-  #     params["scale_factor"],
-  # )
-  physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
+#   Returns:
+#       _type_: _description_
+#   """
+#   walker = CMUHumanoidObservables()
+#   # rescale.rescale_subtree(
+#   #     walker.mjcf_model,
+#   #     params["scale_factor"],
+#   #     params["scale_factor"],
+#   # )
+#   physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
 
-  # get mjmodel from physics and set up solver configs
-  mj_model = physics.model.ptr
-  mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
+#   # get mjmodel from physics and set up solver configs
+#   mj_model = physics.model.ptr
+#   mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
   
-  mj_model.opt.solver = {
-    'cg': mujoco.mjtSolver.mjSOL_CG,
-    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
-  }[params["solver"].lower()]
-  mj_model.opt.iterations = params["iterations"]
-  mj_model.opt.ls_iterations = params["ls_iterations"]
-  mj_model.opt.jacobian = 0 # dense
+#   mj_model.opt.solver = {
+#     'cg': mujoco.mjtSolver.mjSOL_CG,
+#     'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+#   }[params["solver"].lower()]
+#   mj_model.opt.iterations = params["iterations"]
+#   mj_model.opt.ls_iterations = params["ls_iterations"]
+#   mj_model.opt.jacobian = 0 # dense
   
-  # gets the indices for end effectors: [11, 15, 59, 64]
-  axis = physics.named.model.body_pos._axes[0]
-  # app_idx = {key: int(axis.convert_key_item(key)) for key in utils.params["KEYPOINT_MODEL_PAIRS"].keys()}
-  # end_eff_idx = jp.array([int(axis.convert_key_item(key)) 
-  #                for key in params['end_eff_names']])
-  walker_bodies = walker.mocap_tracking_bodies
-  # body_pos_idx
-  walker_bodies_names = [bdy.name for bdy in walker_bodies]
-  axis = physics.named.data.xpos._axes[0]
-  body_idxs = jp.array(
-    [int(axis.convert_key_item(bdy))  for bdy in walker_bodies_names]
-  )
-  # print(f"walker body names: {walker_bodies_names}")
-  joints_order = walker.mocap_to_observable_joint_order #joint_actuator_order
+#   # gets the indices for end effectors: [11, 15, 59, 64]
+#   axis = physics.named.model.body_pos._axes[0]
+#   # app_idx = {key: int(axis.convert_key_item(key)) for key in utils.params["KEYPOINT_MODEL_PAIRS"].keys()}
+#   # end_eff_idx = jp.array([int(axis.convert_key_item(key)) 
+#   #                for key in params['end_eff_names']])
+#   walker_bodies = walker.mocap_tracking_bodies
+#   # body_pos_idx
+#   walker_bodies_names = [bdy.name for bdy in walker_bodies]
+#   axis = physics.named.data.xpos._axes[0]
+#   body_idxs = jp.array(
+#     [int(axis.convert_key_item(bdy))  for bdy in walker_bodies_names]
+#   )
+#   # print(f"walker body names: {walker_bodies_names}")
+#   joints_order = walker.mocap_to_observable_joint_order #joint_actuator_order
 
-  return mj_model, body_idxs, joints_order
+#   return mj_model, body_idxs, joints_order
   
 class HumanoidTracking(PipelineEnv):
   '''debugging humanoid class'''
