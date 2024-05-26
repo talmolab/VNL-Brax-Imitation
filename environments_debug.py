@@ -277,16 +277,15 @@ class HumanoidTracking(PipelineEnv):
     rcom, rvel, rquat, ract = self._calculate_reward(state, action)
     total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract
     
-    termination_error = self._calculate_termination(state)
-    
     # increment frame tracker and update termination error
     info = state.info.copy()
-    info['termination_error'] = termination_error
     info['cur_frame'] += 1
     info['step_after_reset'] += 1
     
     reset_sum = jp.array(info['reset_times'], float)
-    
+    termination_error = self._calculate_termination(state) / reset_sum
+    info['termination_error'] = termination_error
+
     done = jp.where(
       (termination_error > self._termination_threshold) | 
       (info['step_after_reset'] > self._episode_length), 
@@ -295,13 +294,13 @@ class HumanoidTracking(PipelineEnv):
     )
     
     info['healthy_time'] = jp.where(
-      done > 0,
+      done == 1,
       info['healthy_time'],
       info['healthy_time'] + 1
     )
 
     info['reset_times'] = jp.where(
-      done == 0,
+      done != 1,
       info['reset_times'],
       info['reset_times'] + 1
     )
