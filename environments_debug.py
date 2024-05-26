@@ -194,7 +194,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.zero(1, jp.float32),
+        'reset_num': jp.array(info['reset_times']),
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -234,7 +234,7 @@ class HumanoidTracking(PipelineEnv):
         'ract': zero,
         'healthy_time': zero,
         'termination_error': zero,
-        'reset_num': jp.zero(1, jp.float32),
+        'reset_num': jp.array(info['reset_times']),
     }
 
     state = State(data, obs, reward, done, metrics, info)
@@ -247,8 +247,6 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_step(data0, action)
 
     obs = self._get_obs(data, action, state.info)
-    # rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
-    # total_reward = rcom + rvel + rapp + rquat + ract
     rcom, rvel, rquat, ract = self._calculate_reward(state, action)
     total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract
     
@@ -353,8 +351,8 @@ class HumanoidTracking(PipelineEnv):
     # end effector positions
     # app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
     # app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
-
     # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
+
     return rcom, rvel, rquat, ract #, rapp
   
 
@@ -434,8 +432,7 @@ class HumanoidTracking(PipelineEnv):
   def get_reference_rel_bodies_pos_local(self, data, ref_traj):
     """Observation of the reference bodies relative to walker in local frame."""
     
-    # self._walker_features['body_positions'] is the equivalent of 
-    # the ref traj 'body_positions' feature but calculated for the current walker state
+    # self._walker_features['body_positions'] is the equivalent of the ref traj 'body_positions' feature but calculated for the current walker state
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
