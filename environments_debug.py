@@ -280,7 +280,7 @@ class HumanoidTracking(PipelineEnv):
         rquat=rquat,
         ract=ract,
         healthy_time=jp.array(info['healthy_time'], float),
-        termination_error=termination_error,
+        termination_error=termination_error - self._termination_threshold,
         reset_num=reset_sum
     )
     
