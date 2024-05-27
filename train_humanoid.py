@@ -11,7 +11,7 @@ from brax.io import model
 import mujoco
 import imageio
 
-from environments import RodentSingleClipTrack
+from envs.humanoid import HumanoidTracking
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -30,53 +30,36 @@ os.environ['XLA_FLAGS'] = (
 
 #TODO: Use hydra for configs
 config = {
-    "env_name": "rodent_single_clip",
+    "env_name": "humanoid",
     "algo_name": "ppo",
     "task_name": "run",
-    "num_envs": 1024*n_gpus,
-    "num_timesteps": 100_000_000,
-    "eval_every": 5_000_000,
-    "episode_length": 1000,
-    "batch_size": 1024*n_gpus,
-    "learning_rate": 5e-5,
+    "num_envs": 2048*n_gpus,
+    "num_timesteps": 500_000_000,
+    "eval_every": 20_000_000,
+    "episode_length": 250, # This is the clip length
+    "batch_size": 2048*n_gpus,
+    "learning_rate": 3e-5,
     "terminate_when_unhealthy": True,
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
 }
 
-# Preprocess step
-import mocap_preprocess as mp
-data_path = "/n/home05/charleszhang/stac-mjx/transform_snips.p"
-clip_paths = mp.process(data_path, 
-         "transform_snips_250.h5", 
-         n_steps=250,
-         start_step=750,
-         ref_steps=(1,2,3,4,5))
-
-
 env_params = {
-    "scale_factor": .9,
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
-    "clip_path": clip_paths[0],
-    "end_eff_names": [
-        "foot_L",
-        "foot_R",
-        "hand_L",
-        "hand_R",
-    ],
+    "clip_path": "humanoid_traj.p",
 }
 
-envs.register_environment(config["env_name"], RodentSingleClipTrack)
+envs.register_environment(config["env_name"], HumanoidTracking)
 env = envs.get_environment(config["env_name"], params=env_params, termination_threshold=.3)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
     reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
     unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
-    discounting=0.99, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
+    discounting=0.97, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
     batch_size=config["batch_size"], seed=0
 )
 
@@ -115,31 +98,13 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
         # print(ctrl)
         state = jit_step(state, ctrl)
         rollout.append(state.pipeline_state)
-        
-    # # mjxdata is a pytree so i can vectorize? batch dim = frames. what opteration do i concat same pytrees together?
-    # def body_fun(carry, _):
-    #     state, rollout, act_rng = carry
-    #     ctrl = jit_inference_fn(state.obs, act_rng)
-    #     state = jit_step(state, ctrl)
-    #     act_rng = jax.random.split(act_rng)[0]  # Update random key for next step
-    #     return (state, act_rng, state.pipeline_state), None
-
-    # # Initial state for scan
-    # init_state = env.reset_to_frame(0)
-
-    # # Scan over a dummy range (doesn't matter for the logic)
-    # rollout, _ = jax.lax.scan(
-    #     body_fun, 
-    #     (init_state, jp.array([state.pipeline_state]), jax.random.PRNGKey(0)), 
-    #     jp.arange(env._clip_length - env._ref_traj_length)
-    # )
 
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
 
     video_path = f"{model_path}/{num_steps}.mp4"
     with imageio.get_writer(video_path, fps=50.0) as video:
-        imgs = env.render(rollout, camera='close_profile', height=512, width=512)
+        imgs = env.render(rollout, camera="side", height=512, width=512)
         for im in imgs:
             video.append_data(im)
 
