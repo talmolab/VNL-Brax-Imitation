@@ -103,7 +103,7 @@ class HumanoidTracking(PipelineEnv):
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
-      ref_traj_length: int= 250, #5,
+      ref_traj_length: int= 20, #5,
       termination_threshold: float=0.3,
       body_error_multiplier: float=1.0,
       **kwargs,
