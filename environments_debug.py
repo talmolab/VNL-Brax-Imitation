@@ -103,7 +103,7 @@ class HumanoidTracking(PipelineEnv):
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
-      ref_traj_length: int=5,
+      ref_traj_length: int= 250, #5,
       termination_threshold: float=0.3,
       body_error_multiplier: float=1.0,
       **kwargs,
@@ -161,10 +161,12 @@ class HumanoidTracking(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    start_frame = jax.random.randint(
-      subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length - 1
-    )
+    # start_frame = jax.random.randint(
+    #   subkey, (), 0, 
+    #   self._clip_length - self._episode_length - self._ref_traj_length - 1
+    # )
+
+    start_frame = 0
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
