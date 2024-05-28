@@ -20,54 +20,6 @@ import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
-
-_XML_PATH = "assets/rodent.xml"
-  
-def env_setup(params):
-  """sets up the mj_model on intialization with help from dmcontrol
-  rescales model, gets end effector indices, and more?
-
-  Args:
-      params (_type_): _description_
-
-  Returns:
-      _type_: _description_
-  """
-  walker = Rat(foot_mods=False)
-  rescale.rescale_subtree(
-      walker.mjcf_model,
-      params["scale_factor"],
-      params["scale_factor"],
-  )
-  physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
-
-  # get mjmodel from physics and set up solver configs
-  mj_model = physics.model.ptr
-  mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
-  
-  mj_model.opt.solver = {
-    'cg': mujoco.mjtSolver.mjSOL_CG,
-    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
-  }[params["solver"].lower()]
-  mj_model.opt.iterations = params["iterations"]
-  mj_model.opt.ls_iterations = params["ls_iterations"]
-  mj_model.opt.jacobian = 0 # dense
-  
-  # gets the indices for end effectors: [11, 15, 59, 64]
-  axis = physics.named.model.body_pos._axes[0]
-  # app_idx = {key: int(axis.convert_key_item(key)) for key in utils.params["KEYPOINT_MODEL_PAIRS"].keys()}
-  end_eff_idx = jp.array([int(axis.convert_key_item(key)) 
-                 for key in params['end_eff_names']])
-  walker_bodies = walker.mocap_tracking_bodies
-  # body_pos_idx
-  walker_bodies_names = [bdy.name for bdy in walker_bodies]
-  axis = physics.named.data.xpos._axes[0]
-  body_idxs = jp.array(
-    [int(axis.convert_key_item(bdy))  for bdy in walker_bodies_names]
-  )
-  # print(f"walker body names: {walker_bodies_names}")
-  return mj_model, end_eff_idx, body_idxs
-  
   
 class RodentSingleClipTrack(PipelineEnv):
 
@@ -85,7 +37,24 @@ class RodentSingleClipTrack(PipelineEnv):
       **kwargs,
   ):
     # body_idxs => walker_bodies => body_positions
-    mj_model, self._end_eff_idx, self._body_idxs = env_setup(params)
+    root = mjcf.from_path(params['xml_path'])
+    rescale.rescale_subtree(
+        root,
+        params["scale_factor"],
+        params["scale_factor"],
+    )
+    mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
+
+    mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
+    
+    mj_model.opt.solver = {
+      'cg': mujoco.mjtSolver.mjSOL_CG,
+      'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+    }[params["solver"].lower()]
+    mj_model.opt.iterations = params["iterations"]
+    mj_model.opt.ls_iterations = params["ls_iterations"]
+    mj_model.opt.jacobian = 0 # dense
+    
     sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
@@ -96,6 +65,20 @@ class RodentSingleClipTrack(PipelineEnv):
     kwargs['backend'] = 'mjx'
 
     super().__init__(sys, **kwargs)
+    
+    self._end_eff_idx = jp.array([
+      mujoco.mj_name2id(self.sys.mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['end_eff_names']
+    ])
+    
+    self._body_idxs = jp.array([
+      mujoco.mj_name2id(self.sys.mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['walker_body_names']
+    ])
     
     self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
@@ -108,7 +91,6 @@ class RodentSingleClipTrack(PipelineEnv):
     # self._ref_traj = unpack_clip(params["clip_path"])
     self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
-
 
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
@@ -130,10 +112,6 @@ class RodentSingleClipTrack(PipelineEnv):
     # )
     start_frame = 0
     # qpos = position + quaternion + joints
-    # pos = self._ref_traj.position[:, start_frame]
-    # quat = self._ref_traj.quaternion[:, start_frame]
-    # joints = self._ref_traj.joints[:, start_frame]
-    # qpos = jp.concatenate((pos, quat, joints))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
