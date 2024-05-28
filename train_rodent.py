@@ -111,6 +111,7 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     rollout = [state.pipeline_state]
     act_rng = jax.random.PRNGKey(0)
     for _ in range(env._clip_length - env._ref_traj_length):
+        _, act_rng = jax.random.split(act_rng) # PASTE THIS TO SSH AND COMMIT
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
         # print(ctrl)
         state = jit_step(state, ctrl)
