@@ -28,12 +28,12 @@ class HumanoidTracking(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(0.01, 0.5),
+      healthy_z_range=(1.0, 2.0),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.03,
+      termination_threshold: float=.3,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -115,8 +115,7 @@ class HumanoidTracking(PipelineEnv):
         # 'rapp': zero,
         'rquat': zero,
         'ract': zero,
-        'is_healthy': zero,
-        # 'healthy_time': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -159,8 +158,7 @@ class HumanoidTracking(PipelineEnv):
         # 'rapp': zero,
         'rquat': zero,
         'ract': zero,
-        'is_healthy': zero,
-        # 'healthy_time': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -180,16 +178,19 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_step(data0, action)
 
     obs = self._get_obs(data, action, state.info)
-    # rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
-    # total_reward = rcom + rvel + rapp + rquat + ract
+
     rcom, rvel, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rquat + ract + is_healthy
+    is_healthy_reward = .05 * \
+      jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    total_reward = rcom + rvel + rquat + ract + is_healthy_reward
+    # total_reward = is_healthy_reward
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
+    # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
     done = jp.where(
       (termination_error > self._termination_threshold),
@@ -203,19 +204,26 @@ class HumanoidTracking(PipelineEnv):
     #   info['healthy_time'] + 1
     # )
 
+    reward = jp.nan_to_num(total_reward)
+    obs = jp.nan_to_num(obs)
+
+    from jax.flatten_util import ravel_pytree
+    flattened_vals, _ = ravel_pytree(data)
+    num_nans = jp.sum(jp.isnan(flattened_vals))
+    done = jp.where(num_nans > 0, 1.0, done)
+
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
         # rapp=rapp,
         rquat=rquat,
         ract=ract,
-        is_healthy=is_healthy,
-        # healthy_time=jp.array(info['healthy_time'], float),
+        reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
     
     return state.replace(
-        pipeline_state=data, obs=obs, reward=total_reward, done=done, info=info
+        pipeline_state=data, obs=obs, reward=reward, done=done, info=info
     )
 
 
@@ -266,20 +274,20 @@ class HumanoidTracking(PipelineEnv):
     ])
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
-    # joint angle posiotion
+    # joint angle position
     qpos_c = data_c.qpos
     qpos_ref = jp.hstack([
       self._ref_traj.position[state.info['cur_frame'], :],
       self._ref_traj.quaternion[state.info['cur_frame'], :],
       self._ref_traj.joints[state.info['cur_frame'], :],
     ])
-    rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
+    rquat = jp.exp(-1 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
 
     # control force from actions
     ract = -0.015 * jp.sum(jp.square(action)) / len(action)
     
-    is_healthy = jp.where(data_c.q[2] < 1.0, 0.0, 1.0)
-    is_healthy = jp.where(data_c.q[2] > 2.0, 0.0, is_healthy)
+    is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+    is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
     # end effector positions
     # app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
     # app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
@@ -326,15 +334,15 @@ class HumanoidTracking(PipelineEnv):
 
     return jp.concatenate([
       # put the traj obs first
-        reference_rel_bodies_pos_local,
-        reference_rel_bodies_pos_global,
+        # reference_rel_bodies_pos_local,
+        # reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
         reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         data.qpos, 
         data.qvel, 
-        data.qfrc_actuator, # Actuator force <==> joint torque sensor?
+        # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
         # end_effectors,
     ])
   
@@ -409,12 +417,6 @@ class HumanoidTracking(PipelineEnv):
     qpos_ref = ref_traj.joints
     diff = (qpos_ref - data.qpos[7:]) 
 
-    # qpos_ref = jp.hstack([ref_traj.position[frame, :],
-    #                       ref_traj.quaternion[frame, :],
-    #                       ref_traj.joints[frame, :],
-    #                       ])
-    # diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
-    
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()

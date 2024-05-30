@@ -3,11 +3,12 @@ import jax
 from jax import numpy as jp
 from typing import Dict
 import wandb
-
+import numpy as np
 from brax import envs
-from brax.training.agents.ppo import train as ppo
+# from brax.training.agents.ppo import train as ppo
 from brax.io import model
 
+import brax_ppo as ppo
 import mujoco
 import imageio
 
@@ -18,7 +19,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.85'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
 
 n_gpus = jax.device_count(backend="gpu")
 print(f"Using {n_gpus} GPUs")
@@ -33,22 +34,22 @@ config = {
     "env_name": "humanoid",
     "algo_name": "ppo",
     "task_name": "run",
-    "num_envs": 2048*n_gpus,
+    "num_envs": 4096*n_gpus,
     "num_timesteps": 500_000_000,
-    "eval_every": 20_000_000,
+    "eval_every": 25_000_000,
     "episode_length": 250, # This is the clip length
     "batch_size": 2048*n_gpus,
-    "learning_rate": 3e-5,
+    "learning_rate": 1e-4,
     "terminate_when_unhealthy": True,
-    "solver": "cg",
-    "iterations": 6,
-    "ls_iterations": 3,
+    "solver": "newton",
+    "iterations": 1,
+    "ls_iterations": 4,
 }
 
 env_params = {
-    "solver": "cg",
-    "iterations": 6,
-    "ls_iterations": 3,
+    "solver": config['solver'],
+    "iterations": config['iterations'],
+    "ls_iterations": config['ls_iterations'],
     "clip_path": "humanoid_traj.p",
 }
 
@@ -92,20 +93,25 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
     rollout = [state.pipeline_state]
+    ctrls = []
     act_rng = jax.random.PRNGKey(0)
     for _ in range(env._clip_length - env._ref_traj_length):
+        _, act_rng = jax.random.split(act_rng)
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
-        # print(ctrl)
+        ctrls.append(ctrl)
         state = jit_step(state, ctrl)
         rollout.append(state.pipeline_state)
-
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
-
+    mean_actuator_values = np.mean(ctrls, axis=0)
+    array_dict = {f"eval/mean_actuator_values_{i}": mean_actuator_values[i] for i in range(mean_actuator_values.shape[0])}
+    # print(array_dict)
+    wandb.log(array_dict)
+    
     video_path = f"{model_path}/{num_steps}.mp4"
-    with imageio.get_writer(video_path, fps=50.0) as video:
+    with imageio.get_writer(video_path, fps=30.0) as video:
         imgs = env.render(rollout, camera="side", height=512, width=512)
-        for im in imgs:
+        for i, im in enumerate(imgs):
             video.append_data(im)
 
     wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
