@@ -89,7 +89,13 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     # print(params)
     # rollout starting from frame 0
     jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-    env = envs.get_environment(config["env_name"], params=env_params)
+    env = envs.get_environment(config["env_name"], params={
+                            "solver": "cg",
+                            "iterations": 6,
+                            "ls_iterations": 6,
+                            "clip_path": "humanoid_traj.p",
+                            }
+    )
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
     rollout = [state.pipeline_state]
