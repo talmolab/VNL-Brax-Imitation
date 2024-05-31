@@ -37,7 +37,7 @@ class RodentSingleClipTrack(PipelineEnv):
       **kwargs,
   ):
     # body_idxs => walker_bodies => body_positions
-    root = mjcf.from_path(params['xml_path'])
+    root = mjcf.from_path("./assets/rodent.xml")
     rescale.rescale_subtree(
         root,
         params["scale_factor"],
@@ -112,6 +112,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # )
     start_frame = 0
     # qpos = position + quaternion + joints
+    noise = self._reset_noise_scale * jax.random.normal(subkey, shape=(self.sys.nq,))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -123,22 +124,19 @@ class RodentSingleClipTrack(PipelineEnv):
       self._ref_traj.angular_velocity[start_frame, :],
       self._ref_traj.joints_velocity[start_frame, :],
     ])
-    data = self.pipeline_init(qpos, qvel)
+    data = self.pipeline_init(qpos + noise, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
-      "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
-        'total_reward': zero,
         'rcom': zero,
         'rvel': zero,
-        'rapp': zero,
+        'rtrunk': zero,
         'rquat': zero,
         'ract': zero,
-        'healthy_time': zero,
+        'rapp': zero,
         'termination_error': zero
     }
 
@@ -156,12 +154,6 @@ class RodentSingleClipTrack(PipelineEnv):
     """
     Resets the environment to the initial frame
     """
-    # qpos = position + quaternion + joints
-    # pos = self._ref_traj.position[:, start_frame]
-    # quat = self._ref_traj.quaternion[:, start_frame]
-    # joints = self._ref_traj.joints[:, start_frame]
-    # qpos = jp.concatenate((pos, quat, joints))
-    
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
       self._ref_traj.quaternion[start_frame, :],
@@ -175,19 +167,16 @@ class RodentSingleClipTrack(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      "episode_frame": 0,
-      "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
-        'total_reward': zero,
         'rcom': zero,
         'rvel': zero,
-        'rapp': zero,
+        'rtrunk': zero,
         'rquat': zero,
         'ract': zero,
-        'healthy_time': zero,
+        'rapp': zero,
         'termination_error': zero
     }
 
@@ -207,8 +196,8 @@ class RodentSingleClipTrack(PipelineEnv):
     data = self.pipeline_step(data0, action)
 
     obs = self._get_obs(data, action, state.info)
-    rcom, rvel, rquat, ract, rapp = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rapp + rquat + ract
+    rcom, rvel, rtrunk, rquat, ract, rapp = self._calculate_reward(state, action)
+    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract + rapp 
     
     termination_error = self._calculate_termination(state)
     
@@ -216,31 +205,32 @@ class RodentSingleClipTrack(PipelineEnv):
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
-    info['episode_frame'] += 1
     done = jp.where(
-      (termination_error > self._termination_threshold) | 
-      (info['episode_frame'] > self._episode_length), 
+      (termination_error < 0),
       jp.array(1, float), 
       jp.array(0, float)
     )
-    info['healthy_time'] = jp.where(
-      done > 0,
-      info['healthy_time'],
-      info['healthy_time'] + 1
-    )
 
+    reward = jp.nan_to_num(total_reward)
+    obs = jp.nan_to_num(obs)
+
+    from jax.flatten_util import ravel_pytree
+    flattened_vals, _ = ravel_pytree(data)
+    num_nans = jp.sum(jp.isnan(flattened_vals))
+    done = jp.where(num_nans > 0, 1.0, done)
+    
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
         rapp=rapp,
         rquat=rquat,
+        rtrunk=rtrunk,
         ract=ract,
-        healthy_time=jp.array(info['healthy_time'], float),
         termination_error=termination_error
     )
     
     return state.replace(
-        pipeline_state=data, obs=obs, reward=total_reward, done=done, info=info
+        pipeline_state=data, obs=obs, reward=reward, done=done, info=info
     )
 
 
@@ -256,11 +246,11 @@ class RodentSingleClipTrack(PipelineEnv):
     data_c = state.pipeline_state
     
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
-    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
+    error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self._body_idxs])))
+    error_bodies = jp.linalg.norm((target_bodies - data_c.xpos[self._body_idxs]), ord=1)
 
-    termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = 1 - (1/.3) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
     return termination_error
     
@@ -291,14 +281,13 @@ class RodentSingleClipTrack(PipelineEnv):
     ])
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
 
-    # joint angle posiotion
-    qpos_c = data_c.qpos
-    qpos_ref = jp.hstack([
-      self._ref_traj.position[state.info['cur_frame'], :],
-      self._ref_traj.quaternion[state.info['cur_frame'], :],
-      self._ref_traj.joints[state.info['cur_frame'], :],
-    ])
-    rquat = jp.exp(-2 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
+    # rtrunk = termination error
+    rtrunk = self._calculate_termination(state)
+    
+    quat_c = data_c.qpos[3:7]
+    quat_ref = self._ref_traj.quaternion[state.info['cur_frame'], :]
+    # use bounded_quat_dist from dmcontrol
+    rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
     # control force from actions
     ract = -0.015 * jp.sum(jp.square(action)) / len(action)
@@ -307,8 +296,8 @@ class RodentSingleClipTrack(PipelineEnv):
     app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
     app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
 
-    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
-    return rcom, rvel, rquat, ract, rapp
+    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))))
+    return rcom, rvel, rtrunk, rquat, ract, rapp
   
 
   def _get_obs(
@@ -317,14 +306,7 @@ class RodentSingleClipTrack(PipelineEnv):
     """
       Gets reference trajectory obs along with env state obs 
     """
-    # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
-    # Then transform it before returning with the rest of the obs
-    
-    # info is currently a global variable
-    # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
-    # ref_traj = jp.hstack(ref_traj)
-    
-    # slicing function apply outside of data class
+    # Get the relevant slice of the ref_traj
     def f(x):
       if len(x.shape) != 1:
         return jax.lax.dynamic_slice_in_dim(
@@ -337,11 +319,11 @@ class RodentSingleClipTrack(PipelineEnv):
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
     
     # now being a local variable
-    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
-    reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
+    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj)
+    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
+    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
+    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
+    reference_appendages = self.get_reference_appendages_pos(ref_traj)
 
     
     # TODO: end effectors pos and appendages pos are two different features?
@@ -358,7 +340,6 @@ class RodentSingleClipTrack(PipelineEnv):
         data.qpos, 
         data.qvel, 
         data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        end_effectors,
     ])
   
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
@@ -391,34 +372,28 @@ class RodentSingleClipTrack(PipelineEnv):
                            vec_in_world_frame.shape))
     
 
-  def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
+  def get_reference_rel_bodies_pos_local(self, data, ref_traj):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
-    #time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
-    thing = (ref_traj.body_positions - data.xpos[self._body_idxs])
-    # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
-    obs = self.global_vector_to_local_frame(
-      data,
-      thing[:, self._body_idxs]
-    )
+    xpos_broadcast = jp.broadcast_to(data.xpos[self._body_idxs], ref_traj.body_positions.shape)
+    obs = self.global_vector_to_local_frame(data, 
+                                            ref_traj.body_positions - xpos_broadcast)[:, self._body_idxs]
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_bodies_pos_global(self, data, ref_traj, frame):
+  def get_reference_rel_bodies_pos_global(self, data, ref_traj):
     """Observation of the reference bodies relative to walker, global frame directly"""
-
-    #time_steps = frame + jp.arange(self._ref_traj_length)
-    diff = (ref_traj.body_positions - data.xpos[self._body_idxs])[:, self._body_idxs]
+    xpos_broadcast = jp.broadcast_to(data.xpos[self._body_idxs], ref_traj.body_positions.shape)
+    diff = (ref_traj.body_positions - xpos_broadcast)[:, self._body_idxs]
     
     return diff.flatten()
   
 
-  def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
+  def get_reference_rel_root_pos_local(self, data, ref_traj):
     """Reference position relative to current root position in root frame."""
-    #time_steps = frame + jp.arange(self._ref_traj_length)
     com = data.subtree_com[0] # root body index
     
     thing = (ref_traj.position - com) # correct as position?
@@ -426,27 +401,44 @@ class RodentSingleClipTrack(PipelineEnv):
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_joints(self, data, ref_traj, frame):
+  def get_reference_rel_joints(self, data, ref_traj):
     """Observation of the reference joints relative to walker."""
     #time_steps = frame + jp.arange(self._ref_traj_length)
     
     qpos_ref = ref_traj.joints
     diff = (qpos_ref - data.qpos[7:]) 
-
-    # qpos_ref = jp.hstack([ref_traj.position[frame, :],
-    #                       ref_traj.quaternion[frame, :],
-    #                       ref_traj.joints[frame, :],
-    #                       ])
-    # diff = (qpos_ref[time_steps] - data.qpos[time_steps]) # not sure if correct?
     
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()
   
   
-  def get_reference_appendages_pos(self, ref_traj, frame):
+  def get_reference_appendages_pos(self, ref_traj):
     """Reference appendage positions in reference frame, not relative."""
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
+  
+  def _bounded_quat_dist(self, source: np.ndarray,
+                      target: np.ndarray) -> np.ndarray:
+    """Computes a quaternion distance limiting the difference to a max of pi/2.
+
+    This function supports an arbitrary number of batch dimensions, B.
+
+    Args:
+      source: a quaternion, shape (B, 4).
+      target: another quaternion, shape (B, 4).
+
+    Returns:
+      Quaternion distance, shape (B, 1).
+    """
+    source /= jp.linalg.norm(source, axis=-1, keepdims=True)
+    target /= jp.linalg.norm(target, axis=-1, keepdims=True)
+    # "Distance" in interval [-1, 1].
+    dist = 2 * jp.einsum('...i,...i', source, target) ** 2 - 1
+    # Clip at 1 to avoid occasional machine epsilon leak beyond 1.
+    dist = jp.minimum(1., dist)
+    # Divide by 2 and add an axis to ensure consistency with expected return
+    # shape and magnitude.
+    return 0.5 * jp.arccos(dist)[..., np.newaxis]
   

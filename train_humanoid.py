@@ -41,9 +41,9 @@ config = {
     "batch_size": 256*n_gpus,
     "learning_rate": 1e-4,
     "terminate_when_unhealthy": True,
-    "solver": "newton",
-    "iterations": 1,
-    "ls_iterations": 4,
+    "solver": "cg",
+    "iterations": 6,
+    "ls_iterations": 6,
 }
 
 env_params = {

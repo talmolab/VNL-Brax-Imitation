@@ -33,12 +33,12 @@ config = {
     "env_name": "rodent_single_clip",
     "algo_name": "ppo",
     "task_name": "run",
-    "num_envs": 1024*n_gpus,
-    "num_timesteps": 100_000_000,
-    "eval_every": 5_000_000,
-    "episode_length": 1000,
-    "batch_size": 1024*n_gpus,
-    "learning_rate": 5e-5,
+    "num_envs": 2048*n_gpus,
+    "num_timesteps": 500_000_000,
+    "eval_every": 10_000_000,
+    "episode_length": 150,
+    "batch_size": 256*n_gpus,
+    "learning_rate": 1e-4,
     "terminate_when_unhealthy": True,
     "solver": "cg",
     "iterations": 6,
@@ -67,16 +67,22 @@ env_params = {
         "hand_L",
         "hand_R",
     ],
+    "walker_body_names": 
+        ['torso', 'pelvis', 'upper_leg_L', 'lower_leg_L', 
+         'foot_L', 'upper_leg_R', 'lower_leg_R', 'foot_R', 
+         'skull', 'jaw', 'scapula_L', 'upper_arm_L', 'lower_arm_L', 
+         'finger_L', 'scapula_R', 'upper_arm_R', 'lower_arm_R', 'finger_R'],
+
 }
 
 envs.register_environment(config["env_name"], RodentSingleClipTrack)
-env = envs.get_environment(config["env_name"], params=env_params, termination_threshold=.3)
+env = envs.get_environment(config["env_name"], params=env_params)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
     reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
-    unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
-    discounting=0.99, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
+    unroll_length=20, num_minibatches=64, num_updates_per_batch=8,
+    discounting=0.95, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
     batch_size=config["batch_size"], seed=0
 )
 
@@ -98,11 +104,9 @@ def wandb_progress(num_steps, metrics):
     metrics["num_steps"] = num_steps
     wandb.log(metrics)
 
-# TODO: make the rollout into a scan (or call brax's rollout fn?)
 def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     os.makedirs(model_path, exist_ok=True)
     model.save_params(f"{model_path}/{num_steps}", params)
-    # print(params)
     # rollout starting from frame 0
     jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
     env = envs.get_environment(config["env_name"], params=env_params)
@@ -111,30 +115,12 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     rollout = [state.pipeline_state]
     act_rng = jax.random.PRNGKey(0)
     for _ in range(env._clip_length - env._ref_traj_length):
-        _, act_rng = jax.random.split(act_rng) # PASTE THIS TO SSH AND COMMIT
+        _, act_rng = jax.random.split(act_rng)
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
-        # print(ctrl)
         state = jit_step(state, ctrl)
+        print(state.reward)
         rollout.append(state.pipeline_state)
         
-    # # mjxdata is a pytree so i can vectorize? batch dim = frames. what opteration do i concat same pytrees together?
-    # def body_fun(carry, _):
-    #     state, rollout, act_rng = carry
-    #     ctrl = jit_inference_fn(state.obs, act_rng)
-    #     state = jit_step(state, ctrl)
-    #     act_rng = jax.random.split(act_rng)[0]  # Update random key for next step
-    #     return (state, act_rng, state.pipeline_state), None
-
-    # # Initial state for scan
-    # init_state = env.reset_to_frame(0)
-
-    # # Scan over a dummy range (doesn't matter for the logic)
-    # rollout, _ = jax.lax.scan(
-    #     body_fun, 
-    #     (init_state, jp.array([state.pipeline_state]), jax.random.PRNGKey(0)), 
-    #     jp.arange(env._clip_length - env._ref_traj_length)
-    # )
-
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
 

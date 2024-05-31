@@ -173,7 +173,7 @@ class HumanoidTracking(PipelineEnv):
 
     obs = self._get_obs(data, action, state.info)
 
-    rcom, rvel, rquat, rtrunk, ract, is_healthy = self._calculate_reward(state, action)
+    rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
     # is_healthy_reward = .01 * \
     #   jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
     total_reward = rcom + rvel + rtrunk + rquat + ract # + is_healthy_reward
