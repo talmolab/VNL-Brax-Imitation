@@ -37,7 +37,7 @@ config = {
     "num_envs": 4096*n_gpus,
     "num_timesteps": 500_000_000,
     "eval_every": 25_000_000,
-    "episode_length": 250, # This is the clip length
+    "episode_length": 150, # This is the clip length
     "batch_size": 256*n_gpus,
     "learning_rate": 1e-4,
     "terminate_when_unhealthy": True,
@@ -54,7 +54,7 @@ env_params = {
 }
 
 envs.register_environment(config["env_name"], HumanoidTracking)
-env = envs.get_environment(config["env_name"], params=env_params, termination_threshold=.3)
+env = envs.get_environment(config["env_name"], params=env_params)
 
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
@@ -99,20 +99,14 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
     rollout = [state.pipeline_state]
-    ctrls = []
     act_rng = jax.random.PRNGKey(0)
     for _ in range(env._clip_length - env._ref_traj_length):
         _, act_rng = jax.random.split(act_rng)
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
-        ctrls.append(ctrl)
         state = jit_step(state, ctrl)
         rollout.append(state.pipeline_state)
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
-    mean_actuator_values = np.mean(ctrls, axis=0)
-    array_dict = {f"eval/mean_actuator_values_{i}": mean_actuator_values[i] for i in range(mean_actuator_values.shape[0])}
-    # print(array_dict)
-    wandb.log(array_dict)
     
     video_path = f"{model_path}/{num_steps}.mp4"
     with imageio.get_writer(video_path, fps=30.0) as video:

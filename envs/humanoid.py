@@ -82,11 +82,11 @@ class HumanoidTracking(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    # start_frame = jax.random.randint(
-    #   subkey, (), 0, 
-    #   self._clip_length - self._episode_length - self._ref_traj_length
-    # )
-    start_frame = 0
+    start_frame = jax.random.randint(
+      subkey, (), 0, 
+      self._clip_length - self._episode_length - self._ref_traj_length
+    )
+    # start_frame = 0
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -101,8 +101,6 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      # "episode_frame": 0,
-      # "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
@@ -111,8 +109,9 @@ class HumanoidTracking(PipelineEnv):
         'rvel': zero,
         # 'rapp': zero,
         'rquat': zero,
+        'rtrunk': zero,
         'ract': zero,
-        'reward_alive': zero,
+        # 'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -143,19 +142,17 @@ class HumanoidTracking(PipelineEnv):
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
-      # "episode_frame": 0,
-      # "healthy_time": 0
     }
     obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
     reward, done, zero = jp.zeros(3)
     metrics = {
-        # 'total_reward': zero,
         'rcom': zero,
         'rvel': zero,
         # 'rapp': zero,
         'rquat': zero,
+        'rtrunk': zero,
         'ract': zero,
-        'reward_alive': zero,
+        # 'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -216,7 +213,7 @@ class HumanoidTracking(PipelineEnv):
         rquat=rquat,
         ract=ract,
         rtrunk=rtrunk,
-        reward_alive=is_healthy_reward,
+        # reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
     
@@ -272,19 +269,13 @@ class HumanoidTracking(PipelineEnv):
     ])
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
 
-    # joint angle position
-    qpos_c = data_c.qpos
-    qpos_ref = jp.hstack([
-      self._ref_traj.position[state.info['cur_frame'], :],
-      self._ref_traj.quaternion[state.info['cur_frame'], :],
-      self._ref_traj.joints[state.info['cur_frame'], :],
-    ])
-    
     # rtrunk = termination error
     rtrunk = self._calculate_termination(state)
     
+    quat_c = data_c.qpos[3:7]
+    quat_ref = self._ref_traj.quaternion[state.info['cur_frame'], :]
     # use bounded_quat_dist from dmcontrol
-    rquat = jp.exp(-2 * (jp.linalg.norm(bounded_quat_dist(quat_c, quat_ref))))
+    rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
     # control force from actions 
     ract = 0.01 * -0.015 * jp.sum(jp.square(action)) / len(action)
@@ -337,8 +328,8 @@ class HumanoidTracking(PipelineEnv):
 
     return jp.concatenate([
       # put the traj obs first
-        # reference_rel_bodies_pos_local,
-        # reference_rel_bodies_pos_global,
+        reference_rel_bodies_pos_local,
+        reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
         reference_rel_joints,
         # reference_appendages,
@@ -431,25 +422,25 @@ class HumanoidTracking(PipelineEnv):
     #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
   
-  def bounded_quat_dist(source: np.ndarray,
+  def _bounded_quat_dist(self, source: np.ndarray,
                       target: np.ndarray) -> np.ndarray:
-  """Computes a quaternion distance limiting the difference to a max of pi/2.
+    """Computes a quaternion distance limiting the difference to a max of pi/2.
 
-  This function supports an arbitrary number of batch dimensions, B.
+    This function supports an arbitrary number of batch dimensions, B.
 
-  Args:
-    source: a quaternion, shape (B, 4).
-    target: another quaternion, shape (B, 4).
+    Args:
+      source: a quaternion, shape (B, 4).
+      target: another quaternion, shape (B, 4).
 
-  Returns:
-    Quaternion distance, shape (B, 1).
-  """
-  source /= np.linalg.norm(source, axis=-1, keepdims=True)
-  target /= np.linalg.norm(target, axis=-1, keepdims=True)
-  # "Distance" in interval [-1, 1].
-  dist = 2 * jp.einsum('...i,...i', source, target) ** 2 - 1
-  # Clip at 1 to avoid occasional machine epsilon leak beyond 1.
-  dist = jp.minimum(1., dist)
-  # Divide by 2 and add an axis to ensure consistency with expected return
-  # shape and magnitude.
-  return 0.5 * jp.arccos(dist)[..., np.newaxis]
+    Returns:
+      Quaternion distance, shape (B, 1).
+    """
+    source /= jp.linalg.norm(source, axis=-1, keepdims=True)
+    target /= jp.linalg.norm(target, axis=-1, keepdims=True)
+    # "Distance" in interval [-1, 1].
+    dist = 2 * jp.einsum('...i,...i', source, target) ** 2 - 1
+    # Clip at 1 to avoid occasional machine epsilon leak beyond 1.
+    dist = jp.minimum(1., dist)
+    # Divide by 2 and add an axis to ensure consistency with expected return
+    # shape and magnitude.
+    return 0.5 * jp.arccos(dist)[..., np.newaxis]
