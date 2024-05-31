@@ -33,7 +33,6 @@ class HumanoidTracking(PipelineEnv):
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.3,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -61,13 +60,11 @@ class HumanoidTracking(PipelineEnv):
     self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
-    self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
     # self._ref_traj = unpack_clip(params["clip_path"])
-    self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
 
 
@@ -179,10 +176,10 @@ class HumanoidTracking(PipelineEnv):
 
     obs = self._get_obs(data, action, state.info)
 
-    rcom, rvel, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    is_healthy_reward = .05 * \
-      jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
-    total_reward = rcom + rvel + rquat + ract + is_healthy_reward
+    rcom, rvel, rquat, rtrunk, ract, is_healthy = self._calculate_reward(state, action)
+    # is_healthy_reward = .01 * \
+    #   jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    total_reward = rcom + rvel + rtrunk + rquat + ract # + is_healthy_reward
     # total_reward = is_healthy_reward
     termination_error = self._calculate_termination(state)
     
@@ -193,11 +190,11 @@ class HumanoidTracking(PipelineEnv):
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
     done = jp.where(
-      (termination_error > self._termination_threshold),
+      (termination_error < 0),
       jp.array(1, float), 
       jp.array(0, float)
     )
-    done = jp.max(jp.array([1.0 - is_healthy, done]))
+    # done = jp.max(jp.array([1.0 - is_healthy, done]))
     # info['healthy_time'] = jp.where(
     #   done > 0,
     #   info['healthy_time'],
@@ -218,6 +215,7 @@ class HumanoidTracking(PipelineEnv):
         # rapp=rapp,
         rquat=rquat,
         ract=ract,
+        rtrunk=rtrunk,
         reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
@@ -243,7 +241,7 @@ class HumanoidTracking(PipelineEnv):
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
 
-    termination_error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = 1 - (1/.3) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
     return termination_error
     
@@ -263,7 +261,7 @@ class HumanoidTracking(PipelineEnv):
     # location using com (dim=3)
     com_c = data_c.subtree_com[1]
     com_ref = self._ref_traj.center_of_mass[state.info['cur_frame'], :]
-    rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
+    rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))))
 
     # joint angle velocity
     qvel_c = data_c.qvel
@@ -272,7 +270,7 @@ class HumanoidTracking(PipelineEnv):
       self._ref_traj.angular_velocity[state.info['cur_frame'], :],
       self._ref_traj.joints_velocity[state.info['cur_frame'], :],
     ])
-    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
+    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
 
     # joint angle position
     qpos_c = data_c.qpos
@@ -281,10 +279,15 @@ class HumanoidTracking(PipelineEnv):
       self._ref_traj.quaternion[state.info['cur_frame'], :],
       self._ref_traj.joints[state.info['cur_frame'], :],
     ])
-    rquat = jp.exp(-1 * (jp.linalg.norm(qpos_c - (qpos_ref))**2))
+    
+    # rtrunk = termination error
+    rtrunk = self._calculate_termination(state)
+    
+    # use bounded_quat_dist from dmcontrol
+    rquat = jp.exp(-2 * (jp.linalg.norm(bounded_quat_dist(quat_c, quat_ref))))
 
-    # control force from actions
-    ract = -0.015 * jp.sum(jp.square(action)) / len(action)
+    # control force from actions 
+    ract = 0.01 * -0.015 * jp.sum(jp.square(action)) / len(action)
     
     is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
     is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
@@ -293,7 +296,7 @@ class HumanoidTracking(PipelineEnv):
     # app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
 
     # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
-    return rcom, rvel, rquat, ract, is_healthy #, rapp
+    return rcom, rvel, rtrunk, rquat, ract, is_healthy #, rapp
   
 
   def _get_obs(
@@ -427,3 +430,26 @@ class HumanoidTracking(PipelineEnv):
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
+  
+  def bounded_quat_dist(source: np.ndarray,
+                      target: np.ndarray) -> np.ndarray:
+  """Computes a quaternion distance limiting the difference to a max of pi/2.
+
+  This function supports an arbitrary number of batch dimensions, B.
+
+  Args:
+    source: a quaternion, shape (B, 4).
+    target: another quaternion, shape (B, 4).
+
+  Returns:
+    Quaternion distance, shape (B, 1).
+  """
+  source /= np.linalg.norm(source, axis=-1, keepdims=True)
+  target /= np.linalg.norm(target, axis=-1, keepdims=True)
+  # "Distance" in interval [-1, 1].
+  dist = 2 * jp.einsum('...i,...i', source, target) ** 2 - 1
+  # Clip at 1 to avoid occasional machine epsilon leak beyond 1.
+  dist = jp.minimum(1., dist)
+  # Divide by 2 and add an axis to ensure consistency with expected return
+  # shape and magnitude.
+  return 0.5 * jp.arccos(dist)[..., np.newaxis]

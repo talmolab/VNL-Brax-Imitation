@@ -38,7 +38,7 @@ config = {
     "num_timesteps": 500_000_000,
     "eval_every": 25_000_000,
     "episode_length": 250, # This is the clip length
-    "batch_size": 2048*n_gpus,
+    "batch_size": 256*n_gpus,
     "learning_rate": 1e-4,
     "terminate_when_unhealthy": True,
     "solver": "newton",
@@ -59,8 +59,8 @@ env = envs.get_environment(config["env_name"], params=env_params, termination_th
 train_fn = functools.partial(
     ppo.train, num_timesteps=config["num_timesteps"], num_evals=int(config["num_timesteps"]/config["eval_every"]),
     reward_scaling=1, episode_length=config["episode_length"], normalize_observations=True, action_repeat=1,
-    unroll_length=10, num_minibatches=64, num_updates_per_batch=8,
-    discounting=0.97, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
+    unroll_length=20, num_minibatches=64, num_updates_per_batch=8,
+    discounting=0.95, learning_rate=config["learning_rate"], entropy_cost=1e-3, num_envs=config["num_envs"],
     batch_size=config["batch_size"], seed=0
 )
 
