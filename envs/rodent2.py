@@ -51,7 +51,7 @@ def unpack_clip(file_path):
 
 def env_setup(params):
     """sets up the mj_model on intialization with help from dmcontrol
-      rescales model, gets end effector indices, and more?
+    rescales model, gets end effector indices, and more?
 
     Args:
         params (_type_): _description_
@@ -300,7 +300,7 @@ class RodentSingleClipTrack(PipelineEnv):
         termination_threshold = self._termination_threshold
         done = jp.where(termination_error > termination_threshold, one, zero)
 
-        info["reset_times"] += 1 if done else 0
+        # info['reset_times'] += 1 if done else 0
 
         state.metrics.update(
             rcom=rcom,
@@ -321,10 +321,10 @@ class RodentSingleClipTrack(PipelineEnv):
         """
         calculates whether the termination condition is met
         Args:
-            params (_type_): _description_
-
+            state (_type_): _description_
+            ref (_type_): reference trajectory
         Returns:
-            _type_: _description_
+            bool: _description_
         """
         data_c = state.pipeline_state
 

@@ -20,21 +20,19 @@ from jax import numpy as jp
 from flax import struct
 from walker import Rat
 from typing import Any
-
-
-def start(
-    stac_path: Text,
-    save_file: Text,
-    scale_factor: float = 0.9,
-    start_step: int = 0,
-    clip_length: int = 250,
-    n_steps: int = None,
-    max_qvel: float = 20.0,
-    dt: float = 0.02,
-    adjust_z_offset: float = 0.0,
-    verbatim: bool = False,
-    ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
-):
+def process(
+        stac_path: Text,
+        save_file: Text,
+        scale_factor: float = 0.9,
+        start_step: int = 0,
+        clip_length: int = 250,
+        n_steps: int = None,
+        max_qvel: float = 20.0,
+        dt: float = 0.02,
+        adjust_z_offset: float = 0.0,
+        verbatim: bool = False,
+        ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+    ):
     """Summary
 
     Args:
@@ -66,11 +64,14 @@ def start(
     if n_steps is None:
         n_steps = mocap_qpos.shape[0]
 
+    jax_paths = []
     max_reference_index = np.max(ref_steps) + 1
     with h5py.File(save_file, "w") as file:
-        for start_step in range(0, n_steps, clip_length):
+        for start_step in range(start_step, start_step + n_steps, clip_length):
             print(f"start_step: {start_step}", flush=True)
-            end_step = np.min([start_step + clip_length + max_reference_index, n_steps])
+            end_step = np.min(
+                [start_step + clip_length + max_reference_index, start_step + n_steps]
+            )
             mocap_features = get_mocap_features(
                 mocap_qpos[start_step:end_step, :],
                 walker,
@@ -84,9 +85,10 @@ def start(
             mocap_features["scaling"] = np.array([])
             mocap_features["markers"] = np.array([])
             save_features(file, mocap_features, f"clip_{start_step}")
-            save_dataclass_pickle(
-                f"{save_file[:-3]}_clip_{start_step}.p", mocap_features
+            jax_paths.append(
+                save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
             )
+    return jax_paths
 
 
 def get_mocap_features(
@@ -148,6 +150,7 @@ def get_mocap_features(
     feet_height = []
     walker_bodies = walker.mocap_tracking_bodies
     body_names = [b.name for b in walker_bodies]
+    # print(len(walker_bodies), body_names)
     if adjust_z_offset:
         left_foot_index = body_names.index("foot_L")
         right_foot_index = body_names.index("foot_R")
@@ -329,27 +332,13 @@ class ReferenceClip:
     quaternion: jp.ndarray
     scaling: jp.ndarray
     velocity: jp.ndarray
-
-    def flatten_attributes(self):
-        leaves = jax.tree_leaves(self)
-        flat_arrays = [leaf.ravel() for leaf in leaves]
-        return jp.concatenate(flat_arrays)
-
-
+    
 def save_dataclass_pickle(pickle_path, mocap_features):
-    # n_steps = len(mocap_features["center_of_mass"])
-    # def f(v):
-    #     if len(jp.array(v).shape) == 3:
-    #         v = np.transpose(v, (1, 2, 0))
-    #         return jp.reshape(np.array(v), (-1, n_steps))
-    #     elif len(np.array(v).shape) == 2:
-    #         return jp.swapaxes(v, 0, 1)
-    #     else:
-    #         return v
     data = ReferenceClip(**mocap_features)
     data = jax.tree_map(lambda x: jp.array(x), data)
     with open(pickle_path, "wb") as f:
         pickle.dump(data, f)
+    return pickle_path
 
 
 def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):
