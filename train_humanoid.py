@@ -50,7 +50,7 @@ env_params = {
     "solver": config['solver'],
     "iterations": config['iterations'],
     "ls_iterations": config['ls_iterations'],
-    "clip_path": "humanoid_traj.p",
+    "clip_path": "data/humanoid_traj.p",
 }
 
 envs.register_environment(config["env_name"], HumanoidTracking)

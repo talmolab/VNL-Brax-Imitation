@@ -3,7 +3,6 @@ from typing import Any, Tuple
 from brax.training import types
 
 from brax.training.agents.ppo import networks as ppo_networks
-import networks as networks
 
 from brax.training.types import Params
 import flax
@@ -102,6 +101,7 @@ def compute_ppo_loss_vae(
     gae_lambda: float = 0.95,
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
+    kl_weights: Tuple[float, float] = (1e-6, 1e-6),
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
@@ -131,7 +131,7 @@ def compute_ppo_loss_vae(
     # data is dynamically passed in to update, in a mini batch fashion
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
 
-    policy_logits, mean, logvar = policy_apply(
+    policy_logits, action_mean, intention_mean, intention_logvar = policy_apply(
         normalizer_params, params.policy, data.observation
     )
 
@@ -181,13 +181,21 @@ def compute_ppo_loss_vae(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_loss = kl_divergence(mean, logvar)
+    kl_intention = kl_divergence(intention_mean, intention_logvar)
+    kl_action = kl_divergence(action_mean, jnp.ones_like(action_mean))
 
-    total_loss = policy_loss + v_loss + entropy_loss + kl_loss
+    total_loss = (
+        policy_loss
+        + v_loss
+        + entropy_loss
+        + kl_intention * kl_weights[0]
+        + kl_action * kl_weights[1]
+    )
     return total_loss, {
         "total_loss": total_loss,
         "policy_loss": policy_loss,
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
-        "kl_loss": kl_loss,
+        "kl_loss_intention": kl_intention,
+        "kl_loss_action": kl_action,
     }

@@ -17,6 +17,10 @@ import flax
 from flax import linen as nn
 
 
+# Define the KL divergence loss
+def kl_divergence(mean, logvar):
+    return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
+
 class Encoder(nn.Module):
     """outputs in the form of distributions in latent space"""
 
@@ -95,7 +99,7 @@ class IntentionNetwork(nn.Module):
         action_sample = reparameterize(
             decoder_rng, action_mean, jnp.ones_like(action_mean)
         )
-        return action_sample
+        return action_sample, action_mean, intention_mean, intention_logvar
 
 
 def make_intention_policy(
