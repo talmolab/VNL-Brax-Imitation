@@ -319,7 +319,7 @@ class HumanoidTracking(PipelineEnv):
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
+    # reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
     # reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
 
     
@@ -331,7 +331,7 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        reference_rel_joints,
+        # reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         data.qpos, 
