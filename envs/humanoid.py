@@ -153,6 +153,7 @@ class HumanoidTracking(PipelineEnv):
             "cur_frame": start_frame,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+        traj = self._get_traj(data, info)
         reward, done, zero = jp.zeros(3)
         metrics = {
             "rcom": zero,
@@ -168,6 +169,7 @@ class HumanoidTracking(PipelineEnv):
         state = State(data, obs, reward, done, metrics, info)
         termination_error = self._calculate_termination(state)
         info["termination_error"] = termination_error
+        info["traj"] = traj
         # if termination_error > 1e-1:
         #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
         #                     'This is likely due to a proto/walker mismatch.'))

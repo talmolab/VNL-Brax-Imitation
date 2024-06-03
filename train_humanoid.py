@@ -18,6 +18,7 @@ from envs.humanoid import HumanoidTracking
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 import os
 
@@ -76,13 +77,15 @@ os.environ["XLA_FLAGS"] = (
 )
 
 # TODO: Use hydra for configs
+# TODO: add intention network config
 config = {
     "env_name": "humanoid",
     "algo_name": "ppo",
     "task_name": "run",
     "num_envs": 4096 * n_gpus,
-    "num_timesteps": 500_000_000,
-    "eval_every": 25_000_000,
+    "num_timesteps": 25_000_000,
+    # "eval_every": 25_000_000,
+    "eval_every": 1_000_000, # make debugging faster
     "episode_length": 150,  # This is the clip length
     "batch_size": 256 * n_gpus,
     "learning_rate": 1e-4,
@@ -90,6 +93,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 6,
+    "kl_weights": (1e-4, 1e-7)
 }
 
 env_params = {
@@ -118,6 +122,7 @@ train_fn = functools.partial(
     entropy_cost=1e-3,
     num_envs=config["num_envs"],
     batch_size=config["batch_size"],
+    kl_weights=config["kl_weights"],
     seed=0,
 )
 
@@ -158,7 +163,7 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     act_rng = jax.random.PRNGKey(0)
     for _ in range(env._clip_length - env._ref_traj_length):
         _, act_rng = jax.random.split(act_rng)
-        ctrl, _ = jit_inference_fn(state.obs, act_rng)
+        ctrl, _ = jit_inference_fn(state.info["traj"], state.obs, act_rng)
         state = jit_step(state, ctrl)
         rollout.append(state.pipeline_state)
     # save rendering and log to wandb
