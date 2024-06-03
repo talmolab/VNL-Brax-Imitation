@@ -3,7 +3,7 @@ from typing import Any, Tuple
 from brax.training import types
 
 from brax.training.agents.ppo import networks as ppo_networks
-
+ 
 from brax.training.types import Params
 import flax
 import jax
@@ -89,7 +89,7 @@ def compute_gae(
 
 
 # Same as brax.training.agents.ppo.losses.compute_ppo_loss but with KL divergence term for VAE latent dim reg
-def compute_ppo_loss_vae(
+def compute_ppo_intention_loss(
     params: PPONetworkParams,
     normalizer_params: Any,
     data: types.Transition,
@@ -101,7 +101,7 @@ def compute_ppo_loss_vae(
     gae_lambda: float = 0.95,
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
-    kl_weights: Tuple[float, float] = (1e-6, 1e-6),
+    kl_weights: Tuple[float, float] = (1e-4, 1e-4),
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
@@ -130,9 +130,9 @@ def compute_ppo_loss_vae(
     # Put the time dimension first.
     # data is dynamically passed in to update, in a mini batch fashion
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
-
+    rng, policy_rng = jax.random.split(rng)
     policy_logits, action_mean, intention_mean, intention_logvar = policy_apply(
-        normalizer_params, params.policy, data.observation
+        normalizer_params, params.policy, data.extras["traj"], data.observation, policy_rng
     )
 
     baseline = value_apply(

@@ -1,7 +1,6 @@
 """
 Custom network definitions.
 This is needed because we need to route the observations 
-TODO: Refractor out the encoder/decoder into a separate file
 to proper places in the network in the case of the VAE (CoMic, Hasenclever 2020)
 """
 
@@ -24,7 +23,6 @@ import flax
 from flax import linen as nn
 
 from . import intention_policy_network as ipn
-from .intention_policy_network import IntentionNetwork
 
 
 @flax.struct.dataclass
@@ -49,7 +47,8 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             observations: types.Observation,
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
-            logits = policy_network.apply(*params, trajectories, observations)
+            key_sample, key_network = jax.random.split(key_sample)
+            logits, _, _, _ = policy_network.apply(*params, trajectories, observations, key_network)
             if deterministic:
                 return ppo_networks.parametric_action_distribution.mode(logits), {}
             raw_actions = parametric_action_distribution.sample_no_postprocessing(

@@ -58,7 +58,7 @@ class Decoder(nn.Module):
 
 
 class IntentionMapper(nn.Module):
-    """Intention Mapper for NMIST classifications"""
+    """Intention Mapper"""
 
     intention_size: int = 20
     hidden_layer_size: int = 128

@@ -11,7 +11,9 @@ from brax.training import pmap
 from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
-from brax.training.agents.ppo import losses as ppo_losses
+# we inject our custom losses
+# from brax.training.agents.ppo import losses as ppo_losses
+from . import intention_losses as ppo_losses 
 
 # we inject our custom network
 # from brax.training.agents.ppo import networks as ppo_networks\
@@ -90,6 +92,7 @@ def train(
     randomization_fn: Optional[
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
+    kl_weights: Tuple[float, float] = (1e-4, 1e-4), # default kl_weights in MIMIC
 ):
     """PPO training.
 
@@ -230,7 +233,7 @@ def train(
     optimizer = optax.adam(learning_rate=learning_rate)
 
     loss_fn = functools.partial(
-        ppo_losses.compute_ppo_loss,
+        ppo_losses.compute_ppo_intention_loss,
         ppo_network=ppo_network,
         entropy_cost=entropy_cost,
         discounting=discounting,
@@ -238,6 +241,7 @@ def train(
         gae_lambda=gae_lambda,
         clipping_epsilon=clipping_epsilon,
         normalize_advantage=normalize_advantage,
+        kl_weights=kl_weights,
     )
 
     gradient_update_fn = gradients.gradient_update_fn(
