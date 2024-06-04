@@ -28,7 +28,7 @@ class HumanoidTracking(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(1.0, 2.0),
+      healthy_z_range=(1.0, 3.0),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
@@ -238,7 +238,7 @@ class HumanoidTracking(PipelineEnv):
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
 
-    termination_error = 1 - (1/.3) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = 1 - (1/.1) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
     return termination_error
     
