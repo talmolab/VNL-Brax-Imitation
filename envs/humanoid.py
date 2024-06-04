@@ -28,7 +28,7 @@ class HumanoidTracking(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(1.0, 3.0),
+      healthy_z_range=(1.0, 2.0),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
