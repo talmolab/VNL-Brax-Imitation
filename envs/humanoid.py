@@ -34,6 +34,7 @@ class HumanoidTracking(PipelineEnv):
       episode_length: int=150,
       ref_traj_length: int=5,
       body_error_multiplier: float=1.0,
+      tau=0.3,
       **kwargs,
   ):
     # body_idxs => walker_bodies => body_positions
@@ -66,6 +67,7 @@ class HumanoidTracking(PipelineEnv):
     self._ref_traj_length = ref_traj_length
     # self._ref_traj = unpack_clip(params["clip_path"])
     self._body_error_multiplier = body_error_multiplier
+    self.tau = tau
 
 
     with open(params["clip_path"], 'rb') as f:
@@ -238,7 +240,7 @@ class HumanoidTracking(PipelineEnv):
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
 
-    termination_error = 1 - (1/.6) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = 1 - (1/self.tau) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
     return termination_error
     

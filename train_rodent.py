@@ -43,6 +43,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 3,
+    "tau":0.6,
 }
 
 # Preprocess step
