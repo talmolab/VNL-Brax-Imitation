@@ -113,7 +113,7 @@ class HumanoidTracking(PipelineEnv):
         'rquat': zero,
         'rtrunk': zero,
         'ract': zero,
-        # 'reward_alive': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -176,10 +176,14 @@ class HumanoidTracking(PipelineEnv):
     obs = self._get_obs(data, action, state.info)
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    # is_healthy_reward = .01 * \
-    #   jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
-    total_reward = rcom + rvel + rtrunk + rquat + ract # + is_healthy_reward
+    
+    is_healthy_reward = .01 * \
+      jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    
+    total_reward = rcom + rvel + rtrunk + rquat + ract + is_healthy_reward
+
     # total_reward = is_healthy_reward
+
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
@@ -200,6 +204,12 @@ class HumanoidTracking(PipelineEnv):
     #   info['healthy_time'] + 1
     # )
 
+    done = jp.where(
+      (termination_error < 0),
+      jp.array(1, float), 
+      jp.array(0, float)
+    )
+
     reward = jp.nan_to_num(total_reward)
     obs = jp.nan_to_num(obs)
 
@@ -215,7 +225,7 @@ class HumanoidTracking(PipelineEnv):
         rquat=rquat,
         ract=ract,
         rtrunk=rtrunk,
-        # reward_alive=is_healthy_reward,
+        reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
     
@@ -321,7 +331,7 @@ class HumanoidTracking(PipelineEnv):
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
-    # reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
     # reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
 
     
@@ -333,7 +343,7 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        # reference_rel_joints,
+        reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         data.qpos, 

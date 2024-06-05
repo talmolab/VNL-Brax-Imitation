@@ -114,7 +114,7 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
                             "solver": "cg",
                             "iterations": 6,
                             "ls_iterations": 6,
-                            "clip_path": "humanoid_traj.p",
+                            "clip_path": "clips/all_snips_250_clip_500.p",
                             }
     )
     jit_step = jax.jit(env.step)
