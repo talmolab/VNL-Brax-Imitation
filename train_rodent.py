@@ -103,30 +103,49 @@ def wandb_progress(num_steps, metrics):
     metrics["num_steps"] = num_steps
     wandb.log(metrics)
 
+# TODO: make the rollout into a scan (or call brax's rollout fn?)
 def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
     os.makedirs(model_path, exist_ok=True)
     model.save_params(f"{model_path}/{num_steps}", params)
+    # print(params)
     # rollout starting from frame 0
     jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-    env = envs.get_environment(config["env_name"], params=env_params)
+    env = envs.get_environment(config["env_name"], params={
+                            "solver": "cg",
+                            "iterations": 6,
+                            "ls_iterations": 6,
+                            "clip_path": "humanoid_traj.p",
+                            }
+    )
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
     rollout = [state.pipeline_state]
     act_rng = jax.random.PRNGKey(0)
+    errors = []
     for _ in range(env._clip_length - env._ref_traj_length):
         _, act_rng = jax.random.split(act_rng)
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
         state = jit_step(state, ctrl)
-        print(state.reward)
+        errors.append(state.info['termination_error'])
         rollout.append(state.pipeline_state)
         
+    data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
+    table = wandb.Table(data=data, columns=["frame", "frame termination error"])
+    wandb.log(
+        {
+            "eval/rollout_termination_error": wandb.plot.line(
+                table, "frame",  "frame termination error", title="Termination error for each rollout frame"
+            )
+        }
+    )    
+    
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
-
+    
     video_path = f"{model_path}/{num_steps}.mp4"
-    with imageio.get_writer(video_path, fps=50.0) as video:
-        imgs = env.render(rollout, camera='close_profile', height=512, width=512)
-        for im in imgs:
+    with imageio.get_writer(video_path, fps=30.0) as video:
+        imgs = env.render(rollout, camera="side", height=512, width=512)
+        for i, im in enumerate(imgs):
             video.append_data(im)
 
     wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})

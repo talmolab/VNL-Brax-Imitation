@@ -44,7 +44,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 6,
-    "tau":0.05,
+    "tau":0.3,
 }
 
 env_params = {
@@ -94,18 +94,31 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
                             "solver": "cg",
                             "iterations": 6,
                             "ls_iterations": 6,
-                            "clip_path": "clips/humanoid_traj.p",
+                            "clip_path": "humanoid_traj.p",
                             }
     )
     jit_step = jax.jit(env.step)
     state = env.reset_to_frame(0)
     rollout = [state.pipeline_state]
     act_rng = jax.random.PRNGKey(0)
+    errors = []
     for _ in range(env._clip_length - env._ref_traj_length):
         _, act_rng = jax.random.split(act_rng)
         ctrl, _ = jit_inference_fn(state.obs, act_rng)
         state = jit_step(state, ctrl)
+        errors.append(state.info['termination_error'])
         rollout.append(state.pipeline_state)
+        
+    data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
+    table = wandb.Table(data=data, columns=["frame", "frame termination error"])
+    wandb.log(
+        {
+            "eval/rollout_termination_error": wandb.plot.line(
+                table, "frame",  "frame termination error", title="Termination error for each rollout frame"
+            )
+        }
+    )    
+    
     # save rendering and log to wandb
     os.environ["MUJOCO_GL"] = "osmesa"
     
