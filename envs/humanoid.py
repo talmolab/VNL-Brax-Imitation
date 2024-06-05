@@ -198,20 +198,24 @@ class HumanoidTracking(PipelineEnv):
     #   info['healthy_time'],
     #   info['healthy_time'] + 1
     # )
+    is_healthy = jp.where(data.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+    is_healthy = jp.where(data.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+
+    healthy_z_check  = 1.0 - is_healthy
 
     done = jp.where(
       (termination_error < 0),
       jp.array(1, float), 
-      jp.array(0, float)
+      jp.array(healthy_z_check, float)
     )
 
     reward = jp.nan_to_num(total_reward)
     obs = jp.nan_to_num(obs)
 
-    from jax.flatten_util import ravel_pytree
-    flattened_vals, _ = ravel_pytree(data)
-    num_nans = jp.sum(jp.isnan(flattened_vals))
-    done = jp.where(num_nans > 0, 1.0, done)
+    # from jax.flatten_util import ravel_pytree
+    # flattened_vals, _ = ravel_pytree(data)
+    # num_nans = jp.sum(jp.isnan(flattened_vals))
+    # done = jp.where(num_nans > 0, 1.0, done)
 
     state.metrics.update(
         rcom=rcom,
