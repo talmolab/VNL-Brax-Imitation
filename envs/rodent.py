@@ -106,12 +106,14 @@ class RodentSingleClipTrack(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    # start_frame = jax.random.randint(
-    #   subkey, (), 0, 
-    #   self._clip_length - self._episode_length - self._ref_traj_length
-    # )
-    start_frame = 0
+    start_frame = jax.random.randint(
+      subkey, (), 0, 
+      self._clip_length - self._episode_length - self._ref_traj_length
+    )
+    
+    # start_frame = 0
     # qpos = position + quaternion + joints
+    
     noise = self._reset_noise_scale * jax.random.normal(subkey, shape=(self.sys.nq,))
     
     qpos = jp.hstack([

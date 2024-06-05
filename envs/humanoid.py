@@ -177,9 +177,9 @@ class HumanoidTracking(PipelineEnv):
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
     
-    is_healthy_reward = .01 * jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    is_healthy_reward = jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
     
-    total_reward = rcom + rvel + rtrunk + rquat + ract + is_healthy_reward
+    total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract + 0.01 * is_healthy_reward
 
     # total_reward = is_healthy_reward
 
