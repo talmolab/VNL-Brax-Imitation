@@ -44,6 +44,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 6,
+    "tau":1.0,
 }
 
 env_params = {
