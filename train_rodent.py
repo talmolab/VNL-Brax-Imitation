@@ -115,6 +115,7 @@ def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
                             "iterations": 6,
                             "ls_iterations": 6,
                             "clip_path": "clips/all_snips_250_clip_500.p",
+                            "scale_factor": .9,
                             }
     )
     jit_step = jax.jit(env.step)

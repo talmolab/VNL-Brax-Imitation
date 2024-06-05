@@ -28,7 +28,7 @@ class HumanoidTracking(PipelineEnv):
       self,
       params,
       terminate_when_unhealthy=True,
-      healthy_z_range=(1.0, 3.0),
+      healthy_z_range=(1.0, 1.5),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
@@ -179,7 +179,7 @@ class HumanoidTracking(PipelineEnv):
     
     is_healthy_reward = jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
     
-    total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract + 0.01 * is_healthy_reward
+    total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract + is_healthy_reward
 
     # total_reward = is_healthy_reward
 
