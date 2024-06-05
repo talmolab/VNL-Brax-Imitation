@@ -1,8 +1,10 @@
+.ipynb_checkpoints/
 policies/
+outputs/
 tutorial.ipynb
 
 # STAC data files
-*.p
+# *.p
 
 # h5 files
 *.h5

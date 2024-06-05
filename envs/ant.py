@@ -20,40 +20,32 @@ import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
-  
-class RodentTracking(PipelineEnv):
+
+
+class AntTracking(PipelineEnv):
 
   def __init__(
       self,
       params,
-      healthy_z_range=(0.01, 0.5),
-      reset_noise_scale=1e-3,
+      healthy_z_range=(0.2, 1.0),
+      reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.5,
+      termination_threshold: float=.9,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
     # body_idxs => walker_bodies => body_positions
-    root = mjcf.from_path("./assets/rodent.xml")
-    rescale.rescale_subtree(
-        root,
-        params["scale_factor"],
-        params["scale_factor"],
-    )
-    mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
-
-    mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
-    
+   
+    mj_model = mujoco.MjModel.from_xml_path("./assets/ant.xml")
     mj_model.opt.solver = {
-      'cg': mujoco.mjtSolver.mjSOL_CG,
-      'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+    'cg': mujoco.mjtSolver.mjSOL_CG,
+    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
     }[params["solver"].lower()]
     mj_model.opt.iterations = params["iterations"]
     mj_model.opt.ls_iterations = params["ls_iterations"]
     mj_model.opt.jacobian = 0 # dense
-    
     sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
@@ -65,28 +57,13 @@ class RodentTracking(PipelineEnv):
 
     super().__init__(sys, **kwargs)
     
-    self._end_eff_idx = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("body"), 
-                        body)
-      for body in params['end_eff_names']
-    ])
-    
-    self._body_idxs = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("body"), 
-                        body)
-      for body in params['walker_body_names']
-    ])
-    
+    self._termination_threshold = termination_threshold
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
-    self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
 
     with open(params["clip_path"], 'rb') as f:
@@ -100,53 +77,15 @@ class RodentTracking(PipelineEnv):
     Resets the environment to an initial state.
     TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
     """
+    rng, subkey = jax.random.split(rng)
+    
+    # do i need to subtract another 1? getobs gives the next n frames
     start_frame = jax.random.randint(
-      rng, (), 0, 
+      subkey, (), 0, 
       self._clip_length - self._episode_length - self._ref_traj_length
     )
     # start_frame = 0
-    noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
     
-    qpos = jp.hstack([
-      self._ref_traj.position[start_frame, :],
-      self._ref_traj.quaternion[start_frame, :],
-      self._ref_traj.joints[start_frame, :],
-    ])
-    qvel = jp.hstack([
-      self._ref_traj.velocity[start_frame, :],
-      self._ref_traj.angular_velocity[start_frame, :],
-      self._ref_traj.joints_velocity[start_frame, :],
-    ])
-    data = self.pipeline_init(qpos + noise, qvel)
-    info = {
-      "cur_frame": start_frame,
-    }
-    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
-    reward, done, zero = jp.zeros(3)
-    metrics = {
-        'rcom': zero,
-        'rvel': zero,
-        'rtrunk': zero,
-        'rquat': zero,
-        'ract': zero,
-        'rapp': zero,
-        'termination_error': zero
-    }
-
-    state = State(data, obs, reward, done, metrics, info)
-    termination_error = self._calculate_termination(state)
-    info['termination_error'] = termination_error
-    # if termination_error > 1e-1:
-    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
-    #                     'This is likely due to a proto/walker mismatch.'))
-    state = state.replace(info=info)
-    
-    return state
-
-  def reset_to_frame(self, start_frame) -> State:
-    """
-    Resets the environment to the initial frame
-    """
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
       self._ref_traj.quaternion[start_frame, :],
@@ -169,7 +108,45 @@ class RodentTracking(PipelineEnv):
         'rtrunk': zero,
         'rquat': zero,
         'ract': zero,
-        'rapp': zero,
+        'termination_error': zero
+    }
+
+    state = State(data, obs, reward, done, metrics, info)
+    termination_error = self._calculate_termination(state)
+    info['termination_error'] = termination_error
+    # if termination_error > 1e-1:
+    #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
+    #                     'This is likely due to a proto/walker mismatch.'))
+    state = state.replace(info=info)
+    
+    return state
+
+  def reset_to_frame(self, start_frame) -> State:
+    """
+    Resets the environment to the initial frame
+    """    
+    qpos = jp.hstack([
+      self._ref_traj.position[start_frame, :],
+      self._ref_traj.quaternion[start_frame, :],
+      self._ref_traj.joints[start_frame, :],
+    ])
+    qvel = jp.hstack([
+      self._ref_traj.velocity[start_frame, :],
+      self._ref_traj.angular_velocity[start_frame, :],
+      self._ref_traj.joints_velocity[start_frame, :],
+    ])
+    data = self.pipeline_init(qpos, qvel)
+    info = {
+      "cur_frame": start_frame,
+    }
+    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+    reward, done, zero = jp.zeros(3)
+    metrics = {
+        'rcom': zero,
+        'rvel': zero,
+        'rtrunk': zero,
+        'rquat': zero,
+        'ract': zero,
         'termination_error': zero
     }
 
@@ -189,20 +166,23 @@ class RodentTracking(PipelineEnv):
     data = self.pipeline_step(data0, action)
 
     obs = self._get_obs(data, action, state.info)
-    rcom, rvel, rtrunk, rquat, ract, rapp = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract + rapp 
-    
+
+    rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
+    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract 
+    # total_reward = is_healthy_reward
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
+
     done = jp.where(
       (termination_error < 0),
       jp.array(1, float), 
       jp.array(0, float)
     )
+    done = jp.max(jp.array([1.0 - is_healthy, done]))
 
     reward = jp.nan_to_num(total_reward)
     obs = jp.nan_to_num(obs)
@@ -211,14 +191,15 @@ class RodentTracking(PipelineEnv):
     flattened_vals, _ = ravel_pytree(data)
     num_nans = jp.sum(jp.isnan(flattened_vals))
     done = jp.where(num_nans > 0, 1.0, done)
-    
+
     state.metrics.update(
         rcom=rcom,
         rvel=rvel,
-        rapp=rapp,
+        # rapp=rapp,
         rquat=rquat,
-        rtrunk=rtrunk,
         ract=ract,
+        rtrunk=rtrunk,
+        # reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
     
@@ -239,9 +220,9 @@ class RodentTracking(PipelineEnv):
     data_c = state.pipeline_state
     
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
-    error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
+    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.linalg.norm((target_bodies - data_c.xpos[self._body_idxs]), ord=1)
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
     error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     termination_error = 1 - (error/self._termination_threshold)
     
@@ -282,15 +263,17 @@ class RodentTracking(PipelineEnv):
     # use bounded_quat_dist from dmcontrol
     rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
-    # control force from actions
-    ract = -0.015 * jp.sum(jp.square(action)) / len(action)
-   
+    # control force from actions 
+    ract = 0.01 * -0.015 * jp.sum(jp.square(action)) / len(action)
+    
+    is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+    is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
     # end effector positions
-    app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
-    app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
+    # app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
+    # app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
 
-    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))))
-    return rcom, rvel, rtrunk, rquat, ract, rapp
+    # rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))**2))
+    return rcom, rvel, rtrunk, rquat, ract, is_healthy #, rapp
   
 
   def _get_obs(
@@ -316,10 +299,10 @@ class RodentTracking(PipelineEnv):
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
     reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
-    reference_appendages = self.get_reference_appendages_pos(ref_traj)
+    # reference_appendages = self.get_reference_appendages_pos(ref_traj)
     
     # TODO: end effectors pos and appendages pos are two different features?
-    end_effectors = data.xpos[self._end_eff_idx].flatten()
+    # end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
       # put the traj obs first
@@ -327,11 +310,12 @@ class RodentTracking(PipelineEnv):
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
         reference_rel_joints,
-        reference_appendages,
-        end_effectors,
+        # reference_appendages,
+        # end_effectors,
         data.qpos, 
         data.qvel, 
-        data.qfrc_actuator, # Actuator force <==> joint torque sensor?
+        # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
+        # end_effectors,
     ])
   
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
@@ -370,22 +354,27 @@ class RodentTracking(PipelineEnv):
     # self._walker_features['body_positions'] is the equivalent of 
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
-    xpos_broadcast = jp.broadcast_to(data.xpos[self._body_idxs], ref_traj.body_positions.shape)
-    obs = self.global_vector_to_local_frame(data, 
-                                            ref_traj.body_positions - xpos_broadcast)[:, self._body_idxs]
+    #time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
+    # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
+    obs = self.global_vector_to_local_frame(
+      data,
+      ref_traj.body_positions - data.xpos
+    )
     return jp.concatenate([o.flatten() for o in obs])
 
 
   def get_reference_rel_bodies_pos_global(self, data, ref_traj):
     """Observation of the reference bodies relative to walker, global frame directly"""
-    xpos_broadcast = jp.broadcast_to(data.xpos[self._body_idxs], ref_traj.body_positions.shape)
-    diff = (ref_traj.body_positions - xpos_broadcast)[:, self._body_idxs]
+
+    #time_steps = frame + jp.arange(self._ref_traj_length)
+    diff = (ref_traj.body_positions - data.xpos)
     
     return diff.flatten()
   
 
   def get_reference_rel_root_pos_local(self, data, ref_traj):
     """Reference position relative to current root position in root frame."""
+    #time_steps = frame + jp.arange(self._ref_traj_length)
     com = data.subtree_com[0] # root body index
     
     thing = (ref_traj.position - com) # correct as position?
@@ -399,7 +388,7 @@ class RodentTracking(PipelineEnv):
     
     qpos_ref = ref_traj.joints
     diff = (qpos_ref - data.qpos[7:]) 
-    
+
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
     return diff.flatten()
@@ -410,6 +399,7 @@ class RodentTracking(PipelineEnv):
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
+  
   
   def _bounded_quat_dist(self, source: np.ndarray,
                       target: np.ndarray) -> np.ndarray:
@@ -433,4 +423,3 @@ class RodentTracking(PipelineEnv):
     # Divide by 2 and add an axis to ensure consistency with expected return
     # shape and magnitude.
     return 0.5 * jp.arccos(dist)[..., np.newaxis]
-  

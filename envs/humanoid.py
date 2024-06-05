@@ -239,7 +239,7 @@ class HumanoidTracking(PipelineEnv):
     calculates the tracking reward:
     1. rcom: comparing center of mass
     2. rvel: comparing joint angle velcoity
-    3. rquat: comprae joint angle position
+    3. rquat: compare joint angle position
     4. ract: compare control force
     5. rapp: compare end effector appendage positions
     Args:
