@@ -205,6 +205,7 @@ class RodentSingleClipTrack(PipelineEnv):
     info = state.info.copy()
     info['termination_error'] = termination_error
     info['cur_frame'] += 1
+    
     done = jp.where(
       (termination_error < 0),
       jp.array(1, float), 
@@ -217,6 +218,7 @@ class RodentSingleClipTrack(PipelineEnv):
     from jax.flatten_util import ravel_pytree
     flattened_vals, _ = ravel_pytree(data)
     num_nans = jp.sum(jp.isnan(flattened_vals))
+    
     done = jp.where(num_nans > 0, 1.0, done)
     
     state.metrics.update(

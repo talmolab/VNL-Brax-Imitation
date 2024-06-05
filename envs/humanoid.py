@@ -84,11 +84,11 @@ class HumanoidTracking(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    start_frame = jax.random.randint(
-      subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length
-    )
-    # start_frame = 0
+    # start_frame = jax.random.randint(
+    #   subkey, (), 0, 
+    #   self._clip_length - self._episode_length - self._ref_traj_length
+    # )
+    start_frame = 0
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -154,7 +154,7 @@ class HumanoidTracking(PipelineEnv):
         'rquat': zero,
         'rtrunk': zero,
         'ract': zero,
-        # 'reward_alive': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -177,8 +177,7 @@ class HumanoidTracking(PipelineEnv):
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
     
-    is_healthy_reward = .01 * \
-      jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    is_healthy_reward = .01 * jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
     
     total_reward = rcom + rvel + rtrunk + rquat + ract + is_healthy_reward
 
@@ -192,11 +191,7 @@ class HumanoidTracking(PipelineEnv):
     info['cur_frame'] += 1
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
-    done = jp.where(
-      (termination_error < 0),
-      jp.array(1, float), 
-      jp.array(0, float)
-    )
+
     # done = jp.max(jp.array([1.0 - is_healthy, done]))
     # info['healthy_time'] = jp.where(
     #   done > 0,
