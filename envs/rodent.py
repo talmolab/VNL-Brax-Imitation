@@ -21,7 +21,7 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
   
-class RodentSingleClipTrack(PipelineEnv):
+class RodentTracking(PipelineEnv):
 
   def __init__(
       self,
