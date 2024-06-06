@@ -83,9 +83,8 @@ config = {
     "algo_name": "ppo",
     "task_name": "run",
     "num_envs": 4096 * n_gpus,
-    "num_timesteps": 25_000_000,
-    # "eval_every": 25_000_000,
-    "eval_every": 1_000_000, # make debugging faster
+    "num_timesteps": 250_000_000_000,
+    "eval_every": 5_000_000, # make debugging faster & tuning
     "episode_length": 150,  # This is the clip length
     "batch_size": 256 * n_gpus,
     "learning_rate": 1e-4,
@@ -93,7 +92,7 @@ config = {
     "solver": "cg",
     "iterations": 6,
     "ls_iterations": 6,
-    "kl_weights": (1e-4, 1e-7)
+    "kl_weights": (1e-6, 1e-3)
 }
 
 env_params = {

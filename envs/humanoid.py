@@ -85,7 +85,7 @@ class HumanoidTracking(PipelineEnv):
             0,
             self._clip_length - self._episode_length - self._ref_traj_length,
         )
-        # start_frame = 0
+        start_frame = 0
 
         qpos = jp.hstack(
             [
@@ -315,17 +315,15 @@ class HumanoidTracking(PipelineEnv):
 
         return jp.concatenate(
             [
-
                 # reference_appendages,
                 data.qpos,
                 data.qvel,
-                data.qfrc_actuator, # Actuator force <==> joint torque sensor?
+                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
                 # end_effectors,
             ]
         )
 
-    def _get_traj(
-        self, data: mjx.Data, info) -> jp.ndarray:
+    def _get_traj(self, data: mjx.Data, info) -> jp.ndarray:
         # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
         # Then transform it before returning with the rest of the obs
 
@@ -356,10 +354,14 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_joints = self.get_reference_rel_joints(
             data, ref_traj, info["cur_frame"] + 1
         )
-        return jp.concatenate([reference_rel_bodies_pos_local,
+        return jp.concatenate(
+            [
+                reference_rel_bodies_pos_local,
                 reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,
-                reference_rel_joints,])
+                reference_rel_joints,
+            ]
+        )
 
     def global_vector_to_local_frame(self, data, vec_in_world_frame):
         """Linearly transforms a world-frame vector into entity's local frame.
