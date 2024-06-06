@@ -116,4 +116,4 @@ def main(train_config: DictConfig):
     print(f"Run finished. Model saved to {final_save_path}")
 
 if __name__ == "__main__":
-    fit_path, transform_path = main()
+    main()
