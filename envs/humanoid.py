@@ -38,15 +38,16 @@ class HumanoidTracking(PipelineEnv):
   ):
     # body_idxs => walker_bodies => body_positions
    
-    mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid.xml")
-    mj_model.opt.solver = {
-    'cg': mujoco.mjtSolver.mjSOL_CG,
-    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
-    }[params["solver"].lower()]
-    mj_model.opt.iterations = params["iterations"]
-    mj_model.opt.ls_iterations = params["ls_iterations"]
-    mj_model.opt.jacobian = 0 # dense
-    sys = mjcf_brax.load_model(mj_model)
+    sys = mjcf_brax.load_model(mujoco.MjModel.from_xml_path("./assets/humanoid.xml"))
+    sys = sys.tree_replace({
+          'opt.solver': {'cg': mujoco.mjtSolver.mjSOL_CG,
+                        'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+                        }[params["solver"].lower()],
+          'opt.disableflags': mujoco.mjtDisableBit.mjDSBL_EULERDAMP,
+          'opt.iterations': params["iterations"],
+          'opt.ls_iterations': params["ls_iterations"],
+          'opt.jacobian': 0 # Dense matrix
+      })
 
     physics_steps_per_control_step = 5
     
@@ -239,7 +240,7 @@ class HumanoidTracking(PipelineEnv):
     calculates the tracking reward:
     1. rcom: comparing center of mass
     2. rvel: comparing joint angle velcoity
-    3. rquat: compare joint angle position
+    3. rquat: comprae joint angle position
     4. ract: compare control force
     5. rapp: compare end effector appendage positions
     Args:
