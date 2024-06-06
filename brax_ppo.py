@@ -31,7 +31,7 @@ from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
 from brax.training.agents.ppo import losses as ppo_losses
-from brax.training.agents.ppo import networks as ppo_networks
+import networks as ppo_networks
 from brax.training.types import Params
 from brax.training.types import PRNGKey
 from brax.v1 import envs as envs_v1
@@ -232,8 +232,9 @@ def train(
       env_state.obs.shape[-1],
       env.action_size,
       preprocess_observations_fn=normalize,
-      policy_hidden_layer_sizes=(1024,1024),
-      value_hidden_layer_sizes=(1024,1024))
+      policy_hidden_layer_sizes=(512,512,256),
+      value_hidden_layer_sizes=(512,512),
+      layer_norm=True)
   make_policy = ppo_networks.make_inference_fn(ppo_network)
 
   optimizer = optax.adam(learning_rate=learning_rate)

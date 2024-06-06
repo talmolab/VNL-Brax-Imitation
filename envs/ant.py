@@ -169,7 +169,7 @@ class AntTracking(PipelineEnv):
     obs = self._get_obs(data, action, state.info)
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract 
+    total_reward = rcom + rvel + 2 * rtrunk + rquat + 0.01 * ract 
     # total_reward = is_healthy_reward
     termination_error = self._calculate_termination(state)
     
