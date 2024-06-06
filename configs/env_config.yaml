@@ -45,4 +45,4 @@ rodent:
    - upper_arm_R
    - lower_arm_R
    - finger_R
-  camera: close_profile
+ camera: close_profile
