@@ -1,0 +1,15 @@
+matplotlib
+ipykernel
+mujoco
+mujoco-mjx
+brax
+wandb
+mediapy
+dm_control
+tqdm
+numba
+hydra-core
+"flax[all]"
+"optax[all]"
+--find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+jax[cuda12_pip]
