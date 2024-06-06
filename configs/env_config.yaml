@@ -4,6 +4,7 @@ humanoid:
  iterations: 6
  ls_iterations: 6
  clip_path: humanoid_traj.p
+ camera: side
 
 ant:
  name: ant
@@ -11,6 +12,7 @@ ant:
  iterations: 1
  ls_iterations: 4
  clip_path: ant_traj.p
+ camera: track
 
 rodent:
  name: rodent
@@ -43,3 +45,4 @@ rodent:
    - upper_arm_R
    - lower_arm_R
    - finger_R
+  camera: close_profile
