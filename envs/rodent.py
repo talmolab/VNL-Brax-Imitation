@@ -21,18 +21,17 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
   
-class RodentSingleClipTrack(PipelineEnv):
+class RodentTracking(PipelineEnv):
 
   def __init__(
       self,
       params,
-      terminate_when_unhealthy=True,
       healthy_z_range=(0.01, 0.5),
-      reset_noise_scale=1e-2,
+      reset_noise_scale=1e-3,
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.03,
+      termination_threshold: float=.5,
       body_error_multiplier: float=1.0,
       **kwargs,
   ):
@@ -80,7 +79,6 @@ class RodentSingleClipTrack(PipelineEnv):
       for body in params['walker_body_names']
     ])
     
-    self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
     self._termination_threshold = termination_threshold
@@ -88,7 +86,6 @@ class RodentSingleClipTrack(PipelineEnv):
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
-    # self._ref_traj = unpack_clip(params["clip_path"])
     self._termination_threshold = termination_threshold
     self._body_error_multiplier = body_error_multiplier
 
@@ -103,16 +100,12 @@ class RodentSingleClipTrack(PipelineEnv):
     Resets the environment to an initial state.
     TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
     """
-    rng, subkey = jax.random.split(rng)
-    
-    # do i need to subtract another 1? getobs gives the next n frames
-    # start_frame = jax.random.randint(
-    #   subkey, (), 0, 
-    #   self._clip_length - self._episode_length - self._ref_traj_length
-    # )
-    start_frame = 0
-    # qpos = position + quaternion + joints
-    noise = self._reset_noise_scale * jax.random.normal(subkey, shape=(self.sys.nq,))
+    start_frame = jax.random.randint(
+      rng, (), 0, 
+      self._clip_length - self._episode_length - self._ref_traj_length
+    )
+    # start_frame = 0
+    noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -249,8 +242,8 @@ class RodentSingleClipTrack(PipelineEnv):
     error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.linalg.norm((target_bodies - data_c.xpos[self._body_idxs]), ord=1)
-
-    termination_error = 1 - (1/.3) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
+    termination_error = 1 - (error/self._termination_threshold)
     
     return termination_error
     
@@ -270,7 +263,7 @@ class RodentSingleClipTrack(PipelineEnv):
     # location using com (dim=3)
     com_c = data_c.subtree_com[1]
     com_ref = self._ref_traj.center_of_mass[state.info['cur_frame'], :]
-    rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))**2))
+    rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))))
 
     # joint angle velocity
     qvel_c = data_c.qvel
@@ -279,7 +272,7 @@ class RodentSingleClipTrack(PipelineEnv):
       self._ref_traj.angular_velocity[state.info['cur_frame'], :],
       self._ref_traj.joints_velocity[state.info['cur_frame'], :],
     ])
-    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))**2))
+    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
 
     # rtrunk = termination error
     rtrunk = self._calculate_termination(state)
@@ -324,7 +317,6 @@ class RodentSingleClipTrack(PipelineEnv):
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
     reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
     reference_appendages = self.get_reference_appendages_pos(ref_traj)
-
     
     # TODO: end effectors pos and appendages pos are two different features?
     end_effectors = data.xpos[self._end_eff_idx].flatten()

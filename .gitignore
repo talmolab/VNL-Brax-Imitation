@@ -4,7 +4,9 @@ wandb/
 
 # STAC data files
 all_snips.p
+.ipynb_checkpoints/
 policies/
+outputs/
 tutorial.ipynb
 
 # STAC data files
