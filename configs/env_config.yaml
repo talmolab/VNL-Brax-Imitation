@@ -3,7 +3,7 @@ humanoid:
  solver: cg
  iterations: 6
  ls_iterations: 6
- clip_path: clips/humanoid_traj.p
+ clip_path: clips/test_trajectories.h5 #clips/humanoid_traj.p
  camera: side
 
 ant:
