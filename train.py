@@ -103,7 +103,7 @@ def main(train_config: DictConfig):
         
         video_path = f"{model_path}/{num_steps}.mp4"
         with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
-            imgs = env.render(rollout, camera=cfg['camera'], height=512, width=512)
+            imgs = env.render(rollout, camera=cfg[train_config.env_name]['camera'], height=512, width=512)
             for i, im in enumerate(imgs):
                 video.append_data(im)
 
