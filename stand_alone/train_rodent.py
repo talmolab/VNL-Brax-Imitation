@@ -11,7 +11,7 @@ from brax.io import model
 import mujoco
 import imageio
 
-from envs.rodent import RodentSingleClipTrack
+from envs.rodent_charles_dm import RodentSingleClipTrack
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 

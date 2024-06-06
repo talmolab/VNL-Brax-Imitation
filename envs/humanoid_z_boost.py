@@ -18,7 +18,6 @@ import numpy as np
 import h5py
 import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
-from walker import Rat
 import pickle
 
 
@@ -27,27 +26,27 @@ class HumanoidTracking(PipelineEnv):
   def __init__(
       self,
       params,
-      healthy_z_range=(1.0, 2.0),
+      terminate_when_unhealthy=True,
+      healthy_z_range=(1.0, 1.5),
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
       ref_traj_length: int=5,
-      termination_threshold: float=.9,
       body_error_multiplier: float=1.0,
+      tau=0.3,
       **kwargs,
   ):
     # body_idxs => walker_bodies => body_positions
    
-    sys = mjcf_brax.load_model(mujoco.MjModel.from_xml_path("./assets/humanoid.xml"))
-    sys = sys.tree_replace({
-          'opt.solver': {'cg': mujoco.mjtSolver.mjSOL_CG,
-                        'newton': mujoco.mjtSolver.mjSOL_NEWTON,
-                        }[params["solver"].lower()],
-          'opt.disableflags': mujoco.mjtDisableBit.mjDSBL_EULERDAMP,
-          'opt.iterations': params["iterations"],
-          'opt.ls_iterations': params["ls_iterations"],
-          'opt.jacobian': 0 # Dense matrix
-      })
+    mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid.xml")
+    mj_model.opt.solver = {
+    'cg': mujoco.mjtSolver.mjSOL_CG,
+    'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+    }[params["solver"].lower()]
+    mj_model.opt.iterations = params["iterations"]
+    mj_model.opt.ls_iterations = params["ls_iterations"]
+    mj_model.opt.jacobian = 0 # dense
+    sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
     
@@ -58,14 +57,17 @@ class HumanoidTracking(PipelineEnv):
 
     super().__init__(sys, **kwargs)
     
-    self._termination_threshold = termination_threshold
+    self._terminate_when_unhealthy = terminate_when_unhealthy
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
     self._body_error_multiplier = body_error_multiplier
     self._clip_length = clip_length
     self._episode_length = episode_length
     self._ref_traj_length = ref_traj_length
+    # self._ref_traj = unpack_clip(params["clip_path"])
     self._body_error_multiplier = body_error_multiplier
+    self.tau = tau
+
 
     with open(params["clip_path"], 'rb') as f:
       self._ref_traj = pickle.load(f)
@@ -81,11 +83,11 @@ class HumanoidTracking(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    start_frame = jax.random.randint(
-      subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length
-    )
-    # start_frame = 0
+    # start_frame = jax.random.randint(
+    #   subkey, (), 0, 
+    #   self._clip_length - self._episode_length - self._ref_traj_length
+    # )
+    start_frame = 0
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -106,9 +108,11 @@ class HumanoidTracking(PipelineEnv):
     metrics = {
         'rcom': zero,
         'rvel': zero,
-        'rtrunk': zero,
+        # 'rapp': zero,
         'rquat': zero,
+        'rtrunk': zero,
         'ract': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -145,9 +149,11 @@ class HumanoidTracking(PipelineEnv):
     metrics = {
         'rcom': zero,
         'rvel': zero,
-        'rtrunk': zero,
+        # 'rapp': zero,
         'rquat': zero,
+        'rtrunk': zero,
         'ract': zero,
+        'reward_alive': zero,
         'termination_error': zero
     }
 
@@ -169,8 +175,13 @@ class HumanoidTracking(PipelineEnv):
     obs = self._get_obs(data, action, state.info)
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract 
+    
+    is_healthy_reward = jp.where(is_healthy > 0.0, jp.array(1, float), jp.array(-1, float))
+    
+    total_reward = 0.01 * rcom + 0.01 * rvel + 0.01 * rquat + 0.0001 * ract + is_healthy_reward
+
     # total_reward = is_healthy_reward
+
     termination_error = self._calculate_termination(state)
     
     # increment frame tracker and update termination error
@@ -179,25 +190,31 @@ class HumanoidTracking(PipelineEnv):
     info['cur_frame'] += 1
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
-    done = jp.where(
-      (termination_error < 0),
-      jp.array(1, float), 
-      jp.array(0, float)
-    )
+
     # done = jp.max(jp.array([1.0 - is_healthy, done]))
     # info['healthy_time'] = jp.where(
     #   done > 0,
     #   info['healthy_time'],
     #   info['healthy_time'] + 1
     # )
+    is_healthy = jp.where(data.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+    is_healthy = jp.where(data.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+
+    healthy_z_check  = 1.0 - is_healthy
+
+    done = jp.where(
+      (termination_error < 0),
+      jp.array(1, float), 
+      jp.array(healthy_z_check, float)
+    )
 
     reward = jp.nan_to_num(total_reward)
     obs = jp.nan_to_num(obs)
 
-    from jax.flatten_util import ravel_pytree
-    flattened_vals, _ = ravel_pytree(data)
-    num_nans = jp.sum(jp.isnan(flattened_vals))
-    done = jp.where(num_nans > 0, 1.0, done)
+    # from jax.flatten_util import ravel_pytree
+    # flattened_vals, _ = ravel_pytree(data)
+    # num_nans = jp.sum(jp.isnan(flattened_vals))
+    # done = jp.where(num_nans > 0, 1.0, done)
 
     state.metrics.update(
         rcom=rcom,
@@ -206,7 +223,7 @@ class HumanoidTracking(PipelineEnv):
         rquat=rquat,
         ract=ract,
         rtrunk=rtrunk,
-        # reward_alive=is_healthy_reward,
+        reward_alive=is_healthy_reward,
         termination_error=termination_error
     )
     
@@ -230,8 +247,8 @@ class HumanoidTracking(PipelineEnv):
     error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
     target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
     error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
-    error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
-    termination_error = 1 - (error/self._termination_threshold)
+
+    termination_error = 1 - (1/self.tau) * (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     
     return termination_error
     
@@ -289,7 +306,14 @@ class HumanoidTracking(PipelineEnv):
     """
       Gets reference trajectory obs along with env state obs 
     """
-    # Get the relevant slice of the ref_traj
+    # This should get the relevant slice of the ref_traj, and flatten/concatenate into a 1d vector
+    # Then transform it before returning with the rest of the obs
+    
+    # info is currently a global variable
+    # ref_traj = self._ref_traj.body_positions[:, info['next_frame']:info['next_frame'] + self._ref_traj_length]
+    # ref_traj = jp.hstack(ref_traj)
+    
+    # slicing function apply outside of data class
     def f(x):
       if len(x.shape) != 1:
         return jax.lax.dynamic_slice_in_dim(
@@ -302,11 +326,12 @@ class HumanoidTracking(PipelineEnv):
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
     
     # now being a local variable
-    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj)
-    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
-    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
-    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
-    # reference_appendages = self.get_reference_appendages_pos(ref_traj)
+    reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj, info['cur_frame'] + 1)
+    reference_rel_joints = self.get_reference_rel_joints(data, ref_traj, info['cur_frame'] + 1)
+    # reference_appendages = self.get_reference_appendages_pos(ref_traj, info['cur_frame'] + 1)
+
     
     # TODO: end effectors pos and appendages pos are two different features?
     # end_effectors = data.xpos[self._end_eff_idx].flatten()
@@ -355,7 +380,7 @@ class HumanoidTracking(PipelineEnv):
                            vec_in_world_frame.shape))
     
 
-  def get_reference_rel_bodies_pos_local(self, data, ref_traj):
+  def get_reference_rel_bodies_pos_local(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker in local frame."""
     
     # self._walker_features['body_positions'] is the equivalent of 
@@ -370,7 +395,7 @@ class HumanoidTracking(PipelineEnv):
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_bodies_pos_global(self, data, ref_traj):
+  def get_reference_rel_bodies_pos_global(self, data, ref_traj, frame):
     """Observation of the reference bodies relative to walker, global frame directly"""
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
@@ -379,7 +404,7 @@ class HumanoidTracking(PipelineEnv):
     return diff.flatten()
   
 
-  def get_reference_rel_root_pos_local(self, data, ref_traj):
+  def get_reference_rel_root_pos_local(self, data, ref_traj, frame):
     """Reference position relative to current root position in root frame."""
     #time_steps = frame + jp.arange(self._ref_traj_length)
     com = data.subtree_com[0] # root body index
@@ -389,7 +414,7 @@ class HumanoidTracking(PipelineEnv):
     return jp.concatenate([o.flatten() for o in obs])
 
 
-  def get_reference_rel_joints(self, data, ref_traj):
+  def get_reference_rel_joints(self, data, ref_traj, frame):
     """Observation of the reference joints relative to walker."""
     #time_steps = frame + jp.arange(self._ref_traj_length)
     
@@ -401,12 +426,11 @@ class HumanoidTracking(PipelineEnv):
     return diff.flatten()
   
   
-  def get_reference_appendages_pos(self, ref_traj):
+  def get_reference_appendages_pos(self, ref_traj, frame):
     """Reference appendage positions in reference frame, not relative."""
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
     return ref_traj.appendages.flatten()
-  
   
   def _bounded_quat_dist(self, source: np.ndarray,
                       target: np.ndarray) -> np.ndarray:
