@@ -75,6 +75,13 @@ class HumanoidTracking(PipelineEnv):
     if self._episode_length > self._clip_length:
       raise ValueError("episode_length cannot be greater than clip_length!")
     
+    self._body_locations = jp.array([
+      mujoco.mj_name2id(self.sys.mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['body_names']
+    ])
+    
   def reset(self, rng) -> State:
     """
     Resets the environment to an initial state.
@@ -89,16 +96,20 @@ class HumanoidTracking(PipelineEnv):
     )
     # start_frame = 0
     
-    qpos = jp.hstack([
-      self._ref_traj.position[start_frame, :],
-      self._ref_traj.quaternion[start_frame, :],
-      self._ref_traj.joints[start_frame, :],
-    ])
-    qvel = jp.hstack([
-      self._ref_traj.velocity[start_frame, :],
-      self._ref_traj.angular_velocity[start_frame, :],
-      self._ref_traj.joints_velocity[start_frame, :],
-    ])
+    # qpos = jp.hstack([
+    #   self._ref_traj.position[start_frame, :],
+    #   self._ref_traj.quaternion[start_frame, :],
+    #   self._ref_traj.joints[start_frame, :],
+    # ])
+    # qvel = jp.hstack([
+    #   self._ref_traj.velocity[start_frame, :],
+    #   self._ref_traj.angular_velocity[start_frame, :],
+    #   self._ref_traj.joints_velocity[start_frame, :],
+    # ])
+
+    qpos = self._ref_traj.joints[start_frame, :]
+    qvel = self._ref_traj.joints_velocity[start_frame, :]
+
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
@@ -128,16 +139,19 @@ class HumanoidTracking(PipelineEnv):
     """
     Resets the environment to the initial frame
     """    
-    qpos = jp.hstack([
-      self._ref_traj.position[start_frame, :],
-      self._ref_traj.quaternion[start_frame, :],
-      self._ref_traj.joints[start_frame, :],
-    ])
-    qvel = jp.hstack([
-      self._ref_traj.velocity[start_frame, :],
-      self._ref_traj.angular_velocity[start_frame, :],
-      self._ref_traj.joints_velocity[start_frame, :],
-    ])
+    # qpos = jp.hstack([
+    #   self._ref_traj.position[start_frame, :],
+    #   self._ref_traj.quaternion[start_frame, :],
+    #   self._ref_traj.joints[start_frame, :],
+    # ])
+    # qvel = jp.hstack([
+    #   self._ref_traj.velocity[start_frame, :],
+    #   self._ref_traj.angular_velocity[start_frame, :],
+    #   self._ref_traj.joints_velocity[start_frame, :],
+    # ])
+    qpos = self._ref_traj.joints[start_frame, :]
+    qvel = self._ref_traj.joints_velocity[start_frame, :]
+
     data = self.pipeline_init(qpos, qvel)
     info = {
       "cur_frame": start_frame,
@@ -229,9 +243,9 @@ class HumanoidTracking(PipelineEnv):
     data_c = state.pipeline_state
     
     target_joints = self._ref_traj.joints[state.info['cur_frame'], :]
-    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos[7:]))
-    target_bodies = self._ref_traj.body_positions[state.info['cur_frame'], :]
-    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos)))
+    error_joints = jp.mean(jp.abs(target_joints - data_c.qpos))
+    target_bodies = self._ref_traj.body_positions.reshape([30,30])[state.info['cur_frame'], :]
+    error_bodies = jp.mean(jp.abs((target_bodies - data_c.xpos[self._body_locations])))
     error = (0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints)
     termination_error = 1 - (error/self._termination_threshold)
     
@@ -257,11 +271,13 @@ class HumanoidTracking(PipelineEnv):
 
     # joint angle velocity
     qvel_c = data_c.qvel
-    qvel_ref = jp.hstack([
-      self._ref_traj.velocity[state.info['cur_frame'], :],
-      self._ref_traj.angular_velocity[state.info['cur_frame'], :],
-      self._ref_traj.joints_velocity[state.info['cur_frame'], :],
-    ])
+    # qvel_ref = jp.hstack([
+    #   self._ref_traj.velocity[state.info['cur_frame'], :],
+    #   self._ref_traj.angular_velocity[state.info['cur_frame'], :],
+    #   self._ref_traj.joints_velocity[state.info['cur_frame'], :],
+    # ])
+
+    qvel_ref = self._ref_traj.joints_velocity[state.info['cur_frame'], :]
     rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
 
     # rtrunk = termination error
@@ -318,7 +334,6 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         data.qpos, 
@@ -367,7 +382,7 @@ class HumanoidTracking(PipelineEnv):
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     obs = self.global_vector_to_local_frame(
       data,
-      ref_traj.body_positions - data.xpos
+      ref_traj.body_positions.reshape([30,30]) - data.xpos[self._body_locations]
     )
     return jp.concatenate([o.flatten() for o in obs])
 
@@ -376,7 +391,7 @@ class HumanoidTracking(PipelineEnv):
     """Observation of the reference bodies relative to walker, global frame directly"""
 
     #time_steps = frame + jp.arange(self._ref_traj_length)
-    diff = (ref_traj.body_positions - data.xpos)
+    diff = (ref_traj.body_positions.reshape([30,30]) - data.xpos[self._body_locations])
     
     return diff.flatten()
   
@@ -396,7 +411,7 @@ class HumanoidTracking(PipelineEnv):
     #time_steps = frame + jp.arange(self._ref_traj_length)
     
     qpos_ref = ref_traj.joints
-    diff = (qpos_ref - data.qpos[7:]) 
+    diff = (qpos_ref - data.qpos) 
 
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()

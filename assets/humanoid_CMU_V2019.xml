@@ -2,6 +2,8 @@
   <size njmax="500" nconmax="500"/>
   <asset>
     <material name="self" rgba=".7 .5 .3 1"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
   </asset>
 
   <default>
@@ -26,6 +28,7 @@
   </default>
 
   <worldbody>
+    <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
     <light name="tracking_light" pos="0 0 7" dir="0 0 -1" mode="trackcom"/>
     <camera name="back" pos="0 3 1.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
     <camera name="side" pos="-3 0 1.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
@@ -143,8 +146,8 @@
                     <body name="lhand" pos="0 -0.0907676 0">
                       <joint name="lhandrz" axis="0 0 1" range="-0.785398 0.785398"/>
                       <joint name="lhandrx" axis="1 0 0" range="-1.5708 1.5708"/>
-                      <site name="lhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.01" quat="1.05531e-11 -1.05529e-11 -0.707107 -0.707107" type="ellipsoid" class="sensor_site"/>
-                      <geom name="lhand" size=".024 0.01 0.03" pos="0 -0.016752 0" quat="1.05531e-11 -1.05529e-11 -0.707107 -0.707107" type="ellipsoid"/>
+                      <site name="lhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.01" quat="1.05531e-11 -1.05529e-11 -0.707107 -0.707107" type="sphere" class="sensor_site"/>
+                      <geom name="lhand" size=".024 0.01 0.03" pos="0 -0.016752 0" quat="1.05531e-11 -1.05529e-11 -0.707107 -0.707107" type="sphere"/>
                       <body name="lfingers" pos="0 -0.0351944 0">
                         <joint name="lfingersrx" axis="1 0 0" range="0 1.5708"/>
                         <site name="lfingers_touch" type="box" size="0.023 0.013 0.003" pos="0 -0.042 -0.003" class="sensor_site"/>
@@ -183,8 +186,8 @@
                     <body name="rhand" pos="0 -0.0907676 0">
                       <joint name="rhandrz" axis="0 0 1" range="-0.785398 0.785398"/>
                       <joint name="rhandrx" axis="1 0 0" range="-1.5708 1.5708"/>
-                      <site name="rhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.01" quat="2.00918e-11 -2.00916e-11 0.707107 0.707107" type="ellipsoid" class="sensor_site"/>
-                      <geom name="rhand" size=".024 0.01 .03" pos="0 -0.016752 0" quat="2.00918e-11 -2.00916e-11 0.707107 0.707107" type="ellipsoid"/>
+                      <site name="rhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.01" quat="2.00918e-11 -2.00916e-11 0.707107 0.707107" type="sphere" class="sensor_site"/>
+                      <geom name="rhand" size=".024 0.01 .03" pos="0 -0.016752 0" quat="2.00918e-11 -2.00916e-11 0.707107 0.707107" type="sphere"/>
                       <body name="rfingers" pos="0 -0.0351944 0">
                         <joint name="rfingersrx" axis="1 0 0" range="0 1.5708"/>
                         <site name="rfingers_touch" type="box" size="0.023 0.013 0.003" pos="0 -0.042 -0.003" class="sensor_site"/>
