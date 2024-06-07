@@ -14,6 +14,8 @@ from dm_control.locomotion.walkers import legacy_base
 from dm_control.mujoco import wrapper as mj_wrapper
 import numpy as np
 
+from dm_control.locomotion.walkers import rescale
+
 _XML_PATH = os.path.join(os.path.dirname(__file__),
                          'assets/rodent.xml')
 
@@ -57,6 +59,13 @@ class Rat(legacy_base.Walker):
              initializer=None):
     self.params = params
     self._mjcf_root = mjcf.from_path(_XML_PATH)
+    
+    # rescale.rescale_subtree(
+    #     self._mjcf_root,
+    #     0.9,
+    #     0.9,
+    # )
+
     if name:
       self._mjcf_root.model = name
 

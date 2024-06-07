@@ -38,7 +38,9 @@ class HumanoidTracking(PipelineEnv):
   ):
     # body_idxs => walker_bodies => body_positions
    
-    sys = mjcf_brax.load_model(mujoco.MjModel.from_xml_path("./assets/humanoid.xml"))
+    mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid_CMU_V2019.xml")
+    mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL # Read documentation
+    sys = mjcf_brax.load_model(mj_model)
     sys = sys.tree_replace({
           'opt.solver': {'cg': mujoco.mjtSolver.mjSOL_CG,
                         'newton': mujoco.mjtSolver.mjSOL_NEWTON,
