@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 import mujoco
 import imageio
 
-from envs.humanoid import HumanoidTracking
+from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
@@ -33,9 +33,10 @@ os.environ['XLA_FLAGS'] = (
     '--xla_gpu_triton_gemm_any=True '
 )
 
-envs.register_environment("humanoid", HumanoidTracking)
+envs.register_environment("humanoidtracking", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
+envs.register_environment("humanoidstanding", HumanoidStanding)
     
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
 def main(train_config: DictConfig):
@@ -81,11 +82,12 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
-        for _ in range(env._clip_length - env._ref_traj_length):
+        for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
             ctrl, _ = jit_inference_fn(state.obs, act_rng)
             state = jit_step(state, ctrl)
-            errors.append(state.info['termination_error'])
+            if train_config.env_name != "humanoidstanding":
+                errors.append(state.info['termination_error'])
             rollout.append(state.pipeline_state)
             
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
@@ -105,6 +107,7 @@ def main(train_config: DictConfig):
         with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
             imgs = env.render(rollout, camera=cfg[train_config.env_name]['camera'], height=512, width=512)
             for i, im in enumerate(imgs):
+                # print(im)
                 video.append_data(im)
 
         wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})

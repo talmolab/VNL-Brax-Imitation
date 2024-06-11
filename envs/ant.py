@@ -81,11 +81,11 @@ class AntTracking(PipelineEnv):
     rng, subkey = jax.random.split(rng)
     
     # do i need to subtract another 1? getobs gives the next n frames
-    start_frame = jax.random.randint(
-      subkey, (), 0, 
-      self._clip_length - self._episode_length - self._ref_traj_length
-    )
-    # start_frame = 0
+    # start_frame = jax.random.randint(
+    #   subkey, (), 0, 
+    #   self._clip_length - self._episode_length - self._ref_traj_length
+    # )
+    start_frame = 0
     
     qpos = jp.hstack([
       self._ref_traj.position[start_frame, :],
@@ -169,17 +169,17 @@ class AntTracking(PipelineEnv):
     obs = self._get_obs(data, action, state.info)
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = (0.01 * rcom) + (0.01 * rvel) + (0.20 * rtrunk) + (0.01 * rquat) + (0.001 * ract) 
-    # total_reward = is_healthy_reward
-    termination_error = self._calculate_termination(state)
+    total_reward = (0.05 * rcom) + (0.01 * rvel) + (0.20 * rtrunk) + (0.01 * rquat) + (0.001 * ract) 
+    # total_reward = rcom
+    # termination_error = 1.0
     
     # increment frame tracker and update termination error
     info = state.info.copy()
-    info['termination_error'] = termination_error
+    info['termination_error'] = rtrunk
     info['cur_frame'] += 1
 
     done = jp.where(
-      (termination_error < 0),
+      (rtrunk < 0),
       jp.array(1, float), 
       jp.array(0, float)
     )
@@ -201,7 +201,7 @@ class AntTracking(PipelineEnv):
         ract=ract,
         rtrunk=rtrunk,
         # reward_alive=is_healthy_reward,
-        termination_error=termination_error
+        termination_error=rtrunk
     )
     
     return state.replace(
@@ -376,10 +376,7 @@ class AntTracking(PipelineEnv):
   def get_reference_rel_root_pos_local(self, data, ref_traj):
     """Reference position relative to current root position in root frame."""
     #time_steps = frame + jp.arange(self._ref_traj_length)
-    com = data.subtree_com[0] # root body index
-    
-    thing = (ref_traj.position - com) # correct as position?
-    obs = self.global_vector_to_local_frame(data, thing)
+    obs = self.global_vector_to_local_frame(data, (ref_traj.position - data.qpos[:3]))
     return jp.concatenate([o.flatten() for o in obs])
 
 

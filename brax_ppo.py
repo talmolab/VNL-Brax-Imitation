@@ -232,8 +232,8 @@ def train(
       env_state.obs.shape[-1],
       env.action_size,
       preprocess_observations_fn=normalize,
-      policy_hidden_layer_sizes=(512,) * 8,
-      value_hidden_layer_sizes=(1024,) * 8,
+      policy_hidden_layer_sizes=(512,) * 3,
+      value_hidden_layer_sizes=(512,) * 4,
       layer_norm=True)
   make_policy = ppo_networks.make_inference_fn(ppo_network)
 

@@ -1,9 +1,16 @@
-humanoid:
- name: humanoid
+humanoidtracking:
+ name: humanoidtracking
  solver: cg
  iterations: 6
  ls_iterations: 6
  clip_path: humanoid_traj.p
+ camera: side
+
+humanoidstanding:
+ name: humanoidstanding
+ solver: cg
+ iterations: 6
+ ls_iterations: 6
  camera: side
 
 ant:
@@ -11,7 +18,7 @@ ant:
  solver: newton
  iterations: 1
  ls_iterations: 4
- clip_path: ant_traj.p
+ clip_path: ant_traj_still.p
  camera: track
 
 rodent:
@@ -20,7 +27,7 @@ rodent:
  solver: cg
  iterations: 6
  ls_iterations: 6
- clip_path: transform_snips_250_clip_750.p
+ clip_path: transform_snips_groom.p
  end_eff_names:
    - foot_L
    - foot_R 

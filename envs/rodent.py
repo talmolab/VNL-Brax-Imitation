@@ -71,7 +71,7 @@ class RodentTracking(PipelineEnv):
                         body)
       for body in params['end_eff_names']
     ])
-    
+      
     self._body_idxs = jp.array([
       mujoco.mj_name2id(self.sys.mj_model, 
                         mujoco.mju_str2Type("body"), 
@@ -105,6 +105,8 @@ class RodentTracking(PipelineEnv):
       self._clip_length - self._episode_length - self._ref_traj_length
     )
     # start_frame = 0
+    
+    old, rng = jax.random.split(rng)
     noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
     
     qpos = jp.hstack([
