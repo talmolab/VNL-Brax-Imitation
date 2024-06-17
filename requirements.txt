@@ -9,6 +9,8 @@ dm_control
 tqdm
 numba
 hydra-core
+imageio
+h5py
 "flax[all]"
 "optax[all]"
 --find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
