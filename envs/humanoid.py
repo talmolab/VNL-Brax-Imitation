@@ -389,7 +389,7 @@ class HumanoidTracking(PipelineEnv):
     
     obs = self.global_vector_to_local_frame(
       data,
-      (ref_traj.body_positions - xpos_flatten).reshape([5,30,3])
+      (ref_traj.body_positions - xpos_flatten).reshape([self._ref_traj_length,30,3])
     )
     return jp.concatenate([o.flatten() for o in obs])
 
