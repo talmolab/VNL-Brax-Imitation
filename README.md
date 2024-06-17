@@ -1,12 +1,6 @@
 # Brax-Imitation
-rodent imitation learning using brax
+Rodent imitation learning using Brax and MJX
 
-setup:
-- jax
-- brax
-- mujoco-mjx
-- flax
-- optax
-- dmcontrol
-- h5py
-- hydra-core
+## Current Progress
+
+Intention Network + Expert overlay rendering. 

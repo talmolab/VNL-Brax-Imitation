@@ -1,0 +1,55 @@
+humanoidtracking:
+ name: humanoidtracking
+ solver: cg
+ iterations: 6
+ ls_iterations: 6
+ clip_path: data/humanoid_traj.p
+ camera: side
+
+humanoidstanding:
+ name: humanoidstanding
+ solver: cg
+ iterations: 6
+ ls_iterations: 6
+ camera: side
+
+ant:
+ name: ant
+ solver: newton
+ iterations: 1
+ ls_iterations: 4
+ clip_path: ant_traj_still.p
+ camera: track
+
+rodent:
+ name: rodent
+ scale_factor: 0.9
+ solver: cg
+ iterations: 6
+ ls_iterations: 6
+ clip_path: transform_snips_groom.p
+ end_eff_names:
+   - foot_L
+   - foot_R 
+   - hand_L
+   - hand_R
+ walker_body_names:
+   - torso
+   - pelvis
+   - upper_leg_L
+   - lower_leg_L
+   - foot_L
+   - upper_leg_R
+   - lower_leg_R
+   - foot_R
+   - skull
+   - jaw
+   - scapula_L
+   - upper_arm_L
+   - lower_arm_L
+   - finger_L
+   - scapula_R
+   - upper_arm_R
+   - lower_arm_R
+   - finger_R
+ camera: close_profile

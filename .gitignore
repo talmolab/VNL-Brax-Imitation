@@ -1,8 +1,30 @@
+
+*.pyc
+wandb/
+
+# STAC data files
+all_snips.p
+.ipynb_checkpoints/
+policies/
+outputs/
+tutorial.ipynb
+
 # STAC data files
 *.p
 
 # h5 files
 *.h5
+# mat file
+*.mat
 
+.brax-imitation
+# Training files
+wandb/
+model_checkpoints/
+# Cluster scripts
+scripts/
+*.out
 # Python 
 __pycache__/
+
+.DS_Store

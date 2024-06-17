@@ -1,4 +1,5 @@
 """Preprocessing for embedding motion capture/dannce data."""
+
 import dm_control
 import h5py
 from dm_control.locomotion.walkers import rodent
@@ -14,22 +15,26 @@ import argparse
 from scipy.io import loadmat
 from typing import Text, List, Tuple, Dict, Union
 import subprocess
-
+import jax
+from jax import numpy as jp
+from flax import struct
 from walker import Rat
+from typing import Any
 
-def start(
-        stac_path: Text,
-        save_file: Text,
-        scale_factor: float = 0.9,
-        start_step: int = 0,
-        clip_length: int = 250,
-        n_steps: int = None,
-        max_qvel: float = 20.0,
-        dt: float = 0.02,
-        adjust_z_offset: float = 0.0,
-        verbatim: bool = False,
-        ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
-    ):
+
+def process(
+    stac_path: Text,
+    save_file: Text,
+    scale_factor: float = 0.9,
+    start_step: int = 0,
+    clip_length: int = 250,
+    n_steps: int = None,
+    max_qvel: float = 20.0,
+    dt: float = 0.02,
+    adjust_z_offset: float = 0.0,
+    verbatim: bool = False,
+    ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+):
     """Summary
 
     Args:
@@ -47,7 +52,7 @@ def start(
     with open(stac_path, "rb") as file:
         d = pickle.load(file)
         mocap_qpos = np.array(d["qpos"])
-    
+
     # load rodent mjcf
     walker = Rat(foot_mods=False)
     rescale.rescale_subtree(
@@ -61,12 +66,13 @@ def start(
     if n_steps is None:
         n_steps = mocap_qpos.shape[0]
 
+    jax_paths = []
     max_reference_index = np.max(ref_steps) + 1
     with h5py.File(save_file, "w") as file:
-        for start_step in range(0, n_steps, clip_length):
+        for start_step in range(start_step, start_step + n_steps, clip_length):
             print(f"start_step: {start_step}", flush=True)
             end_step = np.min(
-                [start_step + clip_length + max_reference_index, n_steps]
+                [start_step + clip_length + max_reference_index, start_step + n_steps]
             )
             mocap_features = get_mocap_features(
                 mocap_qpos[start_step:end_step, :],
@@ -78,9 +84,15 @@ def start(
                 verbatim,
             )
 
-            mocap_features["scaling"] = []
-            mocap_features["markers"] = []
-            save_features(file, mocap_features, "clip_%d" % (start_step))
+            mocap_features["scaling"] = np.array([])
+            mocap_features["markers"] = np.array([])
+            save_features(file, mocap_features, f"clip_{start_step}")
+            jax_paths.append(
+                save_dataclass_pickle(
+                    f"{save_file[:-3]}_clip_{start_step}.p", mocap_features
+                )
+            )
+    return jax_paths
 
 
 def get_mocap_features(
@@ -142,6 +154,7 @@ def get_mocap_features(
     feet_height = []
     walker_bodies = walker.mocap_tracking_bodies
     body_names = [b.name for b in walker_bodies]
+    # print(len(walker_bodies), body_names)
     if adjust_z_offset:
         left_foot_index = body_names.index("foot_L")
         right_foot_index = body_names.index("foot_R")
@@ -161,14 +174,18 @@ def get_mocap_features(
             position_shift=shift_position,
             rotation_shift=shift_rotation,
         )
-        freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+        freejoint = walker.mjcf_model.find(
+            "joint", "root"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
         root_pos = physics.bind(freejoint).qpos[:3].copy()
         mocap_features["position"].append(root_pos)
         root_quat = physics.bind(freejoint).qpos[3:].copy()
         mocap_features["quaternion"].append(root_quat)
         joints = np.array(physics.bind(walker.mocap_joints).qpos)
         mocap_features["joints"].append(joints)
-        freejoint_frame = walker.mjcf_model.find("body", 'torso') # mjcf.get_attachment_frame(walker.mjcf_model)
+        freejoint_frame = walker.mjcf_model.find(
+            "body", "torso"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model)
         com = np.array(physics.bind(freejoint_frame).subtree_com)
         mocap_features["center_of_mass"].append(com)
         end_effectors = np.copy(
@@ -199,6 +216,7 @@ def get_mocap_features(
     mocap_features["body_positions"] = np.array(mocap_features["body_positions"])
     mocap_features["body_quaternions"] = np.array(mocap_features["body_quaternions"])
 
+    print(mocap_features["position"].shape)
     # Offset vertically the qpos and xpos to ensure that the clip is aligned
     # with the floor. The heuristic uses the 10 lowest feet heights and
     # compensates for the thickness of the geoms.
@@ -262,7 +280,9 @@ def set_walker(
         quat = tr.euler_to_quat(euler, ordering="ZYX")
         qpos[3:7] = quat
     qpos[:3] += offset
-    freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+    freejoint = walker.mjcf_model.find(
+        "joint", "root"
+    )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
     physics.bind(freejoint).qpos = qpos[:7]
     physics.bind(freejoint).qvel = qvel[:6]
     physics.bind(walker.mocap_joints).qpos = qpos[7:]
@@ -300,28 +320,54 @@ def compute_velocity_from_kinematics(
     return np.concatenate([qvel_translation, qvel_gyro, qvel_joints], axis=1)
 
 
-def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):
-        """Save features to hdf5 dataset
+# 13 features
+@struct.dataclass
+class ReferenceClip:
+    angular_velocity: jp.ndarray
+    appendages: jp.ndarray
+    body_positions: jp.ndarray
+    body_quaternions: jp.ndarray
+    center_of_mass: jp.ndarray
+    end_effectors: jp.ndarray
+    joints: jp.ndarray
+    joints_velocity: jp.ndarray
+    markers: jp.ndarray
+    position: jp.ndarray
+    quaternion: jp.ndarray
+    scaling: jp.ndarray
+    velocity: jp.ndarray
 
-        Args:
-            file (h5py.File): Hdf5 dataset
-            mocap_features (Dict): Features extracted through rollout
-            clip_name (Text): Name of the clip stored in the hdf5 dataset.
-        """
-        clip_group = file.create_group(clip_name)
-        n_steps = len(mocap_features["center_of_mass"])
-        clip_group.attrs["num_steps"] = n_steps
-        clip_group.attrs["dt"] = 0.02
-        file.create_group("/" + clip_name + "/walkers")
-        file.create_group("/" + clip_name + "/props")
-        walker_group = file.create_group("/" + clip_name + "/walkers/walker_0")
-        for k, v in mocap_features.items():
-            if len(np.array(v).shape) == 3:
-                v = np.transpose(v, (1, 2, 0))
-                # print(v.shape)
-                walker_group[k] = np.reshape(np.array(v), (-1, n_steps))
-            elif len(np.array(v).shape) == 2:
-                v = np.swapaxes(v, 0, 1)
-                walker_group[k] = v
-            else:
-                walker_group[k] = v
+
+def save_dataclass_pickle(pickle_path, mocap_features):
+    data = ReferenceClip(**mocap_features)
+    data = jax.tree_map(lambda x: jp.array(x), data)
+    with open(pickle_path, "wb") as f:
+        pickle.dump(data, f)
+    return pickle_path
+
+
+def save_features(file: h5py.File, mocap_features: Dict, clip_name: Text):
+    """Save features to hdf5 dataset
+
+    Args:
+        file (h5py.File): Hdf5 dataset
+        mocap_features (Dict): Features extracted through rollout
+        clip_name (Text): Name of the clip stored in the hdf5 dataset.
+    """
+    clip_group = file.create_group(clip_name)
+    n_steps = len(mocap_features["center_of_mass"])
+    clip_group.attrs["num_steps"] = n_steps
+    clip_group.attrs["dt"] = 0.02
+    file.create_group("/" + clip_name + "/walkers")
+    file.create_group("/" + clip_name + "/props")
+    walker_group = file.create_group("/" + clip_name + "/walkers/walker_0")
+    for k, v in mocap_features.items():
+        if len(np.array(v).shape) == 3:
+            v = np.transpose(v, (1, 2, 0))
+            # print(v.shape)
+            walker_group[k] = np.reshape(np.array(v), (-1, n_steps))
+        elif len(np.array(v).shape) == 2:
+            v = np.swapaxes(v, 0, 1)
+            walker_group[k] = v
+        else:
+            walker_group[k] = v

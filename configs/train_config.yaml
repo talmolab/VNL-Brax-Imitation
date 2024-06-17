@@ -1,0 +1,14 @@
+env_name: humanoidtracking
+algo_name: ppo
+task_name: track
+num_envs: 4096
+num_timesteps: 1_000_000_000
+eval_every: 10_000 # for debugging
+episode_length: 150 # This is the clip length
+batch_size: 1024
+learning_rate: 1e-4
+clipping_epsilon: 0.2
+terminate_when_unhealthy: true
+intention_latent_size: 64
+encoder_layer_sizes: [1024, 1024]
+decoder_layer_sizes: [1024, 1024]
