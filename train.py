@@ -89,6 +89,13 @@ def main(train_config: DictConfig):
     env = envs.get_environment(
         cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
     )
+    # TODO: make the intention network factory a part of the config
+    intention_network_factory = functools.partial(
+        ppo.make_intention_ppo_networks,
+        intention_latent_size=train_config.intention_latent_size,
+        encoder_layer_sizes=train_config.encoder_layer_sizes,
+        decoder_layer_sizes=train_config.decoder_layer_sizes,
+    )
 
     train_fn = functools.partial(
         ppo.train,
@@ -103,6 +110,7 @@ def main(train_config: DictConfig):
         num_updates_per_batch=8,
         discounting=0.96,
         learning_rate=train_config["learning_rate"],
+        network_factory=intention_network_factory,
         entropy_cost=1e-3,
         num_envs=train_config["num_envs"] * n_gpus,
         batch_size=train_config["batch_size"] * n_gpus,

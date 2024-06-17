@@ -74,6 +74,7 @@ def make_intention_ppo_networks(
     observation_size: int,
     action_size: int,
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
+    intention_latent_size: int = 64,
     encoder_layer_sizes: Sequence[int] = (1024, 1024),
     decoder_layer_sizes: Sequence[int] = (1024, 1024),
     value_hidden_layer_sizes: Sequence[int] = (256,) * 5,
@@ -84,7 +85,7 @@ def make_intention_ppo_networks(
     )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
-        latent_size=64,  # TODO Hard coded for now
+        latent_size=intention_latent_size,  # TODO Hard coded for now
         traj_size=traj_size,
         obs_size=observation_size,
         preprocess_observations_fn=preprocess_observations_fn,
