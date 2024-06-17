@@ -111,6 +111,7 @@ class HumanoidTracking(PipelineEnv):
             "cur_frame": start_frame,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+        traj = self._get_traj(data, info)
         reward, done, zero = jp.zeros(3)
         metrics = {
             "rcom": zero,
@@ -124,6 +125,7 @@ class HumanoidTracking(PipelineEnv):
         state = State(data, obs, reward, done, metrics, info)
         termination_error = self._calculate_termination(state)
         info["termination_error"] = termination_error
+        info["traj"] = traj
         # if termination_error > 1e-1:
         #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
         #                     'This is likely due to a proto/walker mismatch.'))
@@ -330,17 +332,45 @@ class HumanoidTracking(PipelineEnv):
 
         return jp.concatenate(
             [
-                # put the traj obs first
-                reference_rel_bodies_pos_local,
-                reference_rel_bodies_pos_global,
-                reference_rel_root_pos_local,
-                reference_rel_joints,
                 # reference_appendages,
                 # end_effectors,
                 data.qpos,
                 data.qvel,
                 # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
                 # end_effectors,
+            ]
+        )
+
+    def _get_traj(self, data: mjx.Data, info) -> jp.ndarray:
+        # Get the relevant slice of the ref_traj
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    info["cur_frame"] + 1,
+                    self._ref_traj_length,
+                )
+            return jp.array([])
+
+        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+
+        # now being a local variable
+        reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
+            data, ref_traj
+        )
+        reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(
+            data, ref_traj
+        )
+        reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
+            data, ref_traj
+        )
+        reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
+        return jp.concatenate(
+            [
+                reference_rel_bodies_pos_local,
+                reference_rel_bodies_pos_global,
+                reference_rel_root_pos_local,
+                reference_rel_joints,
             ]
         )
 
