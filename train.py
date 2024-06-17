@@ -144,7 +144,7 @@ def main(train_config: DictConfig):
         errors = []
         for _ in range(env._clip_length - env._ref_traj_length):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            ctrl, _ = jit_inference_fn(state.info["traj"], state.obs, act_rng)
             state = jit_step(state, ctrl)
             errors.append(state.info["termination_error"])
             rollout.append(state.pipeline_state)
@@ -176,7 +176,7 @@ def main(train_config: DictConfig):
             qposes_ref.append(qpos_ref)
         qposes_rollout = []
         for i in rollout:
-            qpos = i.pipeline_state.qpos
+            qpos = i.qpos
             qposes_rollout.append(qpos)
 
         # render overlay
