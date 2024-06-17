@@ -31,7 +31,7 @@ class HumanoidTracking(PipelineEnv):
       reset_noise_scale=1e-2,
       clip_length: int=250,
       episode_length: int=150,
-      ref_traj_length: int=10,
+      ref_traj_length: int=5,
       termination_threshold: float=.9,
       body_error_multiplier: float=1.0,
       **kwargs,
@@ -341,7 +341,7 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        reference_rel_joints,
+        # reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         # data.qpos, 
@@ -389,7 +389,7 @@ class HumanoidTracking(PipelineEnv):
     
     obs = self.global_vector_to_local_frame(
       data,
-      (ref_traj.body_positions - xpos_flatten).reshape([10,30,3])
+      (ref_traj.body_positions - xpos_flatten).reshape([5,30,3])
     )
     return jp.concatenate([o.flatten() for o in obs])
 
