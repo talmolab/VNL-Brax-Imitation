@@ -1,0 +1,10 @@
+name: vnl
+dependencies:
+  - python=3.11
+  - numpy
+  - matplotlib
+  - pandas
+  - pip
+  - ipykernel
+  - pip: 
+    - -r requirements.txt 

@@ -1,4 +1,5 @@
 """Preprocessing for embedding motion capture/dannce data."""
+
 import dm_control
 import h5py
 from dm_control.locomotion.walkers import rodent
@@ -49,7 +50,7 @@ def process(
     with open(stac_path, "rb") as file:
         d = pickle.load(file)
         mocap_qpos = np.array(d["qpos"])
-    
+
     # load rodent mjcf
     walker = Rat(foot_mods=False)
     rescale.rescale_subtree(
@@ -169,14 +170,18 @@ def get_mocap_features(
             position_shift=shift_position,
             rotation_shift=shift_rotation,
         )
-        freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+        freejoint = walker.mjcf_model.find(
+            "joint", "root"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
         root_pos = physics.bind(freejoint).qpos[:3].copy()
         mocap_features["position"].append(root_pos)
         root_quat = physics.bind(freejoint).qpos[3:].copy()
         mocap_features["quaternion"].append(root_quat)
         joints = np.array(physics.bind(walker.mocap_joints).qpos)
         mocap_features["joints"].append(joints)
-        freejoint_frame = walker.mjcf_model.find("body", 'torso') # mjcf.get_attachment_frame(walker.mjcf_model)
+        freejoint_frame = walker.mjcf_model.find(
+            "body", "torso"
+        )  # mjcf.get_attachment_frame(walker.mjcf_model)
         com = np.array(physics.bind(freejoint_frame).subtree_com)
         mocap_features["center_of_mass"].append(com)
         end_effectors = np.copy(
@@ -271,7 +276,9 @@ def set_walker(
         quat = tr.euler_to_quat(euler, ordering="ZYX")
         qpos[3:7] = quat
     qpos[:3] += offset
-    freejoint = walker.mjcf_model.find("joint", 'root') # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
+    freejoint = walker.mjcf_model.find(
+        "joint", "root"
+    )  # mjcf.get_attachment_frame(walker.mjcf_model).freejoint
     physics.bind(freejoint).qpos = qpos[:7]
     physics.bind(freejoint).qvel = qvel[:6]
     physics.bind(walker.mocap_joints).qpos = qpos[7:]
@@ -311,7 +318,7 @@ def compute_velocity_from_kinematics(
 
 # 13 features
 @struct.dataclass
-class ReferenceClip():
+class ReferenceClip:
     angular_velocity: jp.ndarray
     appendages: jp.ndarray
     body_positions: jp.ndarray

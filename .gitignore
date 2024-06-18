@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+=======
+
+*.pyc
+wandb/
+
+# STAC data files
+all_snips.p
+>>>>>>> origin/main
 .ipynb_checkpoints/
 policies/
 outputs/
@@ -8,6 +17,8 @@ tutorial.ipynb
 
 # h5 files
 *.h5
+# mat file
+*.mat
 
 .brax-imitation
 # Training files
@@ -19,4 +30,8 @@ scripts/
 # Python 
 __pycache__/
 
+<<<<<<< HEAD
 .DS_Store
+=======
+.DS_Store
+>>>>>>> origin/main

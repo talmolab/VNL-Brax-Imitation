@@ -304,6 +304,7 @@ class RodentTracking(PipelineEnv):
       Gets reference trajectory obs along with env state obs 
     """
     # Get the relevant slice of the ref_traj
+    # TODO: can just use jax.lax.slice
     def f(x):
       if len(x.shape) != 1:
         return jax.lax.dynamic_slice_in_dim(
