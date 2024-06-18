@@ -38,10 +38,25 @@ class HumanoidTracking(PipelineEnv):
   ):
     # body_idxs => walker_bodies => body_positions
    
-    # mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid_CMU_V2019.xml")
-    sys = mjcf_brax.load("./assets/humanoid_CMU_V2019.xml")
+    mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid_CMU_V2019.xml")
+    # sys = mjcf_brax.load("./assets/humanoid_CMU_V2019.xml")
     # mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL # Read documentation
-    # sys = mjcf_brax.load_model(mj_model)
+
+    self._body_locations = jp.array([
+      mujoco.mj_name2id(mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['body_names']
+    ])
+
+    self._joint_orders = jp.array([
+      mujoco.mj_name2id(mj_model, 
+                        mujoco.mju_str2Type("joint"), 
+                        body)
+      for body in params['joint_names']
+    ])
+
+    sys = mjcf_brax.load_model(mj_model)
     
     sys = sys.tree_replace({
           'opt.cone': mujoco.mjtCone.mjCONE_PYRAMIDAL,
@@ -78,19 +93,19 @@ class HumanoidTracking(PipelineEnv):
     if self._episode_length > self._clip_length:
       raise ValueError("episode_length cannot be greater than clip_length!")
     
-    self._body_locations = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("body"), 
-                        body)
-      for body in params['body_names']
-    ])
+    # self._body_locations = jp.array([
+    #   mujoco.mj_name2id(self.sys.mj_model, 
+    #                     mujoco.mju_str2Type("body"), 
+    #                     body)
+    #   for body in params['body_names']
+    # ])
 
-    self._joint_orders = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("joint"), 
-                        body)
-      for body in params['joint_names']
-    ])
+    # self._joint_orders = jp.array([
+    #   mujoco.mj_name2id(self.sys.mj_model, 
+    #                     mujoco.mju_str2Type("joint"), 
+    #                     body)
+    #   for body in params['joint_names']
+    # ])
     
   def reset(self, rng) -> State:
     """
@@ -341,7 +356,7 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
-        # reference_rel_joints,
+        reference_rel_joints,
         # reference_appendages,
         # end_effectors,
         # data.qpos, 
@@ -386,12 +401,19 @@ class HumanoidTracking(PipelineEnv):
     # the ref traj 'body_positions' feature but calculated for the current walker state
     # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
     xpos_flatten = data.xpos[self._body_locations].flatten() #jp.broadcast_to(data.xpos[self._body_locations], ref_traj.body_positions.shape)
+
+    # print(xpos_flatten[:10])
     
     obs = self.global_vector_to_local_frame(
       data,
-      (ref_traj.body_positions - xpos_flatten).reshape([self._ref_traj_length,30,3])
+      (ref_traj.body_positions - xpos_flatten).reshape([self._ref_traj_length, 30, 3])
     )
-    return jp.concatenate([o.flatten() for o in obs])
+
+    obs_flattened = jp.concatenate([o.flatten() for o in obs])
+
+    print(obs_flattened[:10])
+
+    return obs_flattened
 
 
   def get_reference_rel_bodies_pos_global(self, data, ref_traj):
@@ -415,7 +437,10 @@ class HumanoidTracking(PipelineEnv):
   def get_reference_rel_joints(self, data, ref_traj):
     """Observation of the reference joints relative to walker."""
     qpos_ref = ref_traj.joints
-    diff = (qpos_ref - data.qpos[7:])[self._joint_orders]
+    # print(qpos_ref.shape)
+    # print(data.qpos[7:])
+    diff = (qpos_ref - data.qpos[7:])#[self._joint_orders]
+    # print(diff.shape)
 
     # what would be a  equivalents of this?
     # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
