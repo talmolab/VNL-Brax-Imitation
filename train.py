@@ -178,7 +178,7 @@ def main(train_config: DictConfig):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
-                renderer.update_scene(mj_data, camera=cfg[train_config.env_name]['camera'])
+                renderer.update_scene(mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0")
                 pixels = renderer.render()
                 video.append_data(pixels)
                 frames.append(pixels)
