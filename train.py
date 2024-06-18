@@ -47,7 +47,7 @@ def main(train_config: DictConfig):
     train_fn = functools.partial(
         ppo.train, num_timesteps=train_config["num_timesteps"], num_evals=int(train_config["num_timesteps"]/train_config["eval_every"]),
         reward_scaling=1, episode_length=train_config["episode_length"], normalize_observations=True, action_repeat=1,
-        unroll_length=20, num_minibatches=64, num_updates_per_batch=8,
+        unroll_length=20, num_minibatches=train_config["num_minibatches"], num_updates_per_batch=train_config["num_updates_per_batch"],
         discounting=0.99, learning_rate=train_config["learning_rate"], entropy_cost=1e-3, num_envs=train_config["num_envs"]*n_gpus,
         batch_size=train_config["batch_size"]*n_gpus, seed=0, clipping_epsilon=train_config["clipping_epsilon"]
     )
@@ -91,11 +91,11 @@ def main(train_config: DictConfig):
             rollout.append(state.pipeline_state)
             
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
-        table = wandb.Table(data=data, columns=["frame", "frame termination error"])
+        table = wandb.Table(data=data, columns=["frame", "frame rtrunk"])
         wandb.log(
             {
                 "eval/rollout_termination_error": wandb.plot.line(
-                    table, "frame",  "frame termination error", title="Termination error for each rollout frame"
+                    table, "frame",  "frame rtrunk", title="rtrunk for each rollout frame"
                 )
             }
         )    

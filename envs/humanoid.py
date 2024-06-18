@@ -165,24 +165,26 @@ class HumanoidTracking(PipelineEnv):
     """Runs one timestep of the environment's dynamics."""
     data0 = state.pipeline_state
     data = self.pipeline_step(data0, action)
+    
+    info = state.info.copy()
+    info['cur_frame'] += 1
 
     obs = self._get_obs(data, action, state.info)
 
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = (0.2 * rcom) + (0.01 * rvel) + (0.20 * rtrunk) + (0.01 * rquat) + (0.001 * ract) 
+    total_reward = (0.1 * rcom) + (0.01 * rvel) + (0.2 * rtrunk) + (0.005 * rquat) + (0.001 * ract) 
     # increment frame tracker and up
     # date termination error
-    info = state.info.copy()
     info['termination_error'] = rtrunk
-    info['cur_frame'] += 1
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
     done = jp.where(
-      (rtrunk < -0.5),
+      (rtrunk < 0.5),
       jp.array(1, float), 
       jp.array(0, float)
     )
-    # done = jp.max(jp.array([1.0 - is_healthy, done]))
+    
+    done = jp.max(jp.array([1.0 - is_healthy, done]))
     # info['healthy_time'] = jp.where(
     #   done > 0,
     #   info['healthy_time'],
@@ -269,7 +271,7 @@ class HumanoidTracking(PipelineEnv):
     rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
     # control force from actions 
-    ract = 0.01 * -0.015 * jp.sum(jp.square(action)) / len(action)
+    ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
     
     is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
     is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)

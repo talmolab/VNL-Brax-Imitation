@@ -26,7 +26,7 @@ class RodentTracking(PipelineEnv):
   def __init__(
       self,
       params,
-      healthy_z_range=(0.01, 0.5),
+      healthy_z_range=(0.3, 0.5),
       reset_noise_scale=1e-3,
       clip_length: int=250,
       episode_length: int=150,
@@ -189,23 +189,24 @@ class RodentTracking(PipelineEnv):
     """Runs one timestep of the environment's dynamics."""
     data0 = state.pipeline_state
     data = self.pipeline_step(data0, action)
-
-    obs = self._get_obs(data, action, state.info)
-    rcom, rvel, rtrunk, rquat, ract, rapp = self._calculate_reward(state, action)
-    total_reward = rcom + rvel + rtrunk + rquat + 0.01 * ract + rapp 
     
-    termination_error = self._calculate_termination(state)
-    
-    # increment frame tracker and update termination error
     info = state.info.copy()
-    info['termination_error'] = termination_error
     info['cur_frame'] += 1
+    
+    obs = self._get_obs(data, action, state.info)
+    rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(state, data)
+    total_reward = (0.1 * rcom) + (0.01 * rvel) + (1.0 * rtrunk) + (0.005 * rquat) + (0.001 * ract) + (0.01 * rapp)  
+        
+    # increment frame tracker and update termination error
+    info['termination_error'] = rtrunk
     done = jp.where(
-      (termination_error < 0),
+      (rtrunk < 0),
       jp.array(1, float), 
       jp.array(0, float)
     )
 
+    done = jp.max(jp.array([1.0 - is_healthy, done]))
+    
     reward = jp.nan_to_num(total_reward)
     obs = jp.nan_to_num(obs)
 
@@ -221,7 +222,7 @@ class RodentTracking(PipelineEnv):
         rquat=rquat,
         rtrunk=rtrunk,
         ract=ract,
-        termination_error=termination_error
+        termination_error=rtrunk
     )
     
     return state.replace(
@@ -249,7 +250,7 @@ class RodentTracking(PipelineEnv):
     
     return termination_error
     
-  def _calculate_reward(self, state, action):
+  def _calculate_reward(self, state, data_c):
     """
     calculates the tracking reward:
     1. rcom: comparing center of mass
@@ -260,8 +261,6 @@ class RodentTracking(PipelineEnv):
     Args:
         state (_type_): _description_
     """
-    data_c = state.pipeline_state
-
     # location using com (dim=3)
     com_c = data_c.subtree_com[1]
     com_ref = self._ref_traj.center_of_mass[state.info['cur_frame'], :]
@@ -274,7 +273,7 @@ class RodentTracking(PipelineEnv):
       self._ref_traj.angular_velocity[state.info['cur_frame'], :],
       self._ref_traj.joints_velocity[state.info['cur_frame'], :],
     ])
-    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
+    rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - qvel_ref)))
 
     # rtrunk = termination error
     rtrunk = self._calculate_termination(state)
@@ -285,14 +284,17 @@ class RodentTracking(PipelineEnv):
     rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
     # control force from actions
-    ract = -0.015 * jp.sum(jp.square(action)) / len(action)
+    ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
    
     # end effector positions
     app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
     app_ref = self._ref_traj.end_effectors[state.info['cur_frame'], :].flatten()
 
-    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - (app_ref))))
-    return rcom, rvel, rtrunk, rquat, ract, rapp
+    rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
+    
+    is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+    is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+    return rcom, rvel, rtrunk + 15, rquat, ract, rapp, is_healthy
   
 
   def _get_obs(

@@ -3,7 +3,7 @@ humanoidtracking:
  solver: cg
  iterations: 6
  ls_iterations: 6
- clip_path: humanoid_traj.p
+ clip_path: humanoid_traj_stand.p
  camera: side
 
 humanoidstanding:
