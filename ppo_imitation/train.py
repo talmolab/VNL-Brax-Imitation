@@ -5,7 +5,6 @@ from typing import Callable, Optional, Tuple, Union
 from absl import logging
 from brax import base
 from brax import envs
-from brax.training import acting
 from brax.training import gradients
 from brax.training import pmap
 from brax.training import types
@@ -13,7 +12,8 @@ from brax.training.acme import running_statistics
 from brax.training.acme import specs
 # we inject our custom losses
 # from brax.training.agents.ppo import losses as ppo_losses
-from . import intention_losses as ppo_losses 
+import intention_losses as ppo_losses 
+import acting
 
 # we inject our custom network
 # from brax.training.agents.ppo import networks as ppo_networks\

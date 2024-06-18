@@ -5,7 +5,7 @@ from typing import Dict
 import wandb
 import numpy as np
 from brax import envs
-import ppo_imitation as ppo
+from ppo_imitation import train as ppo
 from brax.io import model
 
 import hydra

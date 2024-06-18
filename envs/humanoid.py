@@ -98,10 +98,15 @@ class HumanoidTracking(PipelineEnv):
       self._ref_traj.joints_velocity[start_frame, :],
     ])
     data = self.pipeline_init(qpos, qvel)
+    
+    obs = self._get_obs(data)
+    traj = self._get_traj(data, start_frame)
+    
     info = {
       "cur_frame": start_frame,
+      "traj": traj,
     }
-    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+    
     reward, done, zero = jp.zeros(3)
     metrics = {
         'rcom': zero,
@@ -137,10 +142,14 @@ class HumanoidTracking(PipelineEnv):
       self._ref_traj.joints_velocity[start_frame, :],
     ])
     data = self.pipeline_init(qpos, qvel)
+   
+    obs = self._get_obs(data)
+    traj = self._get_traj(data, start_frame)
     info = {
       "cur_frame": start_frame,
+      "traj": traj,
     }
-    obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
+     
     reward, done, zero = jp.zeros(3)
     metrics = {
         'rcom': zero,
@@ -170,12 +179,14 @@ class HumanoidTracking(PipelineEnv):
     info['cur_frame'] += 1
 
     obs = self._get_obs(data, action, state.info)
-
+    traj = self._get_traj(data, info['cur_frame'])
+    
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
     total_reward = (0.1 * rcom) + (0.01 * rvel) + (0.2 * rtrunk) + (0.005 * rquat) + (0.001 * ract) 
     # increment frame tracker and up
     # date termination error
     info['termination_error'] = rtrunk
+    info['traj'] = traj
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
     done = jp.where(
@@ -283,25 +294,22 @@ class HumanoidTracking(PipelineEnv):
     return rcom, rvel, rtrunk, rquat, ract, is_healthy #, rapp
   
 
-  def _get_obs(
-      self, data: mjx.Data, action: jp.ndarray, info
-  ) -> jp.ndarray:
+  def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
     """
       Gets reference trajectory obs along with env state obs 
     """
     # Get the relevant slice of the ref_traj
     def f(x):
       if len(x.shape) != 1:
-        return jax.lax.dynamic_slice_in_dim(
+        return jax.lax.slice(
           x, 
-          info['cur_frame'] + 1, 
+          cur_frame + 1, 
           self._ref_traj_length, 
         )
       return jp.array([])
     
     ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
     
-    # now being a local variable
     reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(data, ref_traj)
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
@@ -312,13 +320,23 @@ class HumanoidTracking(PipelineEnv):
     # end_effectors = data.xpos[self._end_eff_idx].flatten()
 
     return jp.concatenate([
-      # put the traj obs first
         reference_rel_bodies_pos_local,
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
         reference_rel_joints,
-        # reference_appendages,
-        # end_effectors,
+    ])
+    
+    
+  def _get_obs(self, data: mjx.Data) -> jp.ndarray:
+    """
+      Gets reference trajectory obs along with env state obs 
+    """
+    # reference_appendages = self.get_reference_appendages_pos(ref_traj)
+    
+    # TODO: end effectors pos and appendages pos are two different features?
+    # end_effectors = data.xpos[self._end_eff_idx].flatten()
+
+    return jp.concatenate([
         data.qpos, 
         data.qvel, 
         # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
