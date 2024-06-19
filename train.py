@@ -46,7 +46,7 @@ def main(train_config: DictConfig):
     train_fn = functools.partial(
         ppo.train, num_timesteps=train_config["num_timesteps"], num_evals=int(train_config["num_timesteps"]/train_config["eval_every"]),
         reward_scaling=1, episode_length=train_config["episode_length"], normalize_observations=True, action_repeat=1,
-        unroll_length=20, num_minibatches=64, num_updates_per_batch=8,
+        unroll_length=20, num_minibatches=64, num_updates_per_batch=train_config["num_updates_per_batch"],
         discounting=0.96, learning_rate=train_config["learning_rate"], entropy_cost=1e-3, num_envs=train_config["num_envs"]*n_gpus,
         batch_size=train_config["batch_size"]*n_gpus, seed=0
     )

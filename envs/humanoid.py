@@ -29,8 +29,8 @@ class HumanoidTracking(PipelineEnv):
       params,
       healthy_z_range=(1.0, 2.0),
       reset_noise_scale=1e-2,
-      clip_length: int=250,
-      episode_length: int=150,
+      clip_length: int=10,
+      episode_length: int=10,
       ref_traj_length: int=5,
       termination_threshold: float=.9,
       body_error_multiplier: float=1.0,
@@ -427,9 +427,9 @@ class HumanoidTracking(PipelineEnv):
 
   def get_reference_rel_root_pos_local(self, data, ref_traj):
     """Reference position relative to current root position in root frame."""
-    com = data.subtree_com[0] # root body index
+    pos = data.qpos[:3]
     
-    thing = (ref_traj.position - com) # correct as position?
+    thing = (ref_traj.position - pos) # correct as position?
     obs = self.global_vector_to_local_frame(data, thing)
     return jp.concatenate([o.flatten() for o in obs])
 
