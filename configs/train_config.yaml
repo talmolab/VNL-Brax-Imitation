@@ -1,10 +1,10 @@
 env_name: humanoid
 algo_name: ppo
 task_name: track
-num_envs: 4096
+num_envs: 100
 num_timesteps: 500_000_000
 eval_every: 25_000_000
 episode_length: 150 # This is the clip length
-batch_size: 1024
+batch_size: 2048
 learning_rate: 1e-4
 terminate_when_unhealthy: true
