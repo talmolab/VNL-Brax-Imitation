@@ -26,7 +26,7 @@ class Encoder(nn.Module):
 
     layer_sizes: Sequence[int]
     latents: int  # intention size
-    activation: networks.ActivationFn = nn.tanh
+    activation: networks.ActivationFn = nn.relu
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
     bias: bool = True
 
@@ -53,7 +53,7 @@ class Decoder(nn.Module):
     """decode with action output"""
 
     layer_sizes: Sequence[int]
-    activation: networks.ActivationFn = nn.tanh
+    activation: networks.ActivationFn = nn.relu
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
     activate_final: bool = False
     bias: bool = True
