@@ -359,8 +359,8 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_joints,
         # reference_appendages,
         # end_effectors,
-        # data.qpos, 
-        # data.qvel, 
+        data.qpos, 
+        data.qvel, 
         # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
         # end_effectors,
     ])
@@ -411,7 +411,7 @@ class HumanoidTracking(PipelineEnv):
 
     obs_flattened = jp.concatenate([o.flatten() for o in obs])
 
-    print(obs_flattened[:10])
+    # print(obs_flattened[:10])
 
     return obs_flattened
 
