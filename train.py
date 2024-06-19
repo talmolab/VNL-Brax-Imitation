@@ -28,6 +28,7 @@ from brax.training.types import PRNGKey
 from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import numpy as np
+import uuid
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -72,6 +73,14 @@ def main(train_config: DictConfig):
         cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
     )
     
+    # TODO: make the intention network factory a part of the config
+    intention_network_factory = functools.partial(
+        ppo_networks.make_intention_ppo_networks,
+        intention_latent_size=train_config.intention_latent_size,
+        encoder_layer_sizes=train_config.encoder_layer_sizes,
+        decoder_layer_sizes=train_config.decoder_layer_sizes,
+    )
+    
     train_fn = functools.partial(
         ppo.train, 
         num_timesteps=train_config["num_timesteps"], 
@@ -89,18 +98,11 @@ def main(train_config: DictConfig):
         num_envs=train_config["num_envs"]*n_devices,
         batch_size=train_config["batch_size"]*n_devices, 
         seed=0, 
-        clipping_epsilon=train_config["clipping_epsilon"]
-    )
+        clipping_epsilon=train_config["clipping_epsilon"],
+        kl_weight=train_config["kl_weight"],
+        network_factory=intention_network_factory,
 
-    # TODO: make the intention network factory a part of the config
-    intention_network_factory = functools.partial(
-        ppo_networks.make_intention_ppo_networks,
-        intention_latent_size=train_config.intention_latent_size,
-        encoder_layer_sizes=train_config.encoder_layer_sizes,
-        decoder_layer_sizes=train_config.decoder_layer_sizes,
     )
-
-    import uuid
 
     # Generates a completely random UUID (version 4)
     run_id = uuid.uuid4()
