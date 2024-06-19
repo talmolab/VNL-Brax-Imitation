@@ -5,7 +5,6 @@ from typing import Dict
 import wandb
 import numpy as np
 from brax import envs
-from ppo_imitation import train as ppo
 from brax.io import model
 
 import hydra
@@ -13,6 +12,9 @@ from omegaconf import DictConfig, OmegaConf
 
 import mujoco
 import imageio
+
+from ppo_imitation import train as ppo
+from ppo_imitation import ppo_networks
 
 from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
@@ -25,7 +27,6 @@ from brax.training.types import Policy
 from brax.training.types import PRNGKey
 from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
-import jax
 import numpy as np
 
 State = Union[envs.State, envs_v1.State]
@@ -40,9 +41,18 @@ import os
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
 
-n_gpus = jax.device_count(backend="gpu")
-print(f"Using {n_gpus} GPUs")
+def jax_has_gpu():
+    try:
+        _ = jax.device_put(jp.ones(1), device=jax.devices('gpu')[0])
+        return True
+    except:
+        return False
 
+if jax_has_gpu():
+    n_devices = jax.device_count(backend="gpu")
+    print(f"Using {n_devices} GPUs")
+else:
+    n_devices = 1
 os.environ['XLA_FLAGS'] = (
     '--xla_gpu_enable_triton_softmax_fusion=true '
     '--xla_gpu_triton_gemm_any=True '
@@ -76,15 +86,15 @@ def main(train_config: DictConfig):
         discounting=0.99, 
         learning_rate=train_config["learning_rate"], 
         entropy_cost=1e-3, 
-        num_envs=train_config["num_envs"]*n_gpus,
-        batch_size=train_config["batch_size"]*n_gpus, 
+        num_envs=train_config["num_envs"]*n_devices,
+        batch_size=train_config["batch_size"]*n_devices, 
         seed=0, 
         clipping_epsilon=train_config["clipping_epsilon"]
     )
 
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
-        ppo.make_intention_ppo_networks,
+        ppo_networks.make_intention_ppo_networks,
         intention_latent_size=train_config.intention_latent_size,
         encoder_layer_sizes=train_config.encoder_layer_sizes,
         decoder_layer_sizes=train_config.decoder_layer_sizes,
@@ -125,7 +135,7 @@ def main(train_config: DictConfig):
         errors = []
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            ctrl, _ = jit_inference_fn(state.info['traj'], state.obs, act_rng)
             state = jit_step(state, ctrl)
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info['termination_error'])
@@ -147,7 +157,7 @@ def main(train_config: DictConfig):
         # extract qpos from rollout
         ref_traj = env._ref_traj
         ref_traj = jax.tree_util.tree_map(
-            lambda x: jax.lax.slice(x, 0, train_config["episode_length"]), 
+            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]), 
             ref_traj
         )
         qposes_ref = jp.hstack([ref_traj.position, ref_traj.quaternion, ref_traj.joints])

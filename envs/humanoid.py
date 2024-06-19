@@ -178,7 +178,7 @@ class HumanoidTracking(PipelineEnv):
     info = state.info.copy()
     info['cur_frame'] += 1
 
-    obs = self._get_obs(data, action, state.info)
+    obs = self._get_obs(data)
     traj = self._get_traj(data, info['cur_frame'])
     
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
@@ -301,7 +301,7 @@ class HumanoidTracking(PipelineEnv):
     # Get the relevant slice of the ref_traj
     def f(x):
       if len(x.shape) != 1:
-        return jax.lax.slice(
+        return jax.lax.dynamic_slice_in_dim(
           x, 
           cur_frame + 1, 
           self._ref_traj_length, 
@@ -380,7 +380,7 @@ class HumanoidTracking(PipelineEnv):
     # the ref traj 'body_positions' feature but calculated for the current walker state
 
     #time_steps = frame + jp.arange(self._ref_traj_length) # get from current frame -> length of needed frame index & index from data
-    # Still unsure why the slicing below is necessary but it seems this is what dm_control did..
+    # Still unsure why the slicing below is necessary but it seems this is what dm_control did.
     obs = self.global_vector_to_local_frame(
       data,
       ref_traj.body_positions - data.xpos

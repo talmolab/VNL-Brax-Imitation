@@ -1,18 +1,13 @@
-<<<<<<< HEAD
-=======
-
 *.pyc
 wandb/
 
 # STAC data files
 all_snips.p
->>>>>>> origin/main
 .ipynb_checkpoints/
 policies/
 outputs/
 tutorial.ipynb
-
-# STAC data files
+*.mp4
 *.p
 
 # h5 files
@@ -30,8 +25,4 @@ scripts/
 # Python 
 __pycache__/
 
-<<<<<<< HEAD
 .DS_Store
-=======
-.DS_Store
->>>>>>> origin/main

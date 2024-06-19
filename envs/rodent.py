@@ -54,6 +54,20 @@ class RodentTracking(PipelineEnv):
     mj_model.opt.ls_iterations = params["ls_iterations"]
     mj_model.opt.jacobian = 0 # dense
     
+    self._end_eff_idx = jp.array([
+      mujoco.mj_name2id(mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['end_eff_names']
+    ])
+      
+    self._body_idxs = jp.array([
+      mujoco.mj_name2id(mj_model, 
+                        mujoco.mju_str2Type("body"), 
+                        body)
+      for body in params['walker_body_names']
+    ])
+    
     sys = mjcf_brax.load_model(mj_model)
 
     physics_steps_per_control_step = 5
@@ -64,20 +78,6 @@ class RodentTracking(PipelineEnv):
     kwargs['backend'] = 'mjx'
 
     super().__init__(sys, **kwargs)
-    
-    self._end_eff_idx = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("body"), 
-                        body)
-      for body in params['end_eff_names']
-    ])
-      
-    self._body_idxs = jp.array([
-      mujoco.mj_name2id(self.sys.mj_model, 
-                        mujoco.mju_str2Type("body"), 
-                        body)
-      for body in params['walker_body_names']
-    ])
     
     self._healthy_z_range = healthy_z_range
     self._reset_noise_scale = reset_noise_scale
@@ -352,8 +352,8 @@ class RodentTracking(PipelineEnv):
     
     Returns the resulting vector, converting to ego-centric frame
     """
-    # [0] is the root_body index
-    xmat = jp.reshape(data.xmat[0], (3, 3))
+    # TODO: confirm index
+    xmat = jp.reshape(data.xmat[1], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
     # matrix whose final dimensions are (2,) or (3,).
 

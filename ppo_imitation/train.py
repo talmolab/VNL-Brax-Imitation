@@ -12,8 +12,9 @@ from brax.training.acme import running_statistics
 from brax.training.acme import specs
 # we inject our custom losses
 # from brax.training.agents.ppo import losses as ppo_losses
-import intention_losses as ppo_losses 
-import acting
+from ppo_imitation import intention_losses as ppo_losses 
+from ppo_imitation import acting
+from ppo_imitation import ppo_networks
 
 # we inject our custom network
 # from brax.training.agents.ppo import networks as ppo_networks\
@@ -25,8 +26,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-
-from . import ppo_networks
 
 
 InferenceParams = Tuple[running_statistics.NestedMeanStd, Params]
@@ -92,7 +91,7 @@ def train(
     randomization_fn: Optional[
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
-    kl_weights: Tuple[float, float] = (1e-4, 1e-4), # default kl_weights in MIMIC
+    kl_weight: float = 1e-4, # default kl_weight in MIMIC
 ):
     """PPO training.
 
@@ -241,7 +240,7 @@ def train(
         gae_lambda=gae_lambda,
         clipping_epsilon=clipping_epsilon,
         normalize_advantage=normalize_advantage,
-        kl_weights=kl_weights,
+        kl_weight=kl_weight,
     )
 
     gradient_update_fn = gradients.gradient_update_fn(
@@ -303,7 +302,7 @@ def train(
                 policy,
                 current_key,
                 unroll_length,
-                extra_fields=("truncation",),
+                extra_fields=("truncation", "traj"),
             )
             return (next_state, next_key), data
 

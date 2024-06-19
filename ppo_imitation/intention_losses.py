@@ -101,7 +101,7 @@ def compute_ppo_intention_loss(
     gae_lambda: float = 0.95,
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
-    kl_weights: Tuple[float, float] = (1e-4, 1e-4),
+    kl_weight: float = 1e-4,
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
@@ -132,7 +132,7 @@ def compute_ppo_intention_loss(
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
     rng, policy_rng = jax.random.split(rng)
     policy_logits, action_mean, intention_mean, intention_logvar = policy_apply(
-        normalizer_params, params.policy, data.extras["traj"], data.observation, policy_rng
+        normalizer_params, params.policy, data.extras["state_extras"]["traj"], data.observation, policy_rng
     )
 
     baseline = value_apply(
@@ -182,14 +182,12 @@ def compute_ppo_intention_loss(
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
     kl_intention = kl_divergence(intention_mean, intention_logvar)
-    kl_action = kl_divergence(action_mean, jnp.ones_like(action_mean))
 
     total_loss = (
         policy_loss
         + v_loss
         + entropy_loss
-        + kl_intention * kl_weights[0]
-        + kl_action * kl_weights[1]
+        + kl_intention * kl_weight
     )
     return total_loss, {
         "total_loss": total_loss,
@@ -197,5 +195,4 @@ def compute_ppo_intention_loss(
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
         "kl_loss_intention": kl_intention,
-        "kl_loss_action": kl_action,
     }
