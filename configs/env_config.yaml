@@ -3,8 +3,96 @@ humanoid:
  solver: cg
  iterations: 6
  ls_iterations: 6
- clip_path: clips/test_trajectories.h5 #clips/humanoid_traj.p
+ clip_path: clips/humanoid_traj.p
  camera: side
+ body_names:
+    - lhipjoint
+    - lfemur
+    - ltibia
+    - lfoot
+    - ltoes
+    - rhipjoint
+    - rfemur
+    - rtibia
+    - rfoot
+    - rtoes
+    - lowerback
+    - upperback
+    - thorax
+    - lowerneck
+    - upperneck
+    - head
+    - lclavicle
+    - lhumerus
+    - lradius
+    - lwrist
+    - lhand
+    - lfingers
+    - lthumb
+    - rclavicle
+    - rhumerus
+    - rradius
+    - rwrist
+    - rhand
+    - rfingers
+    - rthumb
+ joint_names:
+    - headry
+    - headrz
+    - upperneckrx
+    - lclaviclerz
+    - headrx
+    - lfemurry
+    - lfemurrz
+    - root
+    - lhandrx
+    - lfootrz
+    - ltibiarx
+    - lhandrz
+    - lwristry
+    - lhumerusry
+    - lhumerusrz
+    - lclaviclery
+    - lowerbackry
+    - lowerbackrz
+    - rtoesrx
+    - lowerneckry
+    - lowerneckrz
+    - thoraxrx
+    - lhumerusrx
+    - lthumbrz
+    - lfingersrx
+    - lfemurrx
+    - lfootrx
+    - lradiusrx
+    - rclaviclerz
+    - lthumbrx
+    - rfemurry
+    - rfemurrz
+    - ltoesrx
+    - rhandrx
+    - rfootrz
+    - rtibiarx
+    - rhandrz
+    - rwristry
+    - rhumerusry
+    - rhumerusrz
+    - rclaviclery
+    - rhumerusrx
+    - rthumbrz
+    - rfingersrx
+    - rfemurrx
+    - rfootrx
+    - rradiusrx
+    - thoraxry
+    - thoraxrz
+    - upperbackrx
+    - upperbackry
+    - upperbackrz
+    - lowerbackrx
+    - upperneckry
+    - upperneckrz
+    - lowerneckrx
 
 ant:
  name: ant

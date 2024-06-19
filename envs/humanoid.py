@@ -52,8 +52,8 @@ class HumanoidTracking(PipelineEnv):
     self._joint_orders = jp.array([
       mujoco.mj_name2id(mj_model, 
                         mujoco.mju_str2Type("joint"), 
-                        body)
-      for body in params['joint_names']
+                        joint)
+      for joint in params['joint_names']
     ])
 
     sys = mjcf_brax.load_model(mj_model)
@@ -379,7 +379,7 @@ class HumanoidTracking(PipelineEnv):
     Returns the resulting vector, converting to ego-centric frame
     """
     # [0] is the root_body index
-    xmat = jp.reshape(data.xmat[0], (3, 3))
+    xmat = jp.reshape(data.xmat[1], (3, 3))
     # The ordering of the np.dot is such that the transformation holds for any
     # matrix whose final dimensions are (2,) or (3,).
 
@@ -439,7 +439,7 @@ class HumanoidTracking(PipelineEnv):
     qpos_ref = ref_traj.joints
     # print(qpos_ref.shape)
     # print(data.qpos[7:])
-    diff = (qpos_ref - data.qpos[7:])#[self._joint_orders]
+    diff = (qpos_ref - data.qpos[7:])[:,self._joint_orders]
     # print(diff.shape)
 
     # what would be a  equivalents of this?

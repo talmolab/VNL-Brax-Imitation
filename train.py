@@ -57,7 +57,7 @@ def main(train_config: DictConfig):
     model_path = f"./model_checkpoints/{run_id}"
 
     run = wandb.init(
-        project="VNL_Huammnoid_Imitation_Debug",#"VNL_SingleClipImitationPPO",
+        project="VNL_CMU_Humanoid",
         config=OmegaConf.to_container(train_config, resolve=True),
         notes=f""
     )
