@@ -181,13 +181,13 @@ def compute_ppo_intention_loss(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_intention = kl_divergence(intention_mean, intention_logvar)
+    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar)
 
     total_loss = (
         policy_loss
         + v_loss
         + entropy_loss
-        + kl_intention * kl_weight
+        + kl_intention
     )
     return total_loss, {
         "total_loss": total_loss,

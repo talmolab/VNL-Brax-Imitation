@@ -135,23 +135,57 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
+        means = []
+        stds = []
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, _ = jit_inference_fn(state.info['traj'], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(state.info['traj'], state.obs, act_rng)
             state = jit_step(state, ctrl)
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info['termination_error'])
+            mean, std = np.split(extras["logits"], 2)
+            means.append(mean)
+            stds.append(std)
             rollout.append(state.pipeline_state)
             
+        # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
         table = wandb.Table(data=data, columns=["frame", "frame rtrunk"])
         wandb.log(
             {
-                "eval/rollout_termination_error": wandb.plot.line(
-                    table, "frame",  "frame rtrunk", title="rtrunk for each rollout frame"
+                "eval/rollout_rtrunk": wandb.plot.line(
+                    table, "Frame",  "Frame rtrunk", title="rtrunk for each rollout frame"
                 )
             }
-        )    
+        )   
+        
+        # Plot action means over rollout
+        data = np.array(means).T
+        wandb.log(
+            {
+                f"logits/rollout_means": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",  
+                    title=f"Action actuator means for each rollout frame"
+                )
+            }
+        )  
+        
+        # Plot action stds over rollout (optimize this later)
+        data = np.array(stds).T
+        wandb.log(
+            {
+                f"logits/rollout_stds": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",  
+                    title=f"Action actuator stds for each rollout frame"
+                )
+            }
+        )  
         
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"

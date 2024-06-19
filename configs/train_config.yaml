@@ -3,15 +3,15 @@ algo_name: ppo
 task_name: track
 num_envs: 4096
 num_timesteps: 1_000_000_000
-eval_every: 25_000_000 
+eval_every: 5_000_000 
 episode_length: 150 # This is the clip length
 batch_size: 2048
-learning_rate: 1e-4
-num_minibatches: 8
-num_updates_per_batch: 32
-clipping_epsilon: 0.2
-kl_weight: 5e-4
+learning_rate: 6e-4
+num_minibatches: 32
+num_updates_per_batch: 16
+clipping_epsilon: 0.3
+kl_weight: 1e-5
 terminate_when_unhealthy: true
 intention_latent_size: 64
-encoder_layer_sizes: [512, 512, 512]
-decoder_layer_sizes: [512, 512, 512]
+encoder_layer_sizes: [512, 512]
+decoder_layer_sizes: [512, 512]

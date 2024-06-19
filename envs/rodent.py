@@ -37,6 +37,8 @@ class RodentTracking(PipelineEnv):
   ):
     # body_idxs => walker_bodies => body_positions
     root = mjcf.from_path("./assets/rodent.xml")
+    
+    # TODO: replace this rescale with jax version (from james cotton BodyModels)
     rescale.rescale_subtree(
         root,
         params["scale_factor"],

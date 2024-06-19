@@ -182,18 +182,23 @@ class HumanoidTracking(PipelineEnv):
     traj = self._get_traj(data, info['cur_frame'])
     
     rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(state, action)
-    total_reward = (0.1 * rcom) + (0.01 * rvel) + (0.2 * rtrunk) + (0.005 * rquat) + (0.0001 * ract) 
+    done = jp.where(
+      (rtrunk < 0.5),
+      jp.array(1, float), 
+      jp.array(0, float)
+    )
+    rcom *= 0.01
+    rvel *= 0.01
+    rtrunk *= 0.01
+    rquat *= 0.01
+    ract *= 0.0001
+    total_reward = rcom + rvel + rtrunk + rquat + ract
     # increment frame tracker and up
     # date termination error
     info['termination_error'] = rtrunk
     info['traj'] = traj
     # done = 1.0 - is_healthy
     # info['episode_frame'] += 1
-    done = jp.where(
-      (rtrunk < 0.5),
-      jp.array(1, float), 
-      jp.array(0, float)
-    )
     
     done = jp.max(jp.array([1.0 - is_healthy, done]))
     # info['healthy_time'] = jp.where(
