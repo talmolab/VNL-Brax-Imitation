@@ -3,7 +3,7 @@ humanoid:
  solver: cg
  iterations: 6
  ls_iterations: 6
- clip_path: clips/humanoid_traj.p
+ clip_path: clips/test_traj.p
  camera: side
  body_names:
     - lhipjoint
