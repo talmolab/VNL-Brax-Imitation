@@ -60,7 +60,7 @@ def process(
         scale_factor,
         scale_factor,
     )
-    physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
+    mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
 
     """Extract featires from the reference qpos"""
     if n_steps is None:
