@@ -40,30 +40,32 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.9'
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+
 
 def jax_has_gpu():
     try:
-        _ = jax.device_put(jp.ones(1), device=jax.devices('gpu')[0])
+        _ = jax.device_put(jp.ones(1), device=jax.devices("gpu")[0])
         return True
     except:
         return False
+
 
 if jax_has_gpu():
     n_devices = jax.device_count(backend="gpu")
     print(f"Using {n_devices} GPUs")
 else:
     n_devices = 1
-os.environ['XLA_FLAGS'] = (
-    '--xla_gpu_enable_triton_softmax_fusion=true '
-    '--xla_gpu_triton_gemm_any=True '
+os.environ["XLA_FLAGS"] = (
+    "--xla_gpu_enable_triton_softmax_fusion=true " "--xla_gpu_triton_gemm_any=True "
 )
 
 envs.register_environment("humanoidtracking", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
 envs.register_environment("humanoidstanding", HumanoidStanding)
-    
+
+
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
 def main(train_config: DictConfig):
     cfg = hydra.compose(config_name="env_config")
@@ -72,7 +74,7 @@ def main(train_config: DictConfig):
     env = envs.get_environment(
         cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
     )
-    
+
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
         ppo_networks.make_intention_ppo_networks,
@@ -80,28 +82,27 @@ def main(train_config: DictConfig):
         encoder_layer_sizes=train_config.encoder_layer_sizes,
         decoder_layer_sizes=train_config.decoder_layer_sizes,
     )
-    
+
     train_fn = functools.partial(
-        ppo.train, 
-        num_timesteps=train_config["num_timesteps"], 
-        num_evals=int(train_config["num_timesteps"]/train_config["eval_every"]),
-        reward_scaling=1, 
-        episode_length=train_config["episode_length"], 
-        normalize_observations=True, 
+        ppo.train,
+        num_timesteps=train_config["num_timesteps"],
+        num_evals=int(train_config["num_timesteps"] / train_config["eval_every"]),
+        reward_scaling=1,
+        episode_length=train_config["episode_length"],
+        normalize_observations=True,
         action_repeat=1,
-        unroll_length=20, 
-        num_minibatches=train_config["num_minibatches"], 
+        unroll_length=20,
+        num_minibatches=train_config["num_minibatches"],
         num_updates_per_batch=train_config["num_updates_per_batch"],
-        discounting=0.99, 
-        learning_rate=train_config["learning_rate"], 
-        entropy_cost=1e-3, 
-        num_envs=train_config["num_envs"]*n_devices,
-        batch_size=train_config["batch_size"]*n_devices, 
-        seed=0, 
+        discounting=0.99,
+        learning_rate=train_config["learning_rate"],
+        entropy_cost=1e-3,
+        num_envs=train_config["num_envs"] * n_devices,
+        batch_size=train_config["batch_size"] * n_devices,
+        seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
         network_factory=intention_network_factory,
-
     )
 
     # Generates a completely random UUID (version 4)
@@ -111,7 +112,7 @@ def main(train_config: DictConfig):
     run = wandb.init(
         project="VNL_SingleClipImitationPPO",
         config=OmegaConf.to_container(train_config, resolve=True),
-        notes=f""
+        notes=f"",
     )
 
     wandb.run.name = f"{train_config.env_name}_{train_config.task_name}_{train_config['algo_name']}_{run_id}"
@@ -139,26 +140,29 @@ def main(train_config: DictConfig):
         stds = []
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(state.info['traj'], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
             state = jit_step(state, ctrl)
             if train_config.env_name != "humanoidstanding":
-                errors.append(state.info['termination_error'])
+                errors.append(state.info["termination_error"])
             mean, std = np.split(extras["logits"], 2)
             means.append(mean)
             stds.append(std)
             rollout.append(state.pipeline_state)
-            
+
         # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
         table = wandb.Table(data=data, columns=["frame", "frame rtrunk"])
         wandb.log(
             {
                 "eval/rollout_rtrunk": wandb.plot.line(
-                    table, "Frame",  "Frame rtrunk", title="rtrunk for each rollout frame"
+                    table,
+                    "Frame",
+                    "Frame rtrunk",
+                    title="rtrunk for each rollout frame",
                 )
             }
-        )   
-        
+        )
+
         # Plot action means over rollout
         data = np.array(means).T
         wandb.log(
@@ -167,12 +171,12 @@ def main(train_config: DictConfig):
                     xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",  
-                    title=f"Action actuator means for each rollout frame"
+                    xname="Frame",
+                    title=f"Action actuator means for each rollout frame",
                 )
             }
-        )  
-        
+        )
+
         # Plot action stds over rollout (optimize this later)
         data = np.array(stds).T
         wandb.log(
@@ -181,23 +185,25 @@ def main(train_config: DictConfig):
                     xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",  
-                    title=f"Action actuator stds for each rollout frame"
+                    xname="Frame",
+                    title=f"Action actuator stds for each rollout frame",
                 )
             }
-        )  
-        
+        )
+
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-        
+
         # extract qpos from rollout
         ref_traj = env._ref_traj
         ref_traj = jax.tree_util.tree_map(
-            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]), 
-            ref_traj
+            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]),
+            ref_traj,
         )
-        qposes_ref = jp.hstack([ref_traj.position, ref_traj.quaternion, ref_traj.joints])
-        
+        qposes_ref = jp.hstack(
+            [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
+        )
+
         qposes_rollout = [data.qpos for data in rollout]
 
         # TODO: Humanoid specific rendering
@@ -224,7 +230,9 @@ def main(train_config: DictConfig):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
-                renderer.update_scene(mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0")
+                renderer.update_scene(
+                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0"
+                )
                 pixels = renderer.render()
                 video.append_data(pixels)
                 frames.append(pixels)
@@ -238,6 +246,7 @@ def main(train_config: DictConfig):
     final_save_path = f"{model_path}/finished_mlp"
     model.save_params(final_save_path, params)
     print(f"Run finished. Model saved to {final_save_path}")
+
 
 if __name__ == "__main__":
     main()

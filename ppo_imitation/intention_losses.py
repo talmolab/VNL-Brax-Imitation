@@ -3,7 +3,7 @@ from typing import Any, Tuple
 from brax.training import types
 
 from brax.training.agents.ppo import networks as ppo_networks
- 
+
 from brax.training.types import Params
 import flax
 import jax
@@ -132,7 +132,11 @@ def compute_ppo_intention_loss(
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
     rng, policy_rng = jax.random.split(rng)
     policy_logits, intention_mean, intention_logvar = policy_apply(
-        normalizer_params, params.policy, data.extras["state_extras"]["traj"], data.observation, policy_rng
+        normalizer_params,
+        params.policy,
+        data.extras["state_extras"]["traj"],
+        data.observation,
+        policy_rng,
     )
 
     baseline = value_apply(
@@ -183,12 +187,7 @@ def compute_ppo_intention_loss(
     entropy_loss = entropy_cost * -entropy
     kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar)
 
-    total_loss = (
-        policy_loss
-        + v_loss
-        + entropy_loss
-        + kl_intention
-    )
+    total_loss = policy_loss + v_loss + entropy_loss + kl_intention
     return total_loss, {
         "total_loss": total_loss,
         "policy_loss": policy_loss,

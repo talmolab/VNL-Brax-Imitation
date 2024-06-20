@@ -20,19 +20,21 @@ from jax import numpy as jp
 from flax import struct
 from walker import Rat
 from typing import Any
+
+
 def process(
-        stac_path: Text,
-        save_file: Text,
-        scale_factor: float = 0.9,
-        start_step: int = 0,
-        clip_length: int = 250,
-        n_steps: int = None,
-        max_qvel: float = 20.0,
-        dt: float = 0.02,
-        adjust_z_offset: float = 0.0,
-        verbatim: bool = False,
-        ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
-    ):
+    stac_path: Text,
+    save_file: Text,
+    scale_factor: float = 0.9,
+    start_step: int = 0,
+    clip_length: int = 250,
+    n_steps: int = None,
+    max_qvel: float = 20.0,
+    dt: float = 0.02,
+    adjust_z_offset: float = 0.0,
+    verbatim: bool = False,
+    ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+):
     """Summary
 
     Args:
@@ -52,9 +54,9 @@ def process(
         mocap_qpos = np.array(d["qpos"])
 
     # load rodent mjcf
-    walker = Rat(foot_mods=False)
+    root = mjcf.from_path("./assets/rodent.xml")
     rescale.rescale_subtree(
-        walker.mjcf_model,
+        root,
         scale_factor,
         scale_factor,
     )
@@ -86,7 +88,9 @@ def process(
             mocap_features["markers"] = np.array([])
             save_features(file, mocap_features, f"clip_{start_step}")
             jax_paths.append(
-                save_dataclass_pickle(f"{save_file[:-3]}_clip_{start_step}.p", mocap_features)
+                save_dataclass_pickle(
+                    f"{save_file[:-3]}_clip_{start_step}.p", mocap_features
+                )
             )
     return jax_paths
 
@@ -332,11 +336,12 @@ class ReferenceClip:
     quaternion: jp.ndarray
     scaling: jp.ndarray
     velocity: jp.ndarray
-    
+
+
 def save_dataclass_pickle(pickle_path, mocap_features):
     data = ReferenceClip(**mocap_features)
     data = jax.tree_map(lambda x: jp.array(x), data)
-    with open(pickle_path, 'wb') as f:
+    with open(pickle_path, "wb") as f:
         pickle.dump(data, f)
     return pickle_path
 
