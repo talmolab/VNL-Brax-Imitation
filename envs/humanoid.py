@@ -384,7 +384,7 @@ class HumanoidTracking(PipelineEnv):
         Returns the resulting vector, converting to ego-centric frame
         """
         # [0] is the root_body index
-        xmat = jp.reshape(data.xmat[0], (3, 3))
+        xmat = jp.reshape(data.xmat[1], (3, 3))
         # The ordering of the np.dot is such that the transformation holds for any
         # matrix whose final dimensions are (2,) or (3,).
 
