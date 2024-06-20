@@ -54,9 +54,9 @@ def process(
         mocap_qpos = np.array(d["qpos"])
 
     # load rodent mjcf
-    walker = Rat(foot_mods=False)
+    root = mjcf.from_path("./assets/rodent.xml")
     rescale.rescale_subtree(
-        walker.mjcf_model,
+        root,
         scale_factor,
         scale_factor,
     )

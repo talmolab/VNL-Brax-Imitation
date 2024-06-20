@@ -1,4 +1,3 @@
-
 *.pyc
 wandb/
 
@@ -8,8 +7,7 @@ all_snips.p
 policies/
 outputs/
 tutorial.ipynb
-
-# STAC data files
+*.mp4
 *.p
 
 # h5 files

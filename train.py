@@ -5,7 +5,6 @@ from typing import Dict
 import wandb
 import numpy as np
 from brax import envs
-import ppo_imitation as ppo
 from brax.io import model
 
 import hydra
@@ -14,11 +13,12 @@ from omegaconf import DictConfig, OmegaConf
 import mujoco
 import imageio
 
-from envs.humanoid import HumanoidTracking
+from ppo_imitation import train as ppo
+from ppo_imitation import ppo_networks
+
+from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
-from dm_control.mujoco import wrapper
-from dm_control.mujoco.wrapper.mjbindings import enums
 
 from typing import Sequence, Tuple, Union
 import brax
@@ -27,8 +27,8 @@ from brax.training.types import Policy
 from brax.training.types import PRNGKey
 from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
-import jax
 import numpy as np
+import uuid
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -42,9 +42,20 @@ import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
 
-n_gpus = jax.device_count(backend="gpu")
-print(f"Using {n_gpus} GPUs")
 
+def jax_has_gpu():
+    try:
+        _ = jax.device_put(jp.ones(1), device=jax.devices("gpu")[0])
+        return True
+    except:
+        return False
+
+
+if jax_has_gpu():
+    n_devices = jax.device_count(backend="gpu")
+    print(f"Using {n_devices} GPUs")
+else:
+    n_devices = 1
 os.environ["XLA_FLAGS"] = (
     "--xla_gpu_enable_triton_softmax_fusion=true " "--xla_gpu_triton_gemm_any=True "
 )
@@ -52,46 +63,21 @@ os.environ["XLA_FLAGS"] = (
 envs.register_environment("humanoidtracking", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
-
-
-def actor_step(
-    env: Env,
-    env_state: State,
-    policy: Policy,
-    key: PRNGKey,
-    extra_fields: Sequence[str] = (),
-) -> Tuple[State, Transition]:
-    """Collect data."""
-    actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
-    nstate = env.step(env_state, actions)
-    state_extras = {x: nstate.info[x] for x in extra_fields}
-    return nstate, Transition(  # pytype: disable=wrong-arg-types  # jax-ndarray
-        observation=env_state.obs,
-        action=actions,
-        reward=nstate.reward,
-        discount=1 - nstate.done,
-        next_observation=nstate.obs,
-        extras={
-            "policy_extras": policy_extras,
-            "state_extras": state_extras,
-            "traj": env_state.info["traj"],
-        },
-    )
-
-
-brax.training.acting.actor_step = actor_step
+envs.register_environment("humanoidstanding", HumanoidStanding)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
 def main(train_config: DictConfig):
     cfg = hydra.compose(config_name="env_config")
     cfg = OmegaConf.to_container(cfg, resolve=True)
+
     env = envs.get_environment(
         cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
     )
+
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
-        ppo.make_intention_ppo_networks,
+        ppo_networks.make_intention_ppo_networks,
         intention_latent_size=train_config.intention_latent_size,
         encoder_layer_sizes=train_config.encoder_layer_sizes,
         decoder_layer_sizes=train_config.decoder_layer_sizes,
@@ -106,18 +92,18 @@ def main(train_config: DictConfig):
         normalize_observations=True,
         action_repeat=1,
         unroll_length=20,
-        num_minibatches=64,
-        num_updates_per_batch=8,
-        discounting=0.96,
+        num_minibatches=train_config["num_minibatches"],
+        num_updates_per_batch=train_config["num_updates_per_batch"],
+        discounting=0.99,
         learning_rate=train_config["learning_rate"],
-        network_factory=intention_network_factory,
         entropy_cost=1e-3,
-        num_envs=train_config["num_envs"] * n_gpus,
-        batch_size=train_config["batch_size"] * n_gpus,
+        num_envs=train_config["num_envs"] * n_devices,
+        batch_size=train_config["batch_size"] * n_devices,
         seed=0,
+        clipping_epsilon=train_config["clipping_epsilon"],
+        kl_weight=train_config["kl_weight"],
+        network_factory=intention_network_factory,
     )
-
-    import uuid
 
     # Generates a completely random UUID (version 4)
     run_id = uuid.uuid4()
@@ -150,58 +136,76 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
-        for _ in range(env._clip_length - env._ref_traj_length):
+        means = []
+        stds = []
+        for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, _ = jit_inference_fn(state.info["traj"], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
             state = jit_step(state, ctrl)
-            errors.append(state.info["termination_error"])
+            if train_config.env_name != "humanoidstanding":
+                errors.append(state.info["termination_error"])
+            mean, std = np.split(extras["logits"], 2)
+            means.append(mean)
+            stds.append(std)
             rollout.append(state.pipeline_state)
 
+        # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
-        table = wandb.Table(data=data, columns=["frame", "frame termination error"])
+        table = wandb.Table(data=data, columns=["frame", "frame rtrunk"])
         wandb.log(
             {
-                "eval/rollout_termination_error": wandb.plot.line(
+                "eval/rollout_rtrunk": wandb.plot.line(
                     table,
-                    "frame",
-                    "frame termination error",
-                    title="Termination error for each rollout frame",
+                    "Frame",
+                    "Frame rtrunk",
+                    title="rtrunk for each rollout frame",
                 )
             }
         )
 
+        # Plot action means over rollout
+        data = np.array(means).T
+        wandb.log(
+            {
+                f"logits/rollout_means": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Action actuator means for each rollout frame",
+                )
+            }
+        )
+
+        # Plot action stds over rollout (optimize this later)
+        data = np.array(stds).T
+        wandb.log(
+            {
+                f"logits/rollout_stds": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Action actuator stds for each rollout frame",
+                )
+            }
+        )
+
+        # Render the walker with the reference expert demonstration trajectory
+        os.environ["MUJOCO_GL"] = "osmesa"
+
         # extract qpos from rollout
         ref_traj = env._ref_traj
-        qposes_ref = []
-        for i in range(250):
-            qpos_ref = jp.hstack(
-                [
-                    ref_traj.position[i, :],
-                    ref_traj.quaternion[i, :],
-                    ref_traj.joints[i, :],
-                ]
-            )
-            qposes_ref.append(qpos_ref)
-        qposes_rollout = []
-        for i in rollout:
-            qpos = i.qpos
-            qposes_rollout.append(qpos)
+        ref_traj = jax.tree_util.tree_map(
+            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]),
+            ref_traj,
+        )
+        qposes_ref = jp.hstack(
+            [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
+        )
 
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
+        qposes_rollout = [data.qpos for data in rollout]
 
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
-
-        """Render the walker with the reference expert demonstration trajectory"""
         # TODO: Humanoid specific rendering
         mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid_pair.xml")
         mj_model.opt.solver = {
@@ -219,17 +223,16 @@ def main(train_config: DictConfig):
         frames = []
         # render while stepping using mujoco
         video_path = f"{model_path}/{num_steps}.mp4"
-        with imageio.get_writer(video_path, fps=30) as video:
+        with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
             for i, (qpos1, qpos2) in enumerate(zip(qposes_ref, qposes_rollout)):
-                if i % 100 == 0:
-                    print(f"rendering frame {i}")
-
                 # Set keypoints
                 # physics, mj_model = ctrl.set_keypoint_sites(physics, keypoint_sites, kps)
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
-                renderer.update_scene(mj_data, camera=0, scene_option=scene_option)
+                renderer.update_scene(
+                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0"
+                )
                 pixels = renderer.render()
                 video.append_data(pixels)
                 frames.append(pixels)

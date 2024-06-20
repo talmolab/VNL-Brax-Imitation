@@ -1,3 +1,22 @@
+# Copyright 2024 The Brax Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Proximal policy optimization training.
+
+See: https://arxiv.org/pdf/1707.06347.pdf
+"""
+
 import functools
 import time
 from typing import Callable, Optional, Tuple, Union
@@ -5,19 +24,14 @@ from typing import Callable, Optional, Tuple, Union
 from absl import logging
 from brax import base
 from brax import envs
+from brax.training import acting
 from brax.training import gradients
 from brax.training import pmap
 from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
-# we inject our custom losses
-# from brax.training.agents.ppo import losses as ppo_losses
-from ppo_imitation import intention_losses as ppo_losses 
-from ppo_imitation import acting
-from ppo_imitation import ppo_networks
-
-# we inject our custom network
-# from brax.training.agents.ppo import networks as ppo_networks\
+from brax.training.agents.ppo import losses as ppo_losses
+import networks as ppo_networks
 from brax.training.types import Params
 from brax.training.types import PRNGKey
 from brax.v1 import envs as envs_v1
@@ -82,8 +96,8 @@ def train(
     gae_lambda: float = 0.95,
     deterministic_eval: bool = False,
     network_factory: types.NetworkFactory[
-        ppo_networks.PPOImitationNetworks
-    ] = ppo_networks.make_intention_ppo_networks,
+        ppo_networks.PPONetworks
+    ] = ppo_networks.make_ppo_networks,
     progress_fn: Callable[[int, Metrics], None] = lambda *args: None,
     normalize_advantage: bool = True,
     eval_env: Optional[envs.Env] = None,
@@ -91,7 +105,6 @@ def train(
     randomization_fn: Optional[
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
-    kl_weight: float = 1e-4, # default kl_weight in MIMIC
 ):
     """PPO training.
 
@@ -211,6 +224,7 @@ def train(
         action_repeat=action_repeat,
         randomization_fn=v_randomization_fn,
     )
+
     reset_fn = jax.jit(jax.vmap(env.reset))
     key_envs = jax.random.split(key_env, num_envs // process_count)
     key_envs = jnp.reshape(key_envs, (local_devices_to_use, -1) + key_envs.shape[1:])
@@ -219,20 +233,20 @@ def train(
     normalize = lambda x, y: x
     if normalize_observations:
         normalize = running_statistics.normalize
-    # TODO Traj size
     ppo_network = network_factory(
-        env_state.info["traj"].shape[-1],
         env_state.obs.shape[-1],
         env.action_size,
         preprocess_observations_fn=normalize,
+        policy_hidden_layer_sizes=(512,) * 3,
+        value_hidden_layer_sizes=(512,) * 4,
+        layer_norm=True,
     )
-
     make_policy = ppo_networks.make_inference_fn(ppo_network)
 
     optimizer = optax.adam(learning_rate=learning_rate)
 
     loss_fn = functools.partial(
-        ppo_losses.compute_ppo_intention_loss,
+        ppo_losses.compute_ppo_loss,
         ppo_network=ppo_network,
         entropy_cost=entropy_cost,
         discounting=discounting,
@@ -240,7 +254,6 @@ def train(
         gae_lambda=gae_lambda,
         clipping_epsilon=clipping_epsilon,
         normalize_advantage=normalize_advantage,
-        kl_weight=kl_weight,
     )
 
     gradient_update_fn = gradients.gradient_update_fn(
@@ -302,7 +315,7 @@ def train(
                 policy,
                 current_key,
                 unroll_length,
-                extra_fields=("truncation", "traj"),
+                extra_fields=("truncation",),
             )
             return (next_state, next_key), data
 

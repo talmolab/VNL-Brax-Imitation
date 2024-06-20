@@ -26,14 +26,13 @@ class Encoder(nn.Module):
 
     layer_sizes: Sequence[int]
     latents: int  # intention size
-    activation: networks.ActivationFn = nn.tanh
+    activation: networks.ActivationFn = nn.relu
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
     bias: bool = True
 
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         # For each layer in the sequence
-        # Make a dense net and apply layernorm then tanh
         for i, hidden_size in enumerate(self.layer_sizes):
             x = nn.Dense(
                 hidden_size,
@@ -41,8 +40,9 @@ class Encoder(nn.Module):
                 kernel_init=self.kernel_init,
                 use_bias=self.bias,
             )(x)
-            x = nn.LayerNorm()(x)
             x = self.activation(x)
+            x = nn.LayerNorm()(x)
+            
 
         mean_x = nn.Dense(self.latents, name="fc2_mean")(x)
         logvar_x = nn.Dense(self.latents, name="fc2_logvar")(x)
@@ -53,7 +53,7 @@ class Decoder(nn.Module):
     """decode with action output"""
 
     layer_sizes: Sequence[int]
-    activation: networks.ActivationFn = nn.tanh
+    activation: networks.ActivationFn = nn.relu
     kernel_init: networks.Initializer = jax.nn.initializers.lecun_uniform()
     activate_final: bool = False
     bias: bool = True
@@ -69,6 +69,7 @@ class Decoder(nn.Module):
             )(x)
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 x = self.activation(x)
+                x = nn.LayerNorm()(x)
         return x
 
 
@@ -90,16 +91,14 @@ class IntentionNetwork(nn.Module):
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
     def __call__(self, traj, obs, key):
-        key = encoder_rng, decoder_rng = jax.random.split(key, 2)
+        _, encoder_rng = jax.random.split(key, 2)
 
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action_mean = self.decoder(jnp.concatenate([z, obs], axis=-1))
-        action_sample = reparameterize(
-            decoder_rng, action_mean, jnp.ones_like(action_mean)
-        )
-        return action_sample, action_mean, intention_mean, intention_logvar
+        action = self.decoder(jnp.concatenate([z, obs], axis=-1))
+
+        return action, intention_mean, intention_logvar
 
 
 def make_intention_policy(
