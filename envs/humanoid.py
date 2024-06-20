@@ -346,7 +346,7 @@ class HumanoidTracking(PipelineEnv):
     reference_rel_bodies_pos_global = self.get_reference_rel_bodies_pos_global(data, ref_traj)
     reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(data, ref_traj)
     reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
-    # reference_appendages = self.get_reference_appendages_pos(ref_traj)
+    reference_appendages = self.get_reference_appendages_pos(ref_traj)
     
     # TODO: end effectors pos and appendages pos are two different features?
     # end_effectors = data.xpos[self._end_eff_idx].flatten()
@@ -357,12 +357,11 @@ class HumanoidTracking(PipelineEnv):
         reference_rel_bodies_pos_global,
         reference_rel_root_pos_local,
         reference_rel_joints,
-        # reference_appendages,
+        reference_appendages,
         # end_effectors,
         data.qpos, 
         data.qvel, 
         # data.qfrc_actuator, # Actuator force <==> joint torque sensor?
-        # end_effectors,
     ])
   
   def global_vector_to_local_frame(self, data, vec_in_world_frame):
