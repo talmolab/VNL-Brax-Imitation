@@ -131,8 +131,10 @@ class RodentTracking(PipelineEnv):
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
+        traj = self._get_traj(data, start_frame)
         info = {
             "cur_frame": start_frame,
+            "traj": traj,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -175,8 +177,10 @@ class RodentTracking(PipelineEnv):
             ]
         )
         data = self.pipeline_init(qpos, qvel)
+        traj = self._get_traj(data, start_frame)
         info = {
             "cur_frame": start_frame,
+            "traj": traj,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -220,8 +224,12 @@ class RodentTracking(PipelineEnv):
         ract *= 0.0001
 
         total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
+
+        traj = self._get_traj(data, info["cur_frame"])
+
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
+        info["traj"] = traj
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
@@ -336,8 +344,39 @@ class RodentTracking(PipelineEnv):
             return jp.array([])
 
         ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+        reference_appendages = self.get_reference_appendages_pos(ref_traj)
 
-        # now being a local variable
+        # TODO: end effectors pos and appendages pos are two different features?
+        end_effectors = data.xpos[self._end_eff_idx].flatten()
+
+        return jp.concatenate(
+            [
+                # put the traj obs first
+                reference_appendages,
+                end_effectors,
+                data.qpos,
+                data.qvel,
+                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
+            ]
+        )
+    
+    def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
+        """
+        Gets reference trajectory obs along with env state obs
+        """
+
+        # Get the relevant slice of the ref_traj
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    cur_frame + 1,
+                    self._ref_traj_length,
+                )
+            return jp.array([])
+
+        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -348,23 +387,17 @@ class RodentTracking(PipelineEnv):
             data, ref_traj
         )
         reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
-        reference_appendages = self.get_reference_appendages_pos(ref_traj)
+        # reference_appendages = self.get_reference_appendages_pos(ref_traj)
 
         # TODO: end effectors pos and appendages pos are two different features?
-        end_effectors = data.xpos[self._end_eff_idx].flatten()
+        # end_effectors = data.xpos[self._end_eff_idx].flatten()
 
         return jp.concatenate(
             [
-                # put the traj obs first
                 reference_rel_bodies_pos_local,
                 reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,
                 reference_rel_joints,
-                reference_appendages,
-                end_effectors,
-                data.qpos,
-                data.qvel,
-                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
             ]
         )
 
