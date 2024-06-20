@@ -5,7 +5,7 @@ num_envs: 4096
 num_timesteps: 1_000_000_000
 eval_every: 5_000_000
 episode_length: 150
-batch_size: 2048
+batch_size: 64
 learning_rate: 6e-4
 terminate_when_unhealthy: true
 num_updates_per_batch: 16
