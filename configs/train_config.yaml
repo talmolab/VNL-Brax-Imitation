@@ -1,4 +1,4 @@
-env_name: rodent
+env_name: RodentTracking
 algo_name: ppo
 task_name: track
 num_envs: 4096
