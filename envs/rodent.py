@@ -71,6 +71,13 @@ class RodentTracking(PipelineEnv):
             ]
         )
 
+        self._joint_idxs = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
+                for joint in params['joint_names']
+                ]
+            )
+
         sys = mjcf_brax.load_model(mj_model)
 
         physics_steps_per_control_step = 5
@@ -425,7 +432,7 @@ class RodentTracking(PipelineEnv):
         # time_steps = frame + jp.arange(self._ref_traj_length)
 
         qpos_ref = ref_traj.joints
-        diff = qpos_ref - data.qpos[7:]
+        diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
 
         # what would be a  equivalents of this?
         # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
