@@ -35,7 +35,8 @@ def process(
     verbatim: bool = False,
     ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
 ):
-    """Summary
+    """Process a set of joint angles into the features that
+       the referenced trajectory is composed of
 
     Args:
         stac_path (Text): Path to stac file containing reference.
