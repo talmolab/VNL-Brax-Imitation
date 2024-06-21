@@ -5,6 +5,7 @@ humanoidtracking:
     ls_iterations: 6
     clip_path: humanoid_traj_stand.p
     camera: side
+    rendering_mjcf: humanoid_pair.xml
 
 humanoidstanding:
     name: humanoidstanding
@@ -53,3 +54,4 @@ rodent:
         - lower_arm_R
         - finger_R
     camera: close_profile
+    rendering_mjcf: rodent_pair.xml
