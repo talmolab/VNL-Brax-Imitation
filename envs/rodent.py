@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 0.5,
+        termination_threshold: float = 1,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -235,7 +235,7 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
-        done = jp.max(jp.array([1.0 - is_healthy, done]))
+        # done = jp.max(jp.array([1.0 - is_healthy, done]))
 
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)

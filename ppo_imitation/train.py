@@ -236,8 +236,6 @@ def train(
     # This doesn't work yet (set adam b1=0. if used)
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
-    # optimizer = optax.adam(learning_rate=learning_rate)
-
     loss_fn = functools.partial(
         ppo_losses.compute_ppo_intention_loss,
         ppo_network=ppo_network,
@@ -261,6 +259,8 @@ def train(
     ):
         optimizer_state, params, key = carry
         key, key_loss = jax.random.split(key)
+
+        # gets logged
         (_, metrics), params, optimizer_state = gradient_update_fn(
             params, normalizer_params, data, key_loss, optimizer_state=optimizer_state
         )

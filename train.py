@@ -155,7 +155,7 @@ def main(train_config: DictConfig):
 
         # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
-        table = wandb.Table(data=data, columns=["frame", "frame rtrunk"])
+        table = wandb.Table(data=data, columns=["frame", "rtrunk"])
         wandb.log(
             {
                 "eval/rollout_rtrunk": wandb.plot.line(
@@ -197,7 +197,6 @@ def main(train_config: DictConfig):
 
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-
         
         def f(x):
             if len(x.shape) != 1:
