@@ -246,3 +246,4 @@ rodent:
     - wrist_R
     - finger_R
   camera: close_profile
+  rendering_mjcf: rodent_pair.xml
