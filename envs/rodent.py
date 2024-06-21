@@ -27,7 +27,7 @@ class RodentTracking(PipelineEnv):
     def __init__(
         self,
         params,
-        healthy_z_range=(0.3, 0.5),
+        healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
         episode_length: int = 150,
