@@ -2,12 +2,14 @@
 wandb/
 
 # STAC data files
-all_snips.p
 .ipynb_checkpoints/
 policies/
 outputs/
 tutorial.ipynb
 *.mp4
+
+# selected reference trajectory
+all_snips.p
 ant_traj_still.p
 ant_traj.p
 humanoid_traj_stand.p
@@ -15,7 +17,7 @@ humanoid_traj.p
 transform_snips_250_clip_750.p
 
 # h5 files
-*.h5
+
 # mat file
 *.mat
 
