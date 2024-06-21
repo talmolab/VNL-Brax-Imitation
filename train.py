@@ -207,7 +207,9 @@ def main(train_config: DictConfig):
         qposes_rollout = [data.qpos for data in rollout]
 
         # TODO: Humanoid specific rendering
-        mj_model = mujoco.MjModel.from_xml_path("./assets/humanoid_pair.xml")
+        mj_model = mujoco.MjModel.from_xml_path(
+            f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
+        )
         mj_model.opt.solver = {
             "cg": mujoco.mjtSolver.mjSOL_CG,
             "newton": mujoco.mjtSolver.mjSOL_NEWTON,
