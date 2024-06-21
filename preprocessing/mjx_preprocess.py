@@ -2,7 +2,7 @@
 
 import jax
 from jax import jit
-from jax import numpy as jnp
+from jax import numpy as jp
 
 import numpy as np
 
@@ -13,11 +13,12 @@ from mujoco.mjx._src import smooth
 from dm_control import mjcf
 from dm_control.locomotion.walkers import rescale
 
+import transformations as tr
+
 from typing import Text, Tuple
 import pickle
 
 
-@jit
 def kinematics(mjx_model: mjx.Model, mjx_data: mjx.Data):
     """jit compiled forward kinematics
 
@@ -31,7 +32,6 @@ def kinematics(mjx_model: mjx.Model, mjx_data: mjx.Data):
     return smooth.kinematics(mjx_model, mjx_data)
 
 
-@jit
 def com_pos(mjx_model: mjx.Model, mjx_data: mjx.Data):
     """jit compiled com_pos calculation
 
@@ -45,22 +45,45 @@ def com_pos(mjx_model: mjx.Model, mjx_data: mjx.Data):
     return smooth.com_pos(mjx_model, mjx_data)
 
 
-@jit
-def set_qpos(mjx_model: mjx.Model, mjx_data: mjx.Data, qpos: jnp.Array) -> mjx.Data:
+def set_qpos(mjx_model: mjx.Model, mjx_data: mjx.Data, qpos: jp.Array) -> mjx.Data:
     """Sets the qpos and performs forward kinematics (zeros for qvel)
 
     Args:
         mjx_model (mjx.Model): _description_
         mjx_data (mjx.Data): _description_
-        qpos (jnp.Array): _description_
+        qpos (jp.Array): _description_
 
     Returns:
         mjx.Data: _description_
     """
-    qvel = jnp.zeros((mjx_model.nv,))
+    qvel = jp.zeros((mjx_model.nv,))
     mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
     mjx_data = kinematics(mjx_model, mjx_data)
     return mjx_data
+
+
+def compute_velocity_from_kinematics(
+    qpos_trajectory: jp.ndarray, dt: float
+) -> jp.ndarray:
+    """Computes velocity trajectory from position trajectory.
+
+    Args:
+        qpos_trajectory (jp.ndarray): trajectory of qpos values T x ?
+          Note assumes has freejoint as the first 7 dimensions
+        dt (float): timestep between qpos entries
+
+    Returns:
+        jp.ndarray: Trajectory of velocities.
+    """
+    qvel_translation = (qpos_trajectory[1:, :3] - qpos_trajectory[:-1, :3]) / dt
+    qvel_gyro = []
+    for t in range(qpos_trajectory.shape[0] - 1):
+        normed_diff = tr.quat_diff(qpos_trajectory[t, 3:7], qpos_trajectory[t + 1, 3:7])
+        normed_diff /= jp.linalg.norm(normed_diff)
+        qvel_gyro.append(tr.quat_to_axisangle(normed_diff) / dt)
+    qvel_gyro = jp.stack(qvel_gyro)
+    qvel_joints = (qpos_trajectory[1:, 7:] - qpos_trajectory[:-1, 7:]) / dt
+    return jp.concatenate([qvel_translation, qvel_gyro, qvel_joints], axis=1)
 
 
 def process(
@@ -90,7 +113,7 @@ def process(
     """
     with open(stac_path, "rb") as file:
         d = pickle.load(file)
-        mocap_qpos = np.array(d["qpos"])
+        mocap_qpos = jp.array(d["qpos"])
 
     # Load rodent mjcf and rescale, then get the mj_model from that.
     # TODO: make this all work in mjx? james cotton did rescaling with mjx model:
