@@ -161,7 +161,7 @@ def main(train_config: DictConfig):
                 "eval/rollout_rtrunk": wandb.plot.line(
                     table,
                     "Frame",
-                    "Frame rtrunk",
+                    "rtrunk",
                     title="rtrunk for each rollout frame",
                 )
             }
@@ -241,7 +241,7 @@ def main(train_config: DictConfig):
         frames = []
         # render while stepping using mujoco
         video_path = f"{model_path}/{num_steps}.mp4"
-        
+
         with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
             for i, (qpos1, qpos2) in enumerate(zip(qposes_ref, qposes_rollout)):
                 # Set keypoints
