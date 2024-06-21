@@ -235,7 +235,7 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
-        # done = jp.max(jp.array([1.0 - is_healthy, done]))
+        done = jp.max(jp.array([1.0 - is_healthy, done]))
 
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)

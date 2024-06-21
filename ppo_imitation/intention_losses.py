@@ -197,5 +197,5 @@ def compute_ppo_intention_loss(
         "entropy_loss": entropy_loss,
         "kl_loss_intention": kl_intention,
         "prediction_corr":prediction_corr,
-        "explained_variance": explained_variance
+        "explained_variance": explained_variance,
     }
