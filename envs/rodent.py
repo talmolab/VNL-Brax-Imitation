@@ -321,7 +321,7 @@ class RodentTracking(PipelineEnv):
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
 
         # end effector positions
-        app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
+        app_c = data_c.xpos[self._end_eff_idx].flatten()
         app_ref = self._ref_traj.end_effectors[state.info["cur_frame"], :].flatten()
 
         rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
@@ -458,10 +458,8 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        # time_steps = frame + jp.arange(self._ref_traj_length)
 
-        qpos_ref = ref_traj.joints
-        diff = (qpos_ref - data.qpos[7:])[:, self._joint_idxs]
+        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
 
         # what would be a  equivalents of this?
         # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()
@@ -469,8 +467,6 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_appendages_pos(self, ref_traj):
         """Reference appendage positions in reference frame, not relative."""
-
-        # time_steps = frame + jp.arange(self._ref_traj_length)
         return ref_traj.appendages.flatten()
 
     def _bounded_quat_dist(self, source: np.ndarray, target: np.ndarray) -> np.ndarray:
