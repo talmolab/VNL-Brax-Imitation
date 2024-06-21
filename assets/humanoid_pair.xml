@@ -108,10 +108,10 @@
       <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
       <replicate count="2" euler="0 0 180" sep="-">
       <light name="spotlight" mode="targetbodycom" target="torso" diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 -6 4" cutoff="30"/>
+      <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
       <body name="torso" pos="0 0 1.282" childclass="body">
         <light name="top" pos="0 0 2" mode="trackcom"/>
         <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
-        <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
         <freejoint name="root"/>
         <geom name="torso" fromto="0 -.07 0 0 .07 0" size=".07"/>
         <geom name="waist_upper" fromto="-.01 -.06 -.12 -.01 .06 -.12" size=".06"/>

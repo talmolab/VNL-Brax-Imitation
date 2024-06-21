@@ -194,12 +194,19 @@ def main(train_config: DictConfig):
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
 
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    0,
+                    train_config["episode_length"],
+                )
+            return jp.array([])
+            
         # extract qpos from rollout
         ref_traj = env._ref_traj
-        ref_traj = jax.tree_util.tree_map(
-            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]),
-            ref_traj,
-        )
+        ref_traj = jax.tree_util.tree_map(f, ref_traj)
+        
         qposes_ref = jp.hstack(
             [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
         )
@@ -232,7 +239,7 @@ def main(train_config: DictConfig):
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
-                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0"
+                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
                 )
                 pixels = renderer.render()
                 video.append_data(pixels)
