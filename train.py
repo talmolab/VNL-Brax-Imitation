@@ -139,12 +139,15 @@ def main(train_config: DictConfig):
         errors = []
         means = []
         stds = []
+
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
             state = jit_step(state, ctrl)
+
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
+            
             mean, std = np.split(extras["logits"], 2)
             means.append(mean)
             stds.append(std)
@@ -195,34 +198,46 @@ def main(train_config: DictConfig):
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
 
+        
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    0,
+                    train_config["episode_length"],
+                )
+            return jp.array([])
+
         # extract qpos from rollout
         ref_traj = env._ref_traj
-        ref_traj = jax.tree_util.tree_map(
-            lambda x: jax.lax.slice_in_dim(x, 0, train_config["episode_length"]),
-            ref_traj,
-        )
+        ref_traj = jax.tree_util.tree_map(f, ref_traj)
+
         qposes_ref = jp.hstack(
             [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
         )
 
         qposes_rollout = [data.qpos for data in rollout]
 
-        # TODO: Humanoid specific rendering
+        # TODO: Overlay expert rendering
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
         )
+
         mj_model.opt.solver = {
             "cg": mujoco.mjtSolver.mjSOL_CG,
             "newton": mujoco.mjtSolver.mjSOL_NEWTON,
         }["cg"]
+
         mj_model.opt.iterations = 6
         mj_model.opt.ls_iterations = 6
         mj_model.opt.jacobian = 0  # dense
         mj_data = mujoco.MjData(mj_model)
+
         # save rendering and log to wandb
         os.environ["MUJOCO_GL"] = "osmesa"
         mujoco.mj_kinematics(mj_model, mj_data)
         renderer = mujoco.Renderer(mj_model, height=512, width=512)
+
         frames = []
         # render while stepping using mujoco
         video_path = f"{model_path}/{num_steps}.mp4"
@@ -234,8 +249,9 @@ def main(train_config: DictConfig):
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
-                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}-0"
+                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
                 )
+                
                 pixels = renderer.render()
                 video.append_data(pixels)
                 frames.append(pixels)

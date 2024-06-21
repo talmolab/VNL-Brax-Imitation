@@ -220,6 +220,7 @@ def train(
     if normalize_observations:
         normalize = running_statistics.normalize
     # TODO Traj size
+    # use info to keep track of traj
     ppo_network = network_factory(
         env_state.info["traj"].shape[-1],
         env_state.obs.shape[-1],
@@ -229,7 +230,13 @@ def train(
 
     make_policy = ppo_networks.make_inference_fn(ppo_network)
 
-    optimizer = optax.adam(learning_rate=learning_rate)
+    learning_rate_fn = optax.constant_schedule(learning_rate)
+    optimizer = optax.adam(learning_rate_fn)
+
+    # This doesn't work yet (set adam b1=0. if used)
+    # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
+
+    # optimizer = optax.adam(learning_rate=learning_rate)
 
     loss_fn = functools.partial(
         ppo_losses.compute_ppo_intention_loss,

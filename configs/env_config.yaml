@@ -3,8 +3,9 @@ humanoidtracking:
   solver: cg
   iterations: 6
   ls_iterations: 6
-  clip_path: humanoid_traj_stand.p
+  clip_path: clips/humanoid_traj_stand.p
   camera: side
+  rendering_mjcf: humanoid_pair.xml
 
 humanoidstanding:
   name: humanoidstanding
@@ -18,7 +19,7 @@ ant:
   solver: newton
   iterations: 1
   ls_iterations: 4
-  clip_path: ant_traj_still.p
+  clip_path: clips/ant_traj_still.p
   camera: track
 
 rodent:
@@ -27,7 +28,7 @@ rodent:
   solver: cg
   iterations: 6
   ls_iterations: 6
-  clip_path: transform_snips_groom.p
+  clip_path: clips/transform_snips_groom.p
   end_eff_names:
     - foot_L
     - foot_R 

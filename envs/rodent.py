@@ -332,7 +332,7 @@ class RodentTracking(PipelineEnv):
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """
-        Gets reference trajectory obs along with env state obs
+        Get env state obs only
         """
 
         # Get the relevant slice of the ref_traj
@@ -345,18 +345,22 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
+        
+        # TODO: end effectors pos and appendages pos are two different features?
+        end_effectors = data.xpos[self._end_eff_idx].flatten()
 
         return jp.concatenate(
             [
                 data.qpos,
                 data.qvel,
                 data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
+                end_effectors,
             ]
         )
     
     def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
         """
-        Gets reference trajectory obs along with env state obs
+        Gets reference trajectory obs for separate pathway, storage in the info section of state
         """
 
         # Get the relevant slice of the ref_traj
@@ -369,12 +373,12 @@ class RodentTracking(PipelineEnv):
                 )
             return jp.array([])
         
-        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-        reference_appendages = self.get_reference_appendages_pos(ref_traj)
-
-        # TODO: end effectors pos and appendages pos are two different features?
-        end_effectors = data.xpos[self._end_eff_idx].flatten()
-
+        ref_traj = jax.tree_util.tree_map(
+            f, self._ref_traj
+        )
+        reference_appendages = self.get_reference_appendages_pos(
+            ref_traj
+        )
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -384,12 +388,13 @@ class RodentTracking(PipelineEnv):
         reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
             data, ref_traj
         )
-        reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
+        reference_rel_joints = self.get_reference_rel_joints(
+            data, ref_traj
+        )
 
         return jp.concatenate(
             [
                 reference_appendages,
-                end_effectors,
                 reference_rel_bodies_pos_local,
                 reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,

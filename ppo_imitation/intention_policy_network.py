@@ -91,6 +91,10 @@ class IntentionNetwork(nn.Module):
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
     def __call__(self, traj, obs, key):
+        '''
+        args:
+        separate trajectory input + observation input
+        '''
         _, encoder_rng = jax.random.split(key, 2)
 
         # construct the intention network
