@@ -113,6 +113,7 @@ def main(train_config: DictConfig):
         project="VNL_SingleClipImitationPPO_Intention",
         config=OmegaConf.to_container(train_config, resolve=True),
         notes=f"",
+        dir='/tmp'
     )
 
     wandb.run.name = f"{train_config.env_name}_{train_config.task_name}_{train_config['algo_name']}_{run_id}"
