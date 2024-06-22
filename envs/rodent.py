@@ -463,7 +463,7 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
+        diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
         
         # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
