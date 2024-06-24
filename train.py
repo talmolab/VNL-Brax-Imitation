@@ -31,6 +31,9 @@ from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
 
+from dm_control.mujoco import wrapper
+from dm_control.mujoco.wrapper.mjbindings import enums
+
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
 
@@ -217,6 +220,20 @@ def main(train_config: DictConfig):
         )
 
         qposes_rollout = [data.qpos for data in rollout]
+
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
 
         # TODO: Overlay expert rendering
         mj_model = mujoco.MjModel.from_xml_path(
