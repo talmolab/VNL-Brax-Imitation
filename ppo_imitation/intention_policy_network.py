@@ -85,7 +85,7 @@ class IntentionNetwork(nn.Module):
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
-    batch_size: int
+    batch_size: int = 1
 
     def setup(self):
 
