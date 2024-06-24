@@ -159,10 +159,17 @@ class RodentTracking(PipelineEnv):
 
         return state
 
-    def reset_to_frame(self, start_frame) -> State:
+    def reset_to_frame(self, rng) -> State:
         """
         Resets the environment to the initial frame
         """
+
+        start_frame = jax.random.randint(
+            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
+        )
+
+        old, rng = jax.random.split(rng)
+
         qpos = jp.hstack(
             [
                 self._ref_traj.position[start_frame, :],

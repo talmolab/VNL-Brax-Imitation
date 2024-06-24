@@ -1,6 +1,7 @@
 import functools
 import jax
 from jax import numpy as jp
+from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -133,7 +134,8 @@ def main(train_config: DictConfig):
         )
 
         jit_step = jax.jit(env.step)
-        state = env.reset_to_frame(0)
+        key = jax.random.PRNGKey(0)
+        state = env.reset_to_frame(key)
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
