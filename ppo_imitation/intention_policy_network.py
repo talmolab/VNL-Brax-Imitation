@@ -107,6 +107,8 @@ class IntentionNetwork(nn.Module):
         '''
         _, encoder_rng = jax.random.split(key, 2)
 
+        print(traj.shape)
+
         # construct the intention network
         concat_traj = jnp.concat([traj, self.prev_latent], axis=0)
         intention_mean, intention_logvar = self.encoder(concat_traj)
