@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 0.5,
+        termination_threshold: float = 0.3,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -159,16 +159,10 @@ class RodentTracking(PipelineEnv):
 
         return state
 
-    def reset_to_frame(self, rng) -> State:
+    def reset_to_frame(self, start_frame) -> State:
         """
         Resets the environment to the initial frame
         """
-
-        start_frame = jax.random.randint(
-            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
-        )
-
-        old, rng = jax.random.split(rng)
 
         qpos = jp.hstack(
             [
@@ -285,7 +279,7 @@ class RodentTracking(PipelineEnv):
             (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
-        termination_error = 1 - (error / self._termination_threshold)
+        termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
 
         return termination_error
 
@@ -335,7 +329,7 @@ class RodentTracking(PipelineEnv):
 
         is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
         is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
-        return rcom, rvel, rtrunk + 15, rquat, ract, rapp, is_healthy
+        return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """

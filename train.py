@@ -134,8 +134,7 @@ def main(train_config: DictConfig):
         )
 
         jit_step = jax.jit(env.step)
-        key = jax.random.PRNGKey(0)
-        state = env.reset_to_frame(key)
+        state = env.reset_to_frame(0)
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []

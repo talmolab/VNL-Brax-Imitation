@@ -85,20 +85,11 @@ class IntentionNetwork(nn.Module):
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
-    batch_size: int = 1 # need values
 
     def setup(self):
 
-        key = jax.random.PRNGKey(100)
-        _, dummy_rng = jax.random.split(key, 2)
-
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
-
-        #TODO: consider adding prev_latent/latent ratio logging?
-        dummy_mean = jnp.zeros((self.batch_size, self.latents))
-        dummy_logvar = jnp.zeros((self.batch_size, self.latents))
-        self.prev_latent = reparameterize(dummy_rng, dummy_mean, dummy_logvar)
 
     def __call__(self, traj, obs, key):
         '''
@@ -110,10 +101,8 @@ class IntentionNetwork(nn.Module):
         print(traj.shape)
 
         # construct the intention network
-        concat_traj = jnp.concat([traj, self.prev_latent], axis=0)
-        intention_mean, intention_logvar = self.encoder(concat_traj)
+        intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        self.prev_latent = z
         action = self.decoder(jnp.concatenate([z, obs], axis=-1))
 
         return action, intention_mean, intention_logvar
@@ -131,10 +120,9 @@ def make_intention_policy(
     """Creates an intention policy network."""
 
     policy_module = IntentionNetwork(
-        encoder_layers=list(encoder_layer_sizes) + [latent_size], # added in the size of latent layer
+        encoder_layers=list(encoder_layer_sizes),
         decoder_layers=list(decoder_layer_sizes) + [param_size],
-        latents=latent_size,
-        batch_size=traj_size.shape[:-1] # get all prvious vmap dimension, the traj should be flattened
+        latents=latent_size
     )
 
     def apply(processor_params, policy_params, traj, obs, key):
