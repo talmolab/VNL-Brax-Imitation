@@ -1,6 +1,7 @@
 # Brax-Imitation
-Rodent imitation learning using Brax and MJX
+VNL implementation of rodent imitation learning using Brax and MJX
 
 ## Current Progress
-
-Intention Network + Expert overlay rendering. 
+1. Intention Network + Expert overlay rendering.
+2. Reference trajectory and agent's observation separated
+3. Observation space validated for humanoid CMU, geenralizing to rodent

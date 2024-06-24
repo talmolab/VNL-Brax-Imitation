@@ -1,16 +1,16 @@
-env_name: humanoidtracking
+env_name: rodent
 algo_name: ppo
 task_name: track
-num_envs: 4096
-num_timesteps: 1_000_000_000
-eval_every: 5_000_000 
-episode_length: 150 # This is the clip length
+num_envs: 2048
+num_timesteps: 3_000_000_000
+eval_every: 25_000_000
+episode_length: 150
 batch_size: 2048
 learning_rate: 6e-4
 num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.3
-kl_weight: 1e-5
+kl_weight: 1e-4
 terminate_when_unhealthy: true
 intention_latent_size: 64
 encoder_layer_sizes: [512, 512]

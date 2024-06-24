@@ -20,19 +20,21 @@ import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
+import mocap_preprocess as mp
 
+_MAX_END_STEP = 10000
 
 class RodentTracking(PipelineEnv):
 
     def __init__(
         self,
         params,
-        healthy_z_range=(0.05, 0.5),
+        healthy_z_range=(0.3, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 1,
+        termination_threshold: float = 0.5,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -97,11 +99,94 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
 
-        with open(params["clip_path"], "rb") as f:
-            self._ref_traj = pickle.load(f)
-
         if self._episode_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
+    
+
+
+    def _load_reference_data(self, ref_path, proto_modifier,
+                             dataset: mp.ClipCollection):
+        
+        #TODO: what is the relevant for loading .p directly?
+        self._loader = loader.HDF5TrajectoryLoader(
+            ref_path, proto_modifier=proto_modifier)
+
+        self._dataset = dataset
+        self._num_clips = len(self._dataset.ids)
+
+        if self._dataset.end_steps is None:
+            # load all trajectories to infer clip end steps.
+            self._all_clips = [
+                self._loader.get_trajectory(
+                    clip_id,
+                    start_step=clip_start_step,
+                    end_step=_MAX_END_STEP) for clip_id, clip_start_step in zip(
+                        self._dataset.ids, self._dataset.start_steps)
+            ]
+            # infer clip end steps to set sampling distribution
+            self._dataset.end_steps = tuple(clip.end_step for clip in self._all_clips)
+        else:
+            self._all_clips = [None] * self._num_clips
+
+
+    def _get_possible_starts(self):
+        # List all possible (clip, step) starting points.
+        self._possible_starts = []
+        self._start_probabilities = []
+        dataset = self._dataset
+        for clip_number, (start, end, weight) in enumerate(
+            zip(dataset.start_steps, dataset.end_steps, dataset.weights)):
+            # length - required lookahead - minimum number of steps
+            last_possible_start = end - self._max_ref_step - self._min_steps
+
+            if self._always_init_at_clip_start:
+                self._possible_starts += [(clip_number, start)]
+                self._start_probabilities += [weight]
+            else:
+                self._possible_starts += [
+                    (clip_number, j) for j in range(start, last_possible_start)
+                ]
+                self._start_probabilities += [
+                    weight for _ in range(start, last_possible_start)
+                ]
+
+        # normalize start probabilities
+        self._start_probabilities = np.array(self._start_probabilities) / np.sum(
+            self._start_probabilities)
+        
+        
+    
+    def _get_clip_to_track(self, random_state: np.random.RandomState):
+        # Randomly select a starting point.
+        index = random_state.choice(
+            len(self._possible_starts), p=self._start_probabilities)
+        clip_index, start_step = self._possible_starts[index]
+
+        self._current_clip_index = clip_index
+        clip_id = self._dataset.ids[self._current_clip_index]
+
+        if self._all_clips[self._current_clip_index] is None:
+        # fetch selected trajectory
+            self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
+                clip_id,
+                start_step=self._dataset.start_steps[self._current_clip_index],
+                end_step=self._dataset.end_steps[self._current_clip_index],
+                zero_out_velocities=False)
+            self._current_clip = self._all_clips[self._current_clip_index]
+            self._clip_reference_features = self._current_clip.as_dict()
+            self._strip_reference_prefix()
+
+        # The reference features are already restricted to
+        # clip_start_step:clip_end_step. However start_step is in
+        # [clip_start_step:clip_end_step]. Hence we subtract clip_start_step to
+        # obtain a valid index for the reference features.
+        self._time_step = start_step - self._dataset.start_steps[
+            self._current_clip_index]
+        self._current_start_time = (start_step - self._dataset.start_steps[
+            self._current_clip_index]) * self._current_clip.dt
+        self._last_step = len(
+            self._clip_reference_features['joints']) - self._max_ref_step - 1
+        
 
     def reset(self, rng) -> State:
         """
@@ -321,7 +406,7 @@ class RodentTracking(PipelineEnv):
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
 
         # end effector positions
-        app_c = data_c.xpos[self._end_eff_idx].flatten()
+        app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
         app_ref = self._ref_traj.end_effectors[state.info["cur_frame"], :].flatten()
 
         rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
@@ -463,13 +548,13 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
+        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
         
-        # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):
         """Reference appendage positions in reference frame, not relative."""
+
         return ref_traj.appendages.flatten()
 
     def _bounded_quat_dist(self, source: np.ndarray, target: np.ndarray) -> np.ndarray:

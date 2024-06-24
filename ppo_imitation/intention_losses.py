@@ -9,7 +9,6 @@ import flax
 import jax
 import jax.numpy as jnp
 
-
 @flax.struct.dataclass
 class PPONetworkParams:
     """Contains training state for the learner."""
@@ -22,7 +21,6 @@ class PPONetworkParams:
 def kl_divergence(mean, logvar):
     """kl_divergence for latent space regularization"""
     return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
-
 
 def compute_gae(
     truncation: jnp.ndarray,
@@ -187,11 +185,17 @@ def compute_ppo_intention_loss(
     entropy_loss = entropy_cost * -entropy
     kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar)
 
+    prediction_corr =  jnp.corrcoef(vs, rewards)
+    explained_variance = 1.0 - (v_loss / jnp.var(rewards))
+
     total_loss = policy_loss + v_loss + entropy_loss + kl_intention
+
     return total_loss, {
         "total_loss": total_loss,
         "policy_loss": policy_loss,
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
         "kl_loss_intention": kl_intention,
+        "prediction_corr":prediction_corr,
+        "explained_variance": explained_variance,
     }
