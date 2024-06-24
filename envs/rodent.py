@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 1,
+        termination_threshold: float = 0.5,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -223,7 +223,7 @@ class RodentTracking(PipelineEnv):
         rcom *= 0.01
         rvel *= 0.01
         rapp *= 0.01
-        rtrunk *= 0.01
+        rtrunk *= 0.1
         rquat *= 0.01
         ract *= 0.0001
 

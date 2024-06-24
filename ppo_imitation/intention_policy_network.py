@@ -129,7 +129,7 @@ def make_intention_policy(
     """Creates an intention policy network."""
 
     policy_module = IntentionNetwork(
-        encoder_layers=list(encoder_layer_sizes),
+        encoder_layers=list(encoder_layer_sizes) + [latent_size], # added in the size of latent layer
         decoder_layers=list(decoder_layer_sizes) + [param_size],
         latents=latent_size,
         batch_size=traj_size.shape[:-1] # get all prvious vmap dimension
