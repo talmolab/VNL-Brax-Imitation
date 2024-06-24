@@ -85,7 +85,7 @@ class IntentionNetwork(nn.Module):
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
-    batch_size: int = 1
+    batch_size: int = 1 # need values
 
     def setup(self):
 
@@ -132,7 +132,7 @@ def make_intention_policy(
         encoder_layers=list(encoder_layer_sizes) + [latent_size], # added in the size of latent layer
         decoder_layers=list(decoder_layer_sizes) + [param_size],
         latents=latent_size,
-        batch_size=traj_size.shape[:-1] # get all prvious vmap dimension
+        batch_size=traj_size.shape[:-1] # get all prvious vmap dimension, the traj should be flattened
     )
 
     def apply(processor_params, policy_params, traj, obs, key):
