@@ -98,8 +98,6 @@ class IntentionNetwork(nn.Module):
         '''
         _, encoder_rng = jax.random.split(key, 2)
 
-        print(traj.shape)
-
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
