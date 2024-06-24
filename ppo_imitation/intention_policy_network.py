@@ -85,7 +85,7 @@ class IntentionNetwork(nn.Module):
     encoder_layers: Sequence[int]
     decoder_layers: Sequence[int]
     latents: int = 60
-    batch_size: int
+    # batch_size: int
 
     def setup(self):
 
@@ -96,8 +96,8 @@ class IntentionNetwork(nn.Module):
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
         #TODO: consider adding prev_latent/latent ratio logging?
-        dummy_mean = jnp.zeros((self.batch_size, self.latents))
-        dummy_logvar = jnp.zeros((self.batch_size, self.latents))
+        dummy_mean = jnp.zeros((self.latents))
+        dummy_logvar = jnp.zeros((self.latents))
         self.prev_latent = reparameterize(dummy_rng, dummy_mean, dummy_logvar)
 
     def __call__(self, traj, obs, key):
