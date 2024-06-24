@@ -1,6 +1,7 @@
 import functools
 import jax
 from jax import numpy as jp
+from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -253,6 +254,7 @@ def main(train_config: DictConfig):
                 )
                 
                 pixels = renderer.render()
+                # pixels = 0.5 * pixels # adding transparency alpha
                 video.append_data(pixels)
                 frames.append(pixels)
 

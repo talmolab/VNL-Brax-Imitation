@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 1,
+        termination_threshold: float = 0.3,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -163,6 +163,7 @@ class RodentTracking(PipelineEnv):
         """
         Resets the environment to the initial frame
         """
+
         qpos = jp.hstack(
             [
                 self._ref_traj.position[start_frame, :],
@@ -223,7 +224,7 @@ class RodentTracking(PipelineEnv):
         rcom *= 0.01
         rvel *= 0.01
         rapp *= 0.01
-        rtrunk *= 0.01
+        rtrunk *= 0.1
         rquat *= 0.01
         ract *= 0.0001
 
@@ -278,7 +279,7 @@ class RodentTracking(PipelineEnv):
             (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
-        termination_error = 1 - (error / self._termination_threshold)
+        termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
 
         return termination_error
 
@@ -328,7 +329,7 @@ class RodentTracking(PipelineEnv):
 
         is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
         is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
-        return rcom, rvel, rtrunk + 15, rquat, ract, rapp, is_healthy
+        return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """
