@@ -34,6 +34,7 @@ class RodentTracking(PipelineEnv):
         ref_traj_length: int = 5,
         termination_threshold: float = 0.5,
         body_error_multiplier: float = 1.0,
+        explore_time: int = 20,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
@@ -88,6 +89,7 @@ class RodentTracking(PipelineEnv):
         super().__init__(sys, **kwargs)
 
         self._healthy_z_range = healthy_z_range
+        self._explore_time = explore_time
         self._reset_noise_scale = reset_noise_scale
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
@@ -136,6 +138,7 @@ class RodentTracking(PipelineEnv):
         info = {
             "cur_frame": start_frame,
             "traj": traj,
+            "first_reset": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -184,6 +187,7 @@ class RodentTracking(PipelineEnv):
         info = {
             "cur_frame": start_frame,
             "traj": traj,
+            "first_reset": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -214,6 +218,7 @@ class RodentTracking(PipelineEnv):
 
         info = state.info.copy()
         info["cur_frame"] += 1
+        info["first_rest"] += 1
 
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info["cur_frame"])
@@ -236,6 +241,8 @@ class RodentTracking(PipelineEnv):
 
         info["traj"] = traj
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
+
+        done = jp.where((info['first_reset']<=self._explore_time), jp.array(1, float), done)
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
 
@@ -277,7 +284,7 @@ class RodentTracking(PipelineEnv):
         error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
         target_bodies = self._ref_traj.body_positions[state.info["cur_frame"], :]
         error_bodies = jp.linalg.norm(
-            (target_bodies - data_c.xpos)[:,self._body_idxs], ord=1
+            (target_bodies - data_c.xpos[:,self._body_idxs]), ord=1 #TODO: this order index correct?
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
         termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
