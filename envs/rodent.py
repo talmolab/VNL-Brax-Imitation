@@ -94,7 +94,6 @@ class RodentTracking(PipelineEnv):
         self._clip_length = clip_length
         self._episode_length = episode_length
         self._ref_traj_length = ref_traj_length
-        self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
 
         with open(params["clip_path"], "rb") as f:
@@ -232,8 +231,8 @@ class RodentTracking(PipelineEnv):
 
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
-
         info["traj"] = traj
+        
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))

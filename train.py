@@ -21,12 +21,8 @@ from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
-from typing import Sequence, Tuple, Union
-import brax
+from typing import Union
 from brax import envs
-from brax.training.types import Policy
-from brax.training.types import PRNGKey
-from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
@@ -77,7 +73,9 @@ def main(train_config: DictConfig):
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
     env = envs.get_environment(
-        cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
+        cfg[train_config.env_name]["name"],
+        params=cfg[train_config.env_name],
+        termination_threshold=train_config["env_params"]["termination_threshold"],
     )
 
     # TODO: make the intention network factory a part of the config
