@@ -31,6 +31,10 @@ from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
 
+# rendering related
+from dm_control.mujoco import wrapper
+from dm_control.mujoco.wrapper.mjbindings import enums
+
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
 
@@ -148,7 +152,7 @@ def main(train_config: DictConfig):
 
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
-            
+
             mean, std = np.split(extras["logits"], 2)
             means.append(mean)
             stds.append(std)
@@ -198,7 +202,7 @@ def main(train_config: DictConfig):
 
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-        
+
         def f(x):
             if len(x.shape) != 1:
                 return jax.lax.dynamic_slice_in_dim(
@@ -218,7 +222,19 @@ def main(train_config: DictConfig):
 
         qposes_rollout = [data.qpos for data in rollout]
 
-        # TODO: Overlay expert rendering
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
         )
@@ -252,7 +268,7 @@ def main(train_config: DictConfig):
                 renderer.update_scene(
                     mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
                 )
-                
+
                 pixels = renderer.render()
                 # pixels = 0.5 * pixels # adding transparency alpha
                 video.append_data(pixels)
