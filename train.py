@@ -271,7 +271,6 @@ def main(train_config: DictConfig):
                 )
                 
                 pixels = renderer.render()
-                # pixels = 0.5 * pixels # adding transparency alpha
                 video.append_data(pixels)
                 frames.append(pixels)
 
