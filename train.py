@@ -76,7 +76,10 @@ def main(train_config: DictConfig):
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
     env = envs.get_environment(
-        cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
+        cfg[train_config.env_name]["name"],
+        params=cfg[train_config.env_name],
+        termination_threshold=train_config["env_params"]["termination_threshold"],
+        explore_time=train_config["env_params"]["explore_time"]
     )
 
     # TODO: make the intention network factory a part of the config
@@ -141,6 +144,7 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
+        rewards = []
         means = []
         stds = []
 
@@ -151,6 +155,7 @@ def main(train_config: DictConfig):
 
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
+                rewards.append(state.reward)
             
             mean, std = np.split(extras["logits"], 2)
             means.append(mean)
@@ -167,6 +172,20 @@ def main(train_config: DictConfig):
                     "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
+                )
+            }
+        )
+
+        # Plot reward over rollout
+        data = [[x, y] for (x, y) in zip(range(len(rewards)), rewards)]
+        table = wandb.Table(data=data, columns=["frame", "reward"])
+        wandb.log(
+            {
+                "eval/rollout_reward": wandb.plot.line(
+                    table,
+                    "frame",
+                    "reward",
+                    title="reward for each rollout frame",
                 )
             }
         )
