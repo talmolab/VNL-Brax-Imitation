@@ -3,7 +3,7 @@ algo_name: ppo
 task_name: track
 num_envs: 2048
 num_timesteps: 3_000_000_000
-eval_every: 25_000_000
+eval_every: 25_000_0
 episode_length: 150
 batch_size: 2048
 learning_rate: 6e-4

@@ -34,7 +34,7 @@ class RodentTracking(PipelineEnv):
         ref_traj_length: int = 5,
         termination_threshold: float = 0.5,
         body_error_multiplier: float = 1.0,
-        explore_time: int = 20,
+        explore_time: int = 10,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
@@ -218,7 +218,7 @@ class RodentTracking(PipelineEnv):
 
         info = state.info.copy()
         info["cur_frame"] += 1
-        info["first_rest"] += 1
+        info["first_reset"] += 1
 
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info["cur_frame"])
