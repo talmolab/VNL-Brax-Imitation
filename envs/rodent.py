@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 0.5,
+        termination_threshold: float = 20,
         body_error_multiplier: float = 1.0,
         explore_time: int = 10,
         **kwargs,
@@ -282,9 +282,10 @@ class RodentTracking(PipelineEnv):
 
         target_joints = self._ref_traj.joints[state.info["cur_frame"], :]
         error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
+
         target_bodies = self._ref_traj.body_positions[state.info["cur_frame"], :]
         error_bodies = jp.linalg.norm(
-            (target_bodies - data_c.xpos[self._body_idxs]), ord=1 #TODO: this order index correct?
+            (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
         termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
