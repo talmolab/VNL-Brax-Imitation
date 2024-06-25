@@ -32,7 +32,7 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 2,
+        termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
         explore_time: int = 20,
         **kwargs,
