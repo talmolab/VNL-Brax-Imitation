@@ -32,9 +32,9 @@ class RodentTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 20,
+        termination_threshold: float = 2,
         body_error_multiplier: float = 1.0,
-        explore_time: int = 10,
+        explore_time: int = 20,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
@@ -226,11 +226,11 @@ class RodentTracking(PipelineEnv):
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
-        rcom *= 0.1 #0.01
+        rcom *= 0.01
         rvel *= 0.01
         rapp *= 0.01
-        rtrunk *= 0.1
-        rtrunk += 10
+        rtrunk *= 0.01
+        rtrunk += 0
         rquat *= 0.01
         ract *= 0.0001
 
