@@ -242,7 +242,7 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
-        done = jp.where((info['first_reset']<=self._explore_time), jp.array(1, float), done)
+        done = jp.where((info['first_reset']<=self._explore_time), jp.array(0, float), done)
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
 
@@ -284,7 +284,7 @@ class RodentTracking(PipelineEnv):
         error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
         target_bodies = self._ref_traj.body_positions[state.info["cur_frame"], :]
         error_bodies = jp.linalg.norm(
-            (target_bodies - data_c.xpos[self._body_idxs]), ord=1 #TODO: this order index correct?
+            (target_bodies - data_c.xpos)[self._body_idxs], ord=1 #TODO: this order index correct?
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
         termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
