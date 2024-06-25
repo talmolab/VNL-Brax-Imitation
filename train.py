@@ -164,7 +164,7 @@ def main(train_config: DictConfig):
             {
                 "eval/rollout_rtrunk": wandb.plot.line(
                     table,
-                    "Frame",
+                    "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
                 )

@@ -225,7 +225,7 @@ class RodentTracking(PipelineEnv):
         rvel *= 0.01
         rapp *= 0.01
         rtrunk *= 0.1
-        rtrunk += 0
+        rtrunk += 10
         rquat *= 0.01
         ract *= 0.0001
 
