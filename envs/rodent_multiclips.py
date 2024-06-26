@@ -112,11 +112,14 @@ class RodentTracking(PipelineEnv):
         if self._sub_clip_length > self._clip_length:
             raise ValueError("sub clip length cannot be greater than clip_length!")
 
+
     def _load_reference_data(
         self, ref_path, proto_modifier, dataset: mp.ClipCollection
     ):
+        '''load dataset'''
 
         # TODO: what is the relevant for loading .p directly?
+        # TODO: what is proto_modifier?
         self._loader = loader.HDF5TrajectoryLoader(
             ref_path, proto_modifier=proto_modifier
         )
@@ -197,22 +200,6 @@ class RodentTracking(PipelineEnv):
             self._current_clip = self._all_clips[self._current_clip_index]
             self._clip_reference_features = self._current_clip.as_dict()
             self._strip_reference_prefix()
-
-
-        #TODO: equivalence?
-        # The reference features are already restricted to
-        # clip_start_step:clip_end_step. However start_step is in
-        # [clip_start_step:clip_end_step]. Hence we subtract clip_start_step to
-        # obtain a valid index for the reference features.
-        self._time_step = (
-            start_step - self._dataset.start_steps[self._current_clip_index]
-        )
-        self._current_start_time = (
-            start_step - self._dataset.start_steps[self._current_clip_index]
-        ) * self._current_clip.dt
-        self._last_step = (
-            len(self._clip_reference_features["joints"]) - self._max_ref_step - 1
-        )
 
     
     def reset(self, rng) -> State:

@@ -227,7 +227,7 @@ class RodentTracking(PipelineEnv):
         info = state.info.copy()
         info["cur_frame"] += 1
         info["first_reset"] += 1
-        info["curiculum_length"] += 1
+        info["curriculum_length"] += 1
 
 
         obs = self._get_obs(data, action, state.info)
