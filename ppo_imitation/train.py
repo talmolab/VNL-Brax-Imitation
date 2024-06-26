@@ -10,9 +10,10 @@ from brax.training import pmap
 from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
+
 # we inject our custom losses
 # from brax.training.agents.ppo import losses as ppo_losses
-from ppo_imitation import intention_losses as ppo_losses 
+from ppo_imitation import intention_losses as ppo_losses
 from ppo_imitation import acting
 from ppo_imitation import ppo_networks
 
@@ -91,7 +92,7 @@ def train(
     randomization_fn: Optional[
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
-    kl_weight: float = 1e-4, # default kl_weight in MIMIC
+    kl_weight: float = 1e-4,  # default kl_weight in MIMIC
 ):
     """PPO training.
 

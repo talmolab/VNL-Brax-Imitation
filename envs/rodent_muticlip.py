@@ -24,8 +24,8 @@ import mocap_preprocess as mp
 
 _MAX_END_STEP = 10000
 
-class RodentTracking(PipelineEnv):
 
+class RodentTracking(PipelineEnv):
     def __init__(
         self,
         params,
@@ -76,9 +76,9 @@ class RodentTracking(PipelineEnv):
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in params['joint_names']
-                ]
-            )
+                for joint in params["joint_names"]
+            ]
+        )
 
         sys = mjcf_brax.load_model(mj_model)
 
@@ -101,15 +101,15 @@ class RodentTracking(PipelineEnv):
 
         if self._episode_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
-    
 
+    def _load_reference_data(
+        self, ref_path, proto_modifier, dataset: mp.ClipCollection
+    ):
 
-    def _load_reference_data(self, ref_path, proto_modifier,
-                             dataset: mp.ClipCollection):
-        
-        #TODO: what is the relevant for loading .p directly?
+        # TODO: what is the relevant for loading .p directly?
         self._loader = loader.HDF5TrajectoryLoader(
-            ref_path, proto_modifier=proto_modifier)
+            ref_path, proto_modifier=proto_modifier
+        )
 
         self._dataset = dataset
         self._num_clips = len(self._dataset.ids)
@@ -118,16 +118,16 @@ class RodentTracking(PipelineEnv):
             # load all trajectories to infer clip end steps.
             self._all_clips = [
                 self._loader.get_trajectory(
-                    clip_id,
-                    start_step=clip_start_step,
-                    end_step=_MAX_END_STEP) for clip_id, clip_start_step in zip(
-                        self._dataset.ids, self._dataset.start_steps)
+                    clip_id, start_step=clip_start_step, end_step=_MAX_END_STEP
+                )
+                for clip_id, clip_start_step in zip(
+                    self._dataset.ids, self._dataset.start_steps
+                )
             ]
             # infer clip end steps to set sampling distribution
             self._dataset.end_steps = tuple(clip.end_step for clip in self._all_clips)
         else:
             self._all_clips = [None] * self._num_clips
-
 
     def _get_possible_starts(self):
         # List all possible (clip, step) starting points.
@@ -135,7 +135,8 @@ class RodentTracking(PipelineEnv):
         self._start_probabilities = []
         dataset = self._dataset
         for clip_number, (start, end, weight) in enumerate(
-            zip(dataset.start_steps, dataset.end_steps, dataset.weights)):
+            zip(dataset.start_steps, dataset.end_steps, dataset.weights)
+        ):
             # length - required lookahead - minimum number of steps
             last_possible_start = end - self._max_ref_step - self._min_steps
 
@@ -152,26 +153,27 @@ class RodentTracking(PipelineEnv):
 
         # normalize start probabilities
         self._start_probabilities = np.array(self._start_probabilities) / np.sum(
-            self._start_probabilities)
-        
-        
-    
+            self._start_probabilities
+        )
+
     def _get_clip_to_track(self, random_state: np.random.RandomState):
         # Randomly select a starting point.
         index = random_state.choice(
-            len(self._possible_starts), p=self._start_probabilities)
+            len(self._possible_starts), p=self._start_probabilities
+        )
         clip_index, start_step = self._possible_starts[index]
 
         self._current_clip_index = clip_index
         clip_id = self._dataset.ids[self._current_clip_index]
 
         if self._all_clips[self._current_clip_index] is None:
-        # fetch selected trajectory
+            # fetch selected trajectory
             self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
                 clip_id,
                 start_step=self._dataset.start_steps[self._current_clip_index],
                 end_step=self._dataset.end_steps[self._current_clip_index],
-                zero_out_velocities=False)
+                zero_out_velocities=False,
+            )
             self._current_clip = self._all_clips[self._current_clip_index]
             self._clip_reference_features = self._current_clip.as_dict()
             self._strip_reference_prefix()
@@ -180,13 +182,15 @@ class RodentTracking(PipelineEnv):
         # clip_start_step:clip_end_step. However start_step is in
         # [clip_start_step:clip_end_step]. Hence we subtract clip_start_step to
         # obtain a valid index for the reference features.
-        self._time_step = start_step - self._dataset.start_steps[
-            self._current_clip_index]
-        self._current_start_time = (start_step - self._dataset.start_steps[
-            self._current_clip_index]) * self._current_clip.dt
-        self._last_step = len(
-            self._clip_reference_features['joints']) - self._max_ref_step - 1
-        
+        self._time_step = (
+            start_step - self._dataset.start_steps[self._current_clip_index]
+        )
+        self._current_start_time = (
+            start_step - self._dataset.start_steps[self._current_clip_index]
+        ) * self._current_clip.dt
+        self._last_step = (
+            len(self._clip_reference_features["joints"]) - self._max_ref_step - 1
+        )
 
     def reset(self, rng) -> State:
         """
@@ -264,7 +268,7 @@ class RodentTracking(PipelineEnv):
         )
         data = self.pipeline_init(qpos, qvel)
         traj = self._get_traj(data, start_frame)
-        
+
         info = {
             "cur_frame": start_frame,
             "traj": traj,
@@ -430,7 +434,7 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-        
+
         # TODO: end effectors pos and appendages pos are two different features?
         end_effectors = data.xpos[self._end_eff_idx].flatten()
 
@@ -442,7 +446,7 @@ class RodentTracking(PipelineEnv):
                 end_effectors,
             ]
         )
-    
+
     def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state
@@ -457,13 +461,9 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-        
-        ref_traj = jax.tree_util.tree_map(
-            f, self._ref_traj
-        )
-        reference_appendages = self.get_reference_appendages_pos(
-            ref_traj
-        )
+
+        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+        reference_appendages = self.get_reference_appendages_pos(ref_traj)
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -473,9 +473,7 @@ class RodentTracking(PipelineEnv):
         reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
             data, ref_traj
         )
-        reference_rel_joints = self.get_reference_rel_joints(
-            data, ref_traj
-        )
+        reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
 
         return jp.concatenate(
             [
@@ -548,8 +546,8 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
-        
+        diff = ref_traj.joints - data.qpos[7:][self._joint_idxs]
+
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):

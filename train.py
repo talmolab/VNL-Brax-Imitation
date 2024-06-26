@@ -79,7 +79,7 @@ def main(train_config: DictConfig):
         cfg[train_config.env_name]["name"],
         params=cfg[train_config.env_name],
         termination_threshold=train_config["env_params"]["termination_threshold"],
-        explore_time=train_config["env_params"]["explore_time"]
+        explore_time=train_config["env_params"]["explore_time"],
     )
 
     # TODO: make the intention network factory a part of the config
@@ -120,7 +120,7 @@ def main(train_config: DictConfig):
         project="VNL_SingleClipImitationPPO_Intention",
         config=OmegaConf.to_container(train_config, resolve=True),
         notes=f"",
-        dir='/tmp'
+        dir="/tmp",
     )
 
     wandb.run.name = f"{train_config.env_name}_{train_config.task_name}_{train_config['algo_name']}_{run_id}"
@@ -152,13 +152,15 @@ def main(train_config: DictConfig):
 
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng) # extra is a dictionary
+            ctrl, extras = jit_inference_fn(
+                state.info["traj"], state.obs, act_rng
+            )  # extra is a dictionary
             state = jit_step(state, ctrl)
 
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
-            
+
             mean, std = np.split(extras["logits"], 2)
             log_prob, rand_prob = extras["rand_log_prob"], extras["log_prob"]
             log_probs.append(log_prob)
@@ -183,7 +185,6 @@ def main(train_config: DictConfig):
 
         # Plot action means over rollout (array of array)
         data = np.array(means).T
-        print(data)
         wandb.log(
             {
                 f"logits/rollout_means": wandb.plot.line_series(
@@ -224,7 +225,6 @@ def main(train_config: DictConfig):
             }
         )
 
-
         # Plot random action prob over rollout
         data = [[x, y] for (x, y) in zip(range(len(rand_probs)), rand_probs)]
         table = wandb.Table(data=data, columns=["frame", "rand_probs"])
@@ -255,7 +255,7 @@ def main(train_config: DictConfig):
 
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-        
+
         def f(x):
             if len(x.shape) != 1:
                 return jax.lax.dynamic_slice_in_dim(
@@ -323,7 +323,7 @@ def main(train_config: DictConfig):
                 renderer.update_scene(
                     mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
                 )
-                
+
                 pixels = renderer.render()
                 video.append_data(pixels)
                 frames.append(pixels)

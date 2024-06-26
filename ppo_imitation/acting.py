@@ -42,7 +42,7 @@ def actor_step(
     Collect data.
     Call the policy and feed in here
     """
-    
+
     # this action here is one value, already post ditribution process, stochasticity added
     actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
     nstate = env.step(env_state, actions)

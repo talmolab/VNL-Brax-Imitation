@@ -21,6 +21,7 @@ from flax import linen as nn
 def kl_divergence(mean, logvar):
     return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
 
+
 class Encoder(nn.Module):
     """outputs in the form of distributions in latent space"""
 
@@ -42,7 +43,6 @@ class Encoder(nn.Module):
             )(x)
             x = self.activation(x)
             x = nn.LayerNorm()(x)
-            
 
         mean_x = nn.Dense(self.latents, name="fc2_mean")(x)
         logvar_x = nn.Dense(self.latents, name="fc2_logvar")(x)
@@ -69,7 +69,9 @@ class Decoder(nn.Module):
             )(x)
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 x = self.activation(x)
-                x = nn.LayerNorm()(x) # normalizes the inputs across the features for each data sample independently.
+                x = nn.LayerNorm()(
+                    x
+                )  # normalizes the inputs across the features for each data sample independently.
         return x
 
 
@@ -92,16 +94,18 @@ class IntentionNetwork(nn.Module):
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
     def __call__(self, traj, obs, key):
-        '''
+        """
         args:
         separate trajectory input + observation input
-        '''
+        """
         _, encoder_rng = jax.random.split(key, 2)
 
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action = self.decoder(jnp.concatenate([z, obs], axis=-1)) # should be 2 value, mean, sd, no stochstic yet
+        action = self.decoder(
+            jnp.concatenate([z, obs], axis=-1)
+        )  # should be 2 value, mean, sd, no stochstic yet
 
         return action, intention_mean, intention_logvar
 
@@ -120,7 +124,7 @@ def make_intention_policy(
     policy_module = IntentionNetwork(
         encoder_layers=list(encoder_layer_sizes),
         decoder_layers=list(decoder_layer_sizes) + [param_size],
-        latents=latent_size
+        latents=latent_size,
     )
 
     def apply(processor_params, policy_params, traj, obs, key):
@@ -132,5 +136,6 @@ def make_intention_policy(
     dummy_key = jax.random.PRNGKey(0)
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs, dummy_key), apply=apply
+        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs, dummy_key),
+        apply=apply,
     )
