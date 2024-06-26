@@ -144,6 +144,7 @@ class RodentTracking(PipelineEnv):
             "traj": traj,
             "first_reset": 0,
             "curriculum_length": 0,
+            "sub_clip_length": self._sub_clip_length,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -194,6 +195,7 @@ class RodentTracking(PipelineEnv):
             "traj": traj,
             "first_reset": 0,
             "curriculum_length": 0,
+            "sub_clip_length": self._sub_clip_length,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -246,13 +248,10 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
-        print(self._sub_clip_length)
-
-        new_clip_length = self._sub_clip_length
         sub_clip_length = jp.where(
             (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
-            new_clip_length * 2,
-            self._sub_clip_length,
+            info["sub_clip_length"] * 2,
+            info["sub_clip_length"],
         )  # values from data
 
         self._sub_clip_length = sub_clip_length

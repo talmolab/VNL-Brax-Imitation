@@ -1,6 +1,6 @@
 import jax
 from jax import numpy as jp
-from typing import Any
+from typing import Any, Sequence
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
@@ -20,12 +20,14 @@ import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
+import mocap_preprocess as mp
 
 
 class RodentTracking(PipelineEnv):
     def __init__(
         self,
         params,
+        ref_steps: Sequence[int],
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
@@ -35,6 +37,7 @@ class RodentTracking(PipelineEnv):
         body_error_multiplier: float = 1.0,
         explore_time: int = 20,
         curriculum_max_time: int = 50,
+        min_steps: int = 10,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
@@ -100,6 +103,11 @@ class RodentTracking(PipelineEnv):
         self._body_error_multiplier = body_error_multiplier
         self._curriculum_max_time = curriculum_max_time
 
+        self._ref_steps = np.sort(ref_steps)
+        self._max_ref_step = self._ref_steps[-1]
+        self._min_steps = min_steps
+
+
         with open(params["clip_path"], "rb") as f:
             self._ref_traj = pickle.load(f)
 
@@ -134,10 +142,14 @@ class RodentTracking(PipelineEnv):
             self._all_clips = [None] * self._num_clips
 
     def _get_possible_starts(self):
-        # List all possible (clip, step) starting points.
+        '''
+        All possible (clip, step) starting points
+        '''
+
         self._possible_starts = []
         self._start_probabilities = []
         dataset = self._dataset
+        
         for clip_number, (start, end, weight) in enumerate(
             zip(dataset.start_steps, dataset.end_steps, dataset.weights)
         ):
