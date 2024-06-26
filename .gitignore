@@ -36,3 +36,4 @@ scripts/
 __pycache__/
 
 .DS_Store
+clips/transform1.p

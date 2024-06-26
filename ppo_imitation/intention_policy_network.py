@@ -69,7 +69,9 @@ class Decoder(nn.Module):
             )(x)
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 x = self.activation(x)
-                x = nn.LayerNorm()(x)
+                x = nn.LayerNorm()(
+                    x
+                )  # normalizes the inputs across the features for each data sample independently.
         return x
 
 
@@ -101,7 +103,9 @@ class IntentionNetwork(nn.Module):
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action = self.decoder(jnp.concatenate([z, obs], axis=-1))
+        action = self.decoder(
+            jnp.concatenate([z, obs], axis=-1)
+        )  # should be 2 value, mean, sd, no stochstic yet
 
         return action, intention_mean, intention_logvar
 
