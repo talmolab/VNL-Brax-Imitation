@@ -17,5 +17,5 @@ encoder_layer_sizes: [512, 256]
 decoder_layer_sizes: [256, 512]
 
 env_params:
-  termination_threshold: 10
+  termination_threshold: 5
   explore_time: 10

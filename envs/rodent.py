@@ -29,7 +29,7 @@ class RodentTracking(PipelineEnv):
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
-        episode_length: int = 150,
+        sub_clip_length: int = 2,
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
@@ -93,7 +93,7 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
         self._clip_length = clip_length
-        self._episode_length = episode_length
+        self._sub_clip_length = sub_clip_length
         self._ref_traj_length = ref_traj_length
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
@@ -101,8 +101,8 @@ class RodentTracking(PipelineEnv):
         with open(params["clip_path"], "rb") as f:
             self._ref_traj = pickle.load(f)
 
-        if self._episode_length > self._clip_length:
-            raise ValueError("episode_length cannot be greater than clip_length!")
+        if self._sub_clip_length > self._clip_length:
+            raise ValueError("sub clip length cannot be greater than clip_length!")
 
     def reset(self, rng) -> State:
         """
@@ -110,7 +110,10 @@ class RodentTracking(PipelineEnv):
         TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
         start_frame = jax.random.randint(
-            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
+            rng,
+            (),
+            0,
+            self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
         # start_frame = 0
 
@@ -138,6 +141,7 @@ class RodentTracking(PipelineEnv):
             "cur_frame": start_frame,
             "traj": traj,
             "first_reset": 0,
+            "curriculum_length": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -187,6 +191,7 @@ class RodentTracking(PipelineEnv):
             "cur_frame": start_frame,
             "traj": traj,
             "first_reset": 0,
+            "curriculum_length": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -237,8 +242,16 @@ class RodentTracking(PipelineEnv):
 
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
-
         info["traj"] = traj
+
+        sub_clip_length = jp.where(
+            (info["curriculum_length"] % 50 == 0) | (info["termination_error"] >= 0.25),
+            self.su_b_clip_length * 2,
+            self._sub_clip_length,
+        )  # values from data
+
+        self._sub_clip_length = sub_clip_length
+
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
         done = jp.where(
