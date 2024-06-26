@@ -181,6 +181,35 @@ def main(train_config: DictConfig):
             }
         )
 
+        # Plot action means over rollout
+        data = np.array(means).T
+        print(data)
+        wandb.log(
+            {
+                f"logits/rollout_means": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Action actuator means for each rollout frame",
+                )
+            }
+        )
+
+        # Plot action stds over rollout (optimize this later)
+        data = np.array(stds).T
+        wandb.log(
+            {
+                f"logits/rollout_stds": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Action actuator stds for each rollout frame",
+                )
+            }
+        )
+
         # Plot policy action prob over rollout
         data = np.array(log_probs).T
         wandb.log(
@@ -219,35 +248,6 @@ def main(train_config: DictConfig):
                     "frame",
                     "reward",
                     title="reward for each rollout frame",
-                )
-            }
-        )
-
-        # Plot action means over rollout
-        data = np.array(means).T
-        print(data)
-        wandb.log(
-            {
-                f"logits/rollout_means": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Action actuator means for each rollout frame",
-                )
-            }
-        )
-
-        # Plot action stds over rollout (optimize this later)
-        data = np.array(stds).T
-        wandb.log(
-            {
-                f"logits/rollout_stds": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Action actuator stds for each rollout frame",
                 )
             }
         )
