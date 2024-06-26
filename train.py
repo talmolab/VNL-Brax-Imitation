@@ -31,6 +31,9 @@ from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
 
+from dm_control.mujoco import wrapper
+from dm_control.mujoco.wrapper.mjbindings import enums
+
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
 
@@ -73,7 +76,12 @@ def main(train_config: DictConfig):
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
     env = envs.get_environment(
-        cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
+        cfg[train_config.env_name]["name"],
+        params=cfg[train_config.env_name],
+        termination_threshold=train_config["env_params"]["termination_threshold"],
+        explore_time=train_config["env_params"]["explore_time"],
+        sub_clip_length=train_config["env_params"]["sub_clip_length"],
+        curriculum_max_time=train_config["env_params"]["curriculum_max_time"]
     )
 
     # TODO: make the intention network factory a part of the config
@@ -114,7 +122,7 @@ def main(train_config: DictConfig):
         project="VNL_SingleClipImitationPPO_Intention",
         config=OmegaConf.to_container(train_config, resolve=True),
         notes=f"",
-        dir='/tmp'
+        dir="/tmp",
     )
 
     wandb.run.name = f"{train_config.env_name}_{train_config.task_name}_{train_config['algo_name']}_{run_id}"
@@ -138,18 +146,27 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
+        rewards = []
         means = []
         stds = []
+        log_probs = []
+        rand_probs = []
 
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(
+                state.info["traj"], state.obs, act_rng
+            )  # extra is a dictionary
             state = jit_step(state, ctrl)
 
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
-            
+                rewards.append(state.reward)
+
             mean, std = np.split(extras["logits"], 2)
+            log_prob, rand_prob = extras["rand_log_prob"], extras["log_prob"]
+            log_probs.append(log_prob)
+            rand_probs.append(rand_prob)
             means.append(mean)
             stds.append(std)
             rollout.append(state.pipeline_state)
@@ -161,14 +178,14 @@ def main(train_config: DictConfig):
             {
                 "eval/rollout_rtrunk": wandb.plot.line(
                     table,
-                    "Frame",
+                    "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
                 )
             }
         )
 
-        # Plot action means over rollout
+        # Plot action means over rollout (array of array)
         data = np.array(means).T
         wandb.log(
             {
@@ -196,9 +213,51 @@ def main(train_config: DictConfig):
             }
         )
 
+        # Plot policy action prob over rollout
+        data = [[x, y] for (x, y) in zip(range(len(log_probs)), log_probs)]
+        table = wandb.Table(data=data, columns=["frame", "log_probs"])
+        wandb.log(
+            {
+                "logits/rollout_log_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "log_probs",
+                    title="Policy action probability for each rollout frame",
+                )
+            }
+        )
+
+        # Plot random action prob over rollout
+        data = [[x, y] for (x, y) in zip(range(len(rand_probs)), rand_probs)]
+        table = wandb.Table(data=data, columns=["frame", "rand_probs"])
+        wandb.log(
+            {
+                "logits/rollout_rand_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "rand_probs",
+                    title="Random action probability for each rollout frame",
+                )
+            }
+        )
+
+        # Plot reward over rollout
+        data = [[x, y] for (x, y) in zip(range(len(rewards)), rewards)]
+        table = wandb.Table(data=data, columns=["frame", "reward"])
+        wandb.log(
+            {
+                "eval/rollout_reward": wandb.plot.line(
+                    table,
+                    "frame",
+                    "reward",
+                    title="reward for each rollout frame",
+                )
+            }
+        )
+
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-        
+
         def f(x):
             if len(x.shape) != 1:
                 return jax.lax.dynamic_slice_in_dim(
@@ -217,6 +276,20 @@ def main(train_config: DictConfig):
         )
 
         qposes_rollout = [data.qpos for data in rollout]
+
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
 
         # TODO: Overlay expert rendering
         mj_model = mujoco.MjModel.from_xml_path(
@@ -252,9 +325,8 @@ def main(train_config: DictConfig):
                 renderer.update_scene(
                     mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
                 )
-                
+
                 pixels = renderer.render()
-                # pixels = 0.5 * pixels # adding transparency alpha
                 video.append_data(pixels)
                 frames.append(pixels)
 

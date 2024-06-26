@@ -48,20 +48,38 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
             key_sample, key_network = jax.random.split(key_sample)
-            logits, _, _ = policy_network.apply(*params, trajectories, observations, key_network)
+            logits, _, _ = policy_network.apply(
+                *params, trajectories, observations, key_network
+            )
+            # logits comes from policy directly, raw predictions that decoder generates (action, intention_mean, intention_logvar)
+
             if deterministic:
                 return ppo_networks.parametric_action_distribution.mode(logits), {}
+
+            # action sampling is happening here, according to distribution parameter logits
             raw_actions = parametric_action_distribution.sample_no_postprocessing(
                 logits, key_sample
             )
+
+            # probability of selection specific action, actions with higher reward should have higher probability
             log_prob = parametric_action_distribution.log_prob(logits, raw_actions)
+
+            action_size = logits.shape[-1] // 2
+            random_actions = jax.random.uniform(
+                key_sample, shape=(action_size,), minval=-1, maxval=1
+            )
+            rand_log_prob = parametric_action_distribution.log_prob(
+                logits, random_actions
+            )
+
             postprocessed_actions = parametric_action_distribution.postprocess(
                 raw_actions
             )
             return postprocessed_actions, {
                 "log_prob": log_prob,
+                "rand_log_prob": rand_log_prob,  # should be low
                 "raw_action": raw_actions,
-                "logits": logits
+                "logits": logits,  # logits is previous raw action, mean, sd
             }
 
         return policy
@@ -86,7 +104,7 @@ def make_intention_ppo_networks(
     )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
-        latent_size=intention_latent_size, 
+        latent_size=intention_latent_size,
         traj_size=traj_size,
         obs_size=observation_size,
         preprocess_observations_fn=preprocess_observations_fn,

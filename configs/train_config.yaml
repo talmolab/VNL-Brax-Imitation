@@ -3,15 +3,21 @@ algo_name: ppo
 task_name: track
 num_envs: 2048
 num_timesteps: 3_000_000_000
-eval_every: 25_000_000
+eval_every: 20000
 episode_length: 150
 batch_size: 2048
-learning_rate: 6e-4
+learning_rate: 0.001
 num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.3
-kl_weight: 1e-4
+kl_weight: 0.000001
 terminate_when_unhealthy: true
-intention_latent_size: 64
-encoder_layer_sizes: [512, 512]
-decoder_layer_sizes: [512, 512]
+intention_latent_size: 128
+encoder_layer_sizes: [512, 256]
+decoder_layer_sizes: [256, 512]
+
+env_params:
+  termination_threshold: 5
+  explore_time: 10
+  sub_clip_length: 10
+  curriculum_max_time: 50
