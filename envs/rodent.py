@@ -80,13 +80,6 @@ class RodentTracking(PipelineEnv):
             ]
         )
 
-        self._joint_idxs = jp.array(
-            [
-                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in params["joint_names"]
-            ]
-        )
-
         sys = mjcf_brax.load_model(mj_model)
 
         physics_steps_per_control_step = 5
@@ -444,16 +437,12 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_bodies_pos_local(self, data, ref_traj):
         """Observation of the reference bodies relative to walker in local frame."""
-
-        # self._walker_features['body_positions'] is the equivalent of
-        # the ref traj 'body_positions' feature but calculated for the current walker state
-
         xpos_broadcast = jp.broadcast_to(
             data.xpos[self._body_idxs], ref_traj.body_positions.shape
         )
         obs = self.global_vector_to_local_frame(
             data, ref_traj.body_positions - xpos_broadcast
-        )[:, self._body_idxs]
+        )  # [:, self._body_idxs]
         return jp.concatenate([o.flatten() for o in obs])
 
     def get_reference_rel_bodies_pos_global(self, data, ref_traj):
@@ -461,21 +450,19 @@ class RodentTracking(PipelineEnv):
         xpos_broadcast = jp.broadcast_to(
             data.xpos[self._body_idxs], ref_traj.body_positions.shape
         )
-        diff = (ref_traj.body_positions - xpos_broadcast)[:, self._body_idxs]
+        diff = ref_traj.body_positions - xpos_broadcast  # [:, self._body_idxs]
 
         return diff.flatten()
 
     def get_reference_rel_root_pos_local(self, data, ref_traj):
         """Reference position relative to current root position in root frame."""
-        thing = ref_traj.position - data.qpos[:3]
-        obs = self.global_vector_to_local_frame(data, thing)
+        diff = ref_traj.position - data.qpos[:3]
+        obs = self.global_vector_to_local_frame(data, diff)
         return jp.concatenate([o.flatten() for o in obs])
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (
-            ref_traj.joints - data.qpos[7:]
-        )  # [:, self._joint_idxs] No need for new preprocessing
+        diff = ref_traj.joints - data.qpos[7:]
 
         # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
