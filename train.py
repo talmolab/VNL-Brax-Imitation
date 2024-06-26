@@ -183,7 +183,6 @@ def main(train_config: DictConfig):
 
         # Plot policy action prob over rollout
         data = np.array(log_probs).T
-        print(data)
         wandb.log(
             {
                 f"logits/rollout_log_prob": wandb.plot.line_series(
@@ -226,6 +225,7 @@ def main(train_config: DictConfig):
 
         # Plot action means over rollout
         data = np.array(means).T
+        print(data)
         wandb.log(
             {
                 f"logits/rollout_means": wandb.plot.line_series(
