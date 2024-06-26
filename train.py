@@ -182,13 +182,13 @@ def main(train_config: DictConfig):
         )
 
         # Plot policy action prob over rollout
-        data = np.array(log_prob).T
+        data = np.array(log_probs).T
         wandb.log(
             {
                 f"logits/rollout_log_prob": wandb.plot.line_series(
                     xs=range(data.shape[0]),
                     ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
+                    keys=[str(i) for i in range(data.shape[1])],
                     xname="Frame",
                     title=f"Policy action probability for each rollout frame",
                 )
@@ -196,11 +196,11 @@ def main(train_config: DictConfig):
         )
 
         # Plot random action prob over rollout
-        data = np.array(rand_prob).T
+        data = np.array(rand_probs).T
         wandb.log(
             {
                 f"logits/rollout_rand_prob": wandb.plot.line_series(
-                    xs=range(data.shape[0]),
+                    xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
