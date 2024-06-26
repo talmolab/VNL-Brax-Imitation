@@ -36,7 +36,6 @@ class RodentTracking(PipelineEnv):
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
         explore_time: int = 20,
-        curriculum_max_time: int = 50,
         min_steps: int = 10,
         **kwargs,
     ):
@@ -101,7 +100,6 @@ class RodentTracking(PipelineEnv):
         self._ref_traj_length = ref_traj_length
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
-        self._curriculum_max_time = curriculum_max_time
 
         self._ref_steps = np.sort(ref_steps)
         self._max_ref_step = self._ref_steps[-1]
@@ -178,7 +176,6 @@ class RodentTracking(PipelineEnv):
         1. self._possible_starts stores all (clip_index, start_step)
         2. self._start_probabilities keeps weighted clip's prob
         '''
-
         # get specific clip index and start frame
         index = random_state.choice(
             len(self._possible_starts), p=self._start_probabilities
@@ -255,7 +252,6 @@ class RodentTracking(PipelineEnv):
             "cur_frame": start_frame,
             "traj": traj,
             "first_reset": 0,
-            "curriculum_length": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -305,7 +301,6 @@ class RodentTracking(PipelineEnv):
             "cur_frame": start_frame,
             "traj": traj,
             "first_reset": 0,
-            "curriculum_length": 0,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
@@ -357,14 +352,6 @@ class RodentTracking(PipelineEnv):
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
         info["traj"] = traj
-
-        sub_clip_length = jp.where(
-            (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
-            self._sub_clip_length * 2,
-            self._sub_clip_length,
-        )  # values from data
-
-        self._sub_clip_length = sub_clip_length
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
