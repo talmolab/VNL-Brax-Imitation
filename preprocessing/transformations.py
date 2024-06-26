@@ -66,15 +66,16 @@ def _clip_within_precision(number, low, high, precision=_TOL):
       ValueError: If number is outside given range by more than given precision.
     """
 
-    def _raise_if_not_in_precision():
-        if (number < low - precision).any() or (number > high + precision).any():
-            raise ValueError(
-                "Input {:.12f} not inside range [{:.12f}, {:.12f}] with precision {}".format(
-                    number, low, high, precision
-                )
-            )
+    # This is raising an error when jitted
+    # def _raise_if_not_in_precision():
+    #     if (number < low - precision).any() or (number > high + precision).any():
+    #         raise ValueError(
+    #             "Input {:.12f} not inside range [{:.12f}, {:.12f}] with precision {}".format(
+    #                 number, low, high, precision
+    #             )
+    #         )
 
-    jax.debug.callback(_raise_if_not_in_precision)
+    # jax.debug.callback(_raise_if_not_in_precision)
 
     return jp.clip(number, low, high)
 

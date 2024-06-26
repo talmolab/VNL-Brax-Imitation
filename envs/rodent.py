@@ -26,6 +26,7 @@ class RodentTracking(PipelineEnv):
 
     def __init__(
         self,
+        reference_clip,
         params,
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
@@ -63,13 +64,13 @@ class RodentTracking(PipelineEnv):
                 for body in params["end_eff_names"]
             ]
         )
-        app_idx = jp.array(
+        self._app_idx = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in params["appendage_names"]
             ]
         )
-        com_idx = mujoco.mj_name2id(
+        self._com_idx = mujoco.mj_name2id(
             mj_model, mujoco.mju_str2Type("body"), params["center_of_mass"]
         )
 
@@ -106,9 +107,9 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
 
-        with open(params["clip_path"], "rb") as f:
-            self._ref_traj = pickle.load(f)
-
+        self._ref_traj = reference_clip
+        filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
+        self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
         if self._episode_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
@@ -307,7 +308,9 @@ class RodentTracking(PipelineEnv):
         """
         # location using com (dim=3)
         com_c = data_c.subtree_com[1]
-        com_ref = self._ref_traj.center_of_mass[state.info["cur_frame"], :]
+        com_ref = self._ref_traj.body_positions[:, self._com_idx][
+            state.info["cur_frame"], :
+        ]
         rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))))
 
         # joint angle velocity
@@ -333,8 +336,10 @@ class RodentTracking(PipelineEnv):
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
 
         # end effector positions
-        app_c = data_c.xpos[self._end_eff_idx].flatten()
-        app_ref = self._ref_traj.end_effectors[state.info["cur_frame"], :].flatten()
+        app_c = data_c.xpos[self._app_idx].flatten()
+        app_ref = self._ref_traj.body_positions[:, self._app_idx][
+            state.info["cur_frame"], :
+        ].flatten()
 
         rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
 
@@ -469,14 +474,16 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
+        diff = (
+            ref_traj.joints - data.qpos[7:]
+        )  # [:, self._joint_idxs] No need for new preprocessing
 
         # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):
         """Reference appendage positions in reference frame, not relative."""
-        return ref_traj.appendages.flatten()
+        return ref_traj.body_positions[:, self._app_idx].flatten()
 
     def _bounded_quat_dist(self, source: np.ndarray, target: np.ndarray) -> np.ndarray:
         """Computes a quaternion distance limiting the difference to a max of pi/2.
