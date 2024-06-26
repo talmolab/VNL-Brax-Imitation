@@ -221,6 +221,7 @@ def train(
     if normalize_observations:
         normalize = running_statistics.normalize
     # TODO Traj size
+    # use info to keep track of traj
     ppo_network = network_factory(
         env_state.info["traj"].shape[-1],
         env_state.obs.shape[-1],
@@ -232,7 +233,6 @@ def train(
 
     learning_rate_fn = optax.constant_schedule(learning_rate)
     optimizer = optax.adam(learning_rate_fn)
-    
     # This doesn't work yet (set adam b1=0. if used)
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
@@ -259,6 +259,8 @@ def train(
     ):
         optimizer_state, params, key = carry
         key, key_loss = jax.random.split(key)
+
+        # gets logged
         (_, metrics), params, optimizer_state = gradient_update_fn(
             params, normalizer_params, data, key_loss, optimizer_state=optimizer_state
         )

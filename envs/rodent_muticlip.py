@@ -20,19 +20,21 @@ import os
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
+import mocap_preprocess as mp
 
+_MAX_END_STEP = 10000
 
 class RodentTracking(PipelineEnv):
 
     def __init__(
         self,
         params,
-        healthy_z_range=(0.05, 0.5),
+        healthy_z_range=(0.3, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
-        termination_threshold: float = 0.3,
+        termination_threshold: float = 0.5,
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
@@ -63,15 +65,6 @@ class RodentTracking(PipelineEnv):
                 for body in params["end_eff_names"]
             ]
         )
-        app_idx = jp.array(
-            [
-                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
-                for body in params["appendage_names"]
-            ]
-        )
-        com_idx = mujoco.mj_name2id(
-            mj_model, mujoco.mju_str2Type("body"), params["center_of_mass"]
-        )
 
         self._body_idxs = jp.array(
             [
@@ -83,9 +76,9 @@ class RodentTracking(PipelineEnv):
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in params["joint_names"]
-            ]
-        )
+                for joint in params['joint_names']
+                ]
+            )
 
         sys = mjcf_brax.load_model(mj_model)
 
@@ -106,11 +99,94 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
 
-        with open(params["clip_path"], "rb") as f:
-            self._ref_traj = pickle.load(f)
-
         if self._episode_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
+    
+
+
+    def _load_reference_data(self, ref_path, proto_modifier,
+                             dataset: mp.ClipCollection):
+        
+        #TODO: what is the relevant for loading .p directly?
+        self._loader = loader.HDF5TrajectoryLoader(
+            ref_path, proto_modifier=proto_modifier)
+
+        self._dataset = dataset
+        self._num_clips = len(self._dataset.ids)
+
+        if self._dataset.end_steps is None:
+            # load all trajectories to infer clip end steps.
+            self._all_clips = [
+                self._loader.get_trajectory(
+                    clip_id,
+                    start_step=clip_start_step,
+                    end_step=_MAX_END_STEP) for clip_id, clip_start_step in zip(
+                        self._dataset.ids, self._dataset.start_steps)
+            ]
+            # infer clip end steps to set sampling distribution
+            self._dataset.end_steps = tuple(clip.end_step for clip in self._all_clips)
+        else:
+            self._all_clips = [None] * self._num_clips
+
+
+    def _get_possible_starts(self):
+        # List all possible (clip, step) starting points.
+        self._possible_starts = []
+        self._start_probabilities = []
+        dataset = self._dataset
+        for clip_number, (start, end, weight) in enumerate(
+            zip(dataset.start_steps, dataset.end_steps, dataset.weights)):
+            # length - required lookahead - minimum number of steps
+            last_possible_start = end - self._max_ref_step - self._min_steps
+
+            if self._always_init_at_clip_start:
+                self._possible_starts += [(clip_number, start)]
+                self._start_probabilities += [weight]
+            else:
+                self._possible_starts += [
+                    (clip_number, j) for j in range(start, last_possible_start)
+                ]
+                self._start_probabilities += [
+                    weight for _ in range(start, last_possible_start)
+                ]
+
+        # normalize start probabilities
+        self._start_probabilities = np.array(self._start_probabilities) / np.sum(
+            self._start_probabilities)
+        
+        
+    
+    def _get_clip_to_track(self, random_state: np.random.RandomState):
+        # Randomly select a starting point.
+        index = random_state.choice(
+            len(self._possible_starts), p=self._start_probabilities)
+        clip_index, start_step = self._possible_starts[index]
+
+        self._current_clip_index = clip_index
+        clip_id = self._dataset.ids[self._current_clip_index]
+
+        if self._all_clips[self._current_clip_index] is None:
+        # fetch selected trajectory
+            self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
+                clip_id,
+                start_step=self._dataset.start_steps[self._current_clip_index],
+                end_step=self._dataset.end_steps[self._current_clip_index],
+                zero_out_velocities=False)
+            self._current_clip = self._all_clips[self._current_clip_index]
+            self._clip_reference_features = self._current_clip.as_dict()
+            self._strip_reference_prefix()
+
+        # The reference features are already restricted to
+        # clip_start_step:clip_end_step. However start_step is in
+        # [clip_start_step:clip_end_step]. Hence we subtract clip_start_step to
+        # obtain a valid index for the reference features.
+        self._time_step = start_step - self._dataset.start_steps[
+            self._current_clip_index]
+        self._current_start_time = (start_step - self._dataset.start_steps[
+            self._current_clip_index]) * self._current_clip.dt
+        self._last_step = len(
+            self._clip_reference_features['joints']) - self._max_ref_step - 1
+        
 
     def reset(self, rng) -> State:
         """
@@ -172,7 +248,6 @@ class RodentTracking(PipelineEnv):
         """
         Resets the environment to the initial frame
         """
-
         qpos = jp.hstack(
             [
                 self._ref_traj.position[start_frame, :],
@@ -189,7 +264,7 @@ class RodentTracking(PipelineEnv):
         )
         data = self.pipeline_init(qpos, qvel)
         traj = self._get_traj(data, start_frame)
-
+        
         info = {
             "cur_frame": start_frame,
             "traj": traj,
@@ -233,7 +308,7 @@ class RodentTracking(PipelineEnv):
         rcom *= 0.01
         rvel *= 0.01
         rapp *= 0.01
-        rtrunk *= 0.1
+        rtrunk *= 0.01
         rquat *= 0.01
         ract *= 0.0001
 
@@ -288,9 +363,7 @@ class RodentTracking(PipelineEnv):
             (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
-        termination_error = 1 - (
-            error / self._termination_threshold
-        )  # low threshold, easier to terminate, more sensitive
+        termination_error = 1 - (error / self._termination_threshold)
 
         return termination_error
 
@@ -333,14 +406,14 @@ class RodentTracking(PipelineEnv):
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
 
         # end effector positions
-        app_c = data_c.xpos[self._end_eff_idx].flatten()
+        app_c = data_c.xpos[jp.array(self._end_eff_idx)].flatten()
         app_ref = self._ref_traj.end_effectors[state.info["cur_frame"], :].flatten()
 
         rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
 
         is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
         is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
-        return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
+        return rcom, rvel, rtrunk + 15, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """
@@ -357,7 +430,7 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-
+        
         # TODO: end effectors pos and appendages pos are two different features?
         end_effectors = data.xpos[self._end_eff_idx].flatten()
 
@@ -369,7 +442,7 @@ class RodentTracking(PipelineEnv):
                 end_effectors,
             ]
         )
-
+    
     def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state
@@ -384,9 +457,13 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-
-        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-        reference_appendages = self.get_reference_appendages_pos(ref_traj)
+        
+        ref_traj = jax.tree_util.tree_map(
+            f, self._ref_traj
+        )
+        reference_appendages = self.get_reference_appendages_pos(
+            ref_traj
+        )
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -396,7 +473,9 @@ class RodentTracking(PipelineEnv):
         reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
             data, ref_traj
         )
-        reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
+        reference_rel_joints = self.get_reference_rel_joints(
+            data, ref_traj
+        )
 
         return jp.concatenate(
             [
@@ -469,13 +548,13 @@ class RodentTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
-
-        # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
+        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
+        
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):
         """Reference appendage positions in reference frame, not relative."""
+
         return ref_traj.appendages.flatten()
 
     def _bounded_quat_dist(self, source: np.ndarray, target: np.ndarray) -> np.ndarray:

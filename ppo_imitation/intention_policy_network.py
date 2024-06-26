@@ -87,10 +87,15 @@ class IntentionNetwork(nn.Module):
     latents: int = 60
 
     def setup(self):
+
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
     def __call__(self, traj, obs, key):
+        '''
+        args:
+        separate trajectory input + observation input
+        '''
         _, encoder_rng = jax.random.split(key, 2)
 
         # construct the intention network
@@ -115,7 +120,7 @@ def make_intention_policy(
     policy_module = IntentionNetwork(
         encoder_layers=list(encoder_layer_sizes),
         decoder_layers=list(decoder_layer_sizes) + [param_size],
-        latents=latent_size,
+        latents=latent_size
     )
 
     def apply(processor_params, policy_params, traj, obs, key):

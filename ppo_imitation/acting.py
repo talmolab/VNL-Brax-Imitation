@@ -38,7 +38,10 @@ def actor_step(
     key: PRNGKey,
     extra_fields: Sequence[str] = (),
 ) -> Tuple[State, Transition]:
-    """Collect data."""
+    """
+    Collect data.
+    Call the policy and feed in here
+    """
     actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
     nstate = env.step(env_state, actions)
     state_extras = {x: nstate.info[x] for x in extra_fields}
