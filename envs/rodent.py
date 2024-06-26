@@ -246,9 +246,10 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
+        new_clip_length = self._sub_clip_length + self._sub_clip_length
         sub_clip_length = jp.where(
             (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
-            self._sub_clip_length * 2,
+            new_clip_length,
             self._sub_clip_length,
         )  # values from data
 

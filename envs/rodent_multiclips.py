@@ -30,11 +30,11 @@ class RodentTracking(PipelineEnv):
         reset_noise_scale=1e-3,
         clip_length: int = 250,
         sub_clip_length: int = 10,
-        curriculum_max_time: int = 50,
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
         explore_time: int = 20,
+        curriculum_max_time: int = 50,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
