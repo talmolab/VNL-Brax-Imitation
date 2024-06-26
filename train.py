@@ -186,7 +186,7 @@ def main(train_config: DictConfig):
         wandb.log(
             {
                 f"logits/rollout_log_prob": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
+                    xs=range(data.shape[0]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
@@ -200,7 +200,7 @@ def main(train_config: DictConfig):
         wandb.log(
             {
                 f"logits/rollout_rand_prob": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
+                    xs=range(data.shape[0]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
