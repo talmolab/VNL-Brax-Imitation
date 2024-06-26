@@ -181,7 +181,7 @@ def main(train_config: DictConfig):
             }
         )
 
-        # Plot action means over rollout
+        # Plot action means over rollout (array of array)
         data = np.array(means).T
         print(data)
         wandb.log(
@@ -211,29 +211,30 @@ def main(train_config: DictConfig):
         )
 
         # Plot policy action prob over rollout
-        data = np.array(log_probs).T
+        data = [[x, y] for (x, y) in zip(range(len(log_probs)), log_probs)]
+        table = wandb.Table(data=data, columns=["frame", "log_probs"])
         wandb.log(
             {
-                f"logits/rollout_log_prob": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Policy action probability for each rollout frame",
+                "logits/rollout_log_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "log_probs",
+                    title="Policy action probability for each rollout frame",
                 )
             }
         )
 
+
         # Plot random action prob over rollout
-        data = np.array(rand_probs).T
+        data = [[x, y] for (x, y) in zip(range(len(rand_probs)), rand_probs)]
+        table = wandb.Table(data=data, columns=["frame", "rand_probs"])
         wandb.log(
             {
-                f"logits/rollout_rand_prob": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Random action probability for each rollout frame",
+                "logits/rollout_rand_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "rand_probs",
+                    title="Random action probability for each rollout frame",
                 )
             }
         )
