@@ -163,21 +163,22 @@ class RodentTracking(PipelineEnv):
     def _get_clip_to_track(self, random_state: np.random.RandomState):
         '''
         main muticlip selection function
-        1. self._possible_starts stores (clip_index, start_step)
-        2. self._start_probabilities keeps weighted clip prob
+        1. self._possible_starts stores all (clip_index, start_step)
+        2. self._start_probabilities keeps weighted clip's prob
         '''
 
-
+        # get specific clip index and start frame
         index = random_state.choice(
             len(self._possible_starts), p=self._start_probabilities
         )
         clip_index, start_step = self._possible_starts[index]
-
         self._current_clip_index = clip_index
-        clip_id = self._dataset.ids[self._current_clip_index]
 
+        # get clip id
+        clip_id = self._dataset.ids[self._current_clip_index]
+        
+        #TODO: fetch selected trajectory from loader?
         if self._all_clips[self._current_clip_index] is None:
-            # fetch selected trajectory
             self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
                 clip_id,
                 start_step=self._dataset.start_steps[self._current_clip_index],
@@ -188,6 +189,8 @@ class RodentTracking(PipelineEnv):
             self._clip_reference_features = self._current_clip.as_dict()
             self._strip_reference_prefix()
 
+
+        #TODO: equivalence?
         # The reference features are already restricted to
         # clip_start_step:clip_end_step. However start_step is in
         # [clip_start_step:clip_end_step]. Hence we subtract clip_start_step to
