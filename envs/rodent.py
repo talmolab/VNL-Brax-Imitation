@@ -74,9 +74,9 @@ class RodentTracking(PipelineEnv):
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in params['joint_names']
-                ]
-            )
+                for joint in params["joint_names"]
+            ]
+        )
 
         sys = mjcf_brax.load_model(mj_model)
 
@@ -179,7 +179,7 @@ class RodentTracking(PipelineEnv):
         )
         data = self.pipeline_init(qpos, qvel)
         traj = self._get_traj(data, start_frame)
-        
+
         info = {
             "cur_frame": start_frame,
             "traj": traj,
@@ -232,7 +232,7 @@ class RodentTracking(PipelineEnv):
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
         info["traj"] = traj
-        
+
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
@@ -278,7 +278,9 @@ class RodentTracking(PipelineEnv):
             (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
-        termination_error = 1 - (error / self._termination_threshold) # low threshold, easier to terminate, more sensitive
+        termination_error = 1 - (
+            error / self._termination_threshold
+        )  # low threshold, easier to terminate, more sensitive
 
         return termination_error
 
@@ -345,7 +347,7 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-        
+
         # TODO: end effectors pos and appendages pos are two different features?
         end_effectors = data.xpos[self._end_eff_idx].flatten()
 
@@ -357,7 +359,7 @@ class RodentTracking(PipelineEnv):
                 end_effectors,
             ]
         )
-    
+
     def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state
@@ -372,13 +374,9 @@ class RodentTracking(PipelineEnv):
                     self._ref_traj_length,
                 )
             return jp.array([])
-        
-        ref_traj = jax.tree_util.tree_map(
-            f, self._ref_traj
-        )
-        reference_appendages = self.get_reference_appendages_pos(
-            ref_traj
-        )
+
+        ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
+        reference_appendages = self.get_reference_appendages_pos(ref_traj)
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -388,9 +386,7 @@ class RodentTracking(PipelineEnv):
         reference_rel_root_pos_local = self.get_reference_rel_root_pos_local(
             data, ref_traj
         )
-        reference_rel_joints = self.get_reference_rel_joints(
-            data, ref_traj
-        )
+        reference_rel_joints = self.get_reference_rel_joints(data, ref_traj)
 
         return jp.concatenate(
             [
@@ -464,7 +460,7 @@ class RodentTracking(PipelineEnv):
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
         diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
-        
+
         # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
 

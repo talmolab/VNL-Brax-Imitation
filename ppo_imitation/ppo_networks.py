@@ -48,7 +48,9 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
             key_sample, key_network = jax.random.split(key_sample)
-            logits, _, _ = policy_network.apply(*params, trajectories, observations, key_network)
+            logits, _, _ = policy_network.apply(
+                *params, trajectories, observations, key_network
+            )
             if deterministic:
                 return ppo_networks.parametric_action_distribution.mode(logits), {}
             raw_actions = parametric_action_distribution.sample_no_postprocessing(
@@ -61,7 +63,7 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             return postprocessed_actions, {
                 "log_prob": log_prob,
                 "raw_action": raw_actions,
-                "logits": logits
+                "logits": logits,
             }
 
         return policy
@@ -86,7 +88,7 @@ def make_intention_ppo_networks(
     )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
-        latent_size=intention_latent_size, 
+        latent_size=intention_latent_size,
         traj_size=traj_size,
         obs_size=observation_size,
         preprocess_observations_fn=preprocess_observations_fn,
