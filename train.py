@@ -30,6 +30,7 @@ from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
+from preprocessing.mjx_preprocess import process_clip
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -72,9 +73,17 @@ def main(train_config: DictConfig):
     cfg = hydra.compose(config_name="env_config")
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
-    env = envs.get_environment(
-        cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
-    )
+    env_params = cfg[train_config.env_name]
+
+    # Process rodent clip
+    if cfg[train_config.env_name]["name"] == "rodent":
+        env_params["reference_clip"] = process_clip(
+            env_params["stac_path"],
+            start_step=env_params["clip_idx"] * env_params["clip_length"],
+            clip_length=env_params["clip_length"],
+        )
+
+    env = envs.get_environment(cfg[train_config.env_name]["name"], params=env_params)
 
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(

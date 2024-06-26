@@ -26,7 +26,6 @@ class RodentTracking(PipelineEnv):
 
     def __init__(
         self,
-        reference_clip,
         params,
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
@@ -107,7 +106,7 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
 
-        self._ref_traj = reference_clip
+        self._ref_traj = params["reference_clip"]
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
         if self._episode_length > self._clip_length:
