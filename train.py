@@ -147,10 +147,12 @@ def main(train_config: DictConfig):
         rewards = []
         means = []
         stds = []
+        log_probs = []
+        rand_probs = []
 
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng) # extra is a dictionary
             state = jit_step(state, ctrl)
 
             if train_config.env_name != "humanoidstanding":
@@ -158,6 +160,9 @@ def main(train_config: DictConfig):
                 rewards.append(state.reward)
             
             mean, std = np.split(extras["logits"], 2)
+            log_prob, rand_prob = extras["rand_log_prob"], extras["log_prob"]
+            log_probs.append(log_prob)
+            rand_probs.append(rand_prob)
             means.append(mean)
             stds.append(std)
             rollout.append(state.pipeline_state)
@@ -172,6 +177,34 @@ def main(train_config: DictConfig):
                     "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
+                )
+            }
+        )
+
+        # Plot policy action prob over rollout
+        data = np.array(log_prob).T
+        wandb.log(
+            {
+                f"logits/rollout_log_prob": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Policy action probability for each rollout frame",
+                )
+            }
+        )
+
+        # Plot random action prob over rollout
+        data = np.array(rand_prob).T
+        wandb.log(
+            {
+                f"logits/rollout_rand_prob": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Random action probability for each rollout frame",
                 )
             }
         )
