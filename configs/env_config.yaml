@@ -34,6 +34,12 @@ rodent:
     - foot_R 
     - hand_L
     - hand_R
+  appendage_names:
+    - foot_L
+    - foot_R 
+    - hand_L
+    - hand_R
+    - skull
   walker_body_names:
     - torso
     - pelvis
@@ -121,5 +127,6 @@ rodent:
     - elbow_R
     - wrist_R
     - finger_R
+  center_of_mass: torso
   camera: close_profile
   rendering_mjcf: rodent_pair.xml

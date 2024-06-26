@@ -27,7 +27,7 @@ class RodentTracking(PipelineEnv):
     def __init__(
         self,
         params,
-        healthy_z_range=(0.3, 0.5),
+        healthy_z_range=(0.03, 0.2),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
         episode_length: int = 150,
@@ -62,6 +62,15 @@ class RodentTracking(PipelineEnv):
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in params["end_eff_names"]
             ]
+        )
+        app_idx = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
+                for body in params["appendage_names"]
+            ]
+        )
+        com_idx = mujoco.mj_name2id(
+            mj_model, mujoco.mju_str2Type("body"), params["center_of_mass"]
         )
 
         self._body_idxs = jp.array(
@@ -459,7 +468,7 @@ class RodentTracking(PipelineEnv):
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
 
-        diff = (ref_traj.joints - data.qpos[7:][self._joint_idxs])
+        diff = ref_traj.joints - data.qpos[7:][self._joint_idxs]
 
         # what would be a  equivalents of this?
         # return diff[:, self._walker.mocap_to_observable_joint_order].flatten()

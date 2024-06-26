@@ -11,7 +11,7 @@ _TOL = 1e-10
 def _get_qmat_indices_and_signs():
     """Precomputes index and sign arrays for constructing `qmat` in `quat_mul`."""
     w, x, y, z = range(4)
-    qmat_idx_and_sign = jnp.array(
+    qmat_idx_and_sign = jp.array(
         [
             [w, -x, -y, -z],
             [x, w, -z, y],
@@ -21,9 +21,6 @@ def _get_qmat_indices_and_signs():
     )
     indices = jp.abs(qmat_idx_and_sign)
     signs = 2 * (qmat_idx_and_sign >= 0) - 1
-    # Prevent array constants from being modified in place.
-    indices.flags.writeable = False
-    signs.flags.writeable = False
     return indices, signs
 
 
@@ -68,12 +65,16 @@ def _clip_within_precision(number, low, high, precision=_TOL):
     Raises:
       ValueError: If number is outside given range by more than given precision.
     """
-    if (number < low - precision).any() or (number > high + precision).any():
-        raise ValueError(
-            "Input {:.12f} not inside range [{:.12f}, {:.12f}] with precision {}".format(
-                number, low, high, precision
+
+    def _raise_if_not_in_precision():
+        if (number < low - precision).any() or (number > high + precision).any():
+            raise ValueError(
+                "Input {:.12f} not inside range [{:.12f}, {:.12f}] with precision {}".format(
+                    number, low, high, precision
+                )
             )
-        )
+
+    jax.debug.callback(_raise_if_not_in_precision)
 
     return jp.clip(number, low, high)
 
@@ -94,7 +95,7 @@ def quat_conj(quat):
     quat = jp.asarray(quat)
     return jp.stack(
         [quat[..., 0], -quat[..., 1], -quat[..., 2], -quat[..., 3]], axis=-1
-    ).astype(jp.float64)
+    )
 
 
 def quat_diff(source, target):
@@ -124,10 +125,14 @@ def quat_to_axisangle(quat):
     """
     angle = 2 * jp.arccos(_clip_within_precision(quat[0], -1.0, 1.0))
 
-    if angle < _TOL:
+    def true_fn(angle):
         return jp.zeros(3)
-    else:
+
+    def false_fn(angle):
         qn = jp.sin(angle / 2)
         angle = (angle + jp.pi) % (2 * jp.pi) - jp.pi
         axis = quat[1:4] / qn
-        return axis * angle
+        out = axis * angle
+        return out
+
+    return jax.lax.cond(angle < _TOL, true_fn, false_fn, angle)
