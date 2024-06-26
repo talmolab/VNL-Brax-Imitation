@@ -137,7 +137,7 @@ class RodentTracking(PipelineEnv):
         # TODO: what is the relevant for loading .p directly? and what is proto_modifier? loader is a big class in dm_control
         self._loader = loader.HDF5TrajectoryLoader(
             ref_path, proto_modifier=proto_modifier
-        ) # loader is used to get rajectory from id provided by ClipCollections class
+        )  # loader is used to get rajectory from id provided by ClipCollections class
 
         self._dataset = dataset
         self._num_clips = len(self._dataset.ids)
