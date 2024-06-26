@@ -81,7 +81,7 @@ def main(train_config: DictConfig):
         termination_threshold=train_config["env_params"]["termination_threshold"],
         explore_time=train_config["env_params"]["explore_time"],
         sub_clip_length=train_config["env_params"]["sub_clip_length"],
-        curriculum_max_time=train_config["env_params"]["curriculum_max_time"]
+        curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
     )
 
     # TODO: make the intention network factory a part of the config

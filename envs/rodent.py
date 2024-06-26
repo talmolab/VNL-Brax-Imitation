@@ -229,7 +229,6 @@ class RodentTracking(PipelineEnv):
         info["first_reset"] += 1
         info["curriculum_length"] += 1
 
-
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info["cur_frame"])
 
@@ -251,7 +250,8 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
 
         sub_clip_length = jp.where(
-            (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
+            (info["curriculum_length"] % self._curriculum_max_time == 0)
+            | (info["termination_error"] >= 0.25),
             info["sub_clip_length"] * 2,
             info["sub_clip_length"],
         )  # values from data

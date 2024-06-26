@@ -339,11 +339,12 @@ class ReferenceClip:
 
 
 class ClipCollection:
-    """Dataclass representing a collection of mocap reference clips."""
+    """Dataclass representing a collection of mocap reference clips.
+    Store all the clip ids for retrieving"""
 
     def __init__(
         self,
-        ids: Sequence[Text],
+        ids: Sequence[Text], # this is the id of the specific clip
         start_steps: Optional[Sequence[int]] = None,
         end_steps: Optional[Sequence[int]] = None,
         weights: Optional[Sequence[Union[int, float]]] = None,

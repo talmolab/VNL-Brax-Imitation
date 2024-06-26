@@ -22,6 +22,8 @@ from walker import Rat
 import pickle
 import mocap_preprocess as mp
 
+_MAX_END_STEP = 10000
+
 
 class RodentTracking(PipelineEnv):
     def __init__(
@@ -105,24 +107,37 @@ class RodentTracking(PipelineEnv):
         self._max_ref_step = self._ref_steps[-1]
         self._min_steps = min_steps
 
-
         with open(params["clip_path"], "rb") as f:
             self._ref_traj = pickle.load(f)
 
         if self._sub_clip_length > self._clip_length:
             raise ValueError("sub clip length cannot be greater than clip_length!")
 
-
     def _load_reference_data(
         self, ref_path, proto_modifier, dataset: mp.ClipCollection
     ):
-        '''load dataset'''
+        """load dataset from the data class ClipCollections in mp"""
 
-        # TODO: what is the relevant for loading .p directly?
-        # TODO: what is proto_modifier?
+        # This is how it was called in validation
+        from dm_control.locomotion.tasks.reference_pose import types
+        from dm_control.utils import io as resources
+
+        file_name = "clips/..."
+        current_directory = os.getcwd()
+        TEST_FILE_PATH = os.path.join(current_directory, file_name)
+
+        with h5py.File(TEST_FILE_PATH, "r") as f:
+            dataset_keys = tuple(f.keys())
+            dataset = types.ClipCollection(
+                ids=dataset_keys,
+            )
+
+        ref_path = resources.GetResourceFilename(TEST_FILE_PATH)
+
+        # TODO: what is the relevant for loading .p directly? and what is proto_modifier? loader is a big class in dm_control
         self._loader = loader.HDF5TrajectoryLoader(
             ref_path, proto_modifier=proto_modifier
-        )
+        ) # loader is used to get rajectory from id provided by ClipCollections class
 
         self._dataset = dataset
         self._num_clips = len(self._dataset.ids)
@@ -143,14 +158,14 @@ class RodentTracking(PipelineEnv):
             self._all_clips = [None] * self._num_clips
 
     def _get_possible_starts(self):
-        '''
-        All possible (clip, step) starting points
-        '''
+        """
+        self._possible_starts is all possible (clip, step) starting points
+        """
 
         self._possible_starts = []
         self._start_probabilities = []
         dataset = self._dataset
-        
+
         for clip_number, (start, end, weight) in enumerate(
             zip(dataset.start_steps, dataset.end_steps, dataset.weights)
         ):
@@ -174,11 +189,11 @@ class RodentTracking(PipelineEnv):
         )
 
     def _get_clip_to_track(self, random_state: np.random.RandomState):
-        '''
+        """
         main muticlip selection function
         1. self._possible_starts stores all (clip_index, start_step)
         2. self._start_probabilities keeps weighted clip's prob
-        '''
+        """
         # get specific clip index and start frame
         index = random_state.choice(
             len(self._possible_starts), p=self._start_probabilities
@@ -188,8 +203,8 @@ class RodentTracking(PipelineEnv):
 
         # get clip id
         clip_id = self._dataset.ids[self._current_clip_index]
-        
-        #TODO: fetch selected trajectory from loader?
+
+        # TODO: fetch selected trajectory from loader?
         if self._all_clips[self._current_clip_index] is None:
             self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
                 clip_id,
@@ -197,11 +212,23 @@ class RodentTracking(PipelineEnv):
                 end_step=self._dataset.end_steps[self._current_clip_index],
                 zero_out_velocities=False,
             )
-            self._current_clip = self._all_clips[self._current_clip_index]
-            self._clip_reference_features = self._current_clip.as_dict()
-            self._strip_reference_prefix()
+            self._current_clip = self._all_clips[
+                self._current_clip_index
+            ]  # this is where you get the current ref_traj
 
-    
+        self._time_step = (
+            start_step - self._dataset.start_steps[self._current_clip_index]
+        )
+
+        self._current_start_time = (
+            start_step - self._dataset.start_steps[self._current_clip_index]
+        ) * self._current_clip.dt
+
+        # TODO: not sure what this does
+        self._last_step = (
+            len(self._clip_reference_features["joints"]) - self._max_ref_step - 1
+        )
+
     def reset(self, rng) -> State:
         """
         Resets the environment to an initial state.
@@ -213,9 +240,11 @@ class RodentTracking(PipelineEnv):
             0,
             self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
-        # start_frame = 0
-
         old, rng = jax.random.split(rng)
+
+        # TODO: use self._current_start_time for start_frame? use self._current_clip for self._ref_traj?
+        self._get_clip_to_track(rng)
+
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
 
         qpos = jp.hstack(
