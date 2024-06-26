@@ -29,11 +29,12 @@ class RodentTracking(PipelineEnv):
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
-        sub_clip_length: int = 2,
+        sub_clip_length: int = 10,
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
         explore_time: int = 20,
+        curriculum_max_time: int = 50,
         **kwargs,
     ):
         # body_idxs => walker_bodies => body_positions
@@ -97,6 +98,7 @@ class RodentTracking(PipelineEnv):
         self._ref_traj_length = ref_traj_length
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
+        self._curriculum_max_time = curriculum_max_time
 
         with open(params["clip_path"], "rb") as f:
             self._ref_traj = pickle.load(f)
@@ -245,7 +247,7 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
 
         sub_clip_length = jp.where(
-            (info["curriculum_length"] % 50 == 0) | (info["termination_error"] >= 0.25),
+            (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
             self._sub_clip_length * 2,
             self._sub_clip_length,
         )  # values from data
@@ -254,9 +256,9 @@ class RodentTracking(PipelineEnv):
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
-        done = jp.where(
-            (info["first_reset"] <= self._explore_time), jp.array(0, float), done
-        )
+        # done = jp.where(
+        #     (info["first_reset"] <= self._explore_time), jp.array(0, float), done
+        # )
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
 
