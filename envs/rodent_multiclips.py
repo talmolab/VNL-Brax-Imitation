@@ -161,7 +161,12 @@ class RodentTracking(PipelineEnv):
         )
 
     def _get_clip_to_track(self, random_state: np.random.RandomState):
-        '''main muticlip selection function'''
+        '''
+        main muticlip selection function
+        1. self._possible_starts stores (clip_index, start_step)
+        2. self._start_probabilities keeps weighted clip prob
+        '''
+
 
         index = random_state.choice(
             len(self._possible_starts), p=self._start_probabilities
