@@ -186,9 +186,9 @@ def main(train_config: DictConfig):
         wandb.log(
             {
                 f"logits/rollout_log_prob": wandb.plot.line_series(
-                    xs=range(data.shape[0]),
+                    xs=range(data.shape[1]),
                     ys=data,
-                    keys=[str(i) for i in range(data.shape[1])],
+                    keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
                     title=f"Policy action probability for each rollout frame",
                 )
