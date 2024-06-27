@@ -18,6 +18,5 @@ decoder_layer_sizes: [128, 256]
 
 env_params:
   termination_threshold: 5
-  explore_time: 10
   sub_clip_length: 10
   curriculum_max_time: 50

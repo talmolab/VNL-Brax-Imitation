@@ -233,7 +233,6 @@ def train(
 
     learning_rate_fn = optax.constant_schedule(learning_rate)
     optimizer = optax.adam(learning_rate_fn)
-
     # This doesn't work yet (set adam b1=0. if used)
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
