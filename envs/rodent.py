@@ -31,7 +31,7 @@ class RodentTracking(PipelineEnv):
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
-        episode_length: int = 150,
+        subclip_length: int = 50,
         ref_traj_length: int = 5,
         termination_threshold: float = 0.3,
         body_error_multiplier: float = 1.0,
@@ -102,7 +102,7 @@ class RodentTracking(PipelineEnv):
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
         self._clip_length = clip_length
-        self._episode_length = episode_length
+        self._subclip_length = subclip_length
         self._ref_traj_length = ref_traj_length
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
@@ -110,7 +110,7 @@ class RodentTracking(PipelineEnv):
         self._ref_traj = reference_clip
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
-        if self._episode_length > self._clip_length:
+        if self._subclip_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
     def reset(self, rng) -> State:
@@ -119,7 +119,7 @@ class RodentTracking(PipelineEnv):
         TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
         start_frame = jax.random.randint(
-            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
+            rng, (), 0, self._clip_length - self._subclip_length - self._ref_traj_length
         )
         # start_frame = 0
 
