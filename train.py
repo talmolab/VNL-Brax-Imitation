@@ -21,16 +21,16 @@ from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
-from typing import Sequence, Tuple, Union
-import brax
+from typing import Union
 from brax import envs
-from brax.training.types import Policy
-from brax.training.types import PRNGKey
-from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
 from preprocessing.mjx_preprocess import process_clip
+
+# rendering related
+from dm_control.mujoco import wrapper
+from dm_control.mujoco.wrapper.mjbindings import enums
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -82,8 +82,14 @@ def main(train_config: DictConfig):
             start_step=env_params["clip_idx"] * env_params["clip_length"],
             clip_length=env_params["clip_length"],
         )
-
-    env = envs.get_environment(cfg[train_config.env_name]["name"], params=env_params)
+    env = envs.get_environment(
+        cfg[train_config.env_name]["name"],
+        params=cfg[train_config.env_name],
+        termination_threshold=train_config["env_params"]["termination_threshold"],
+        explore_time=train_config["env_params"]["explore_time"],
+        sub_clip_length=train_config["env_params"]["sub_clip_length"],
+        curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
+    )
 
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
@@ -147,18 +153,27 @@ def main(train_config: DictConfig):
         rollout = [state.pipeline_state]
         act_rng = jax.random.PRNGKey(0)
         errors = []
+        rewards = []
         means = []
         stds = []
+        log_probs = []
+        rand_probs = []
 
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(state.info["traj"], state.obs, act_rng)
+            ctrl, extras = jit_inference_fn(
+                state.info["traj"], state.obs, act_rng
+            )  # extra is a dictionary
             state = jit_step(state, ctrl)
 
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
+                rewards.append(state.reward)
 
             mean, std = np.split(extras["logits"], 2)
+            log_prob, rand_prob = extras["rand_log_prob"], extras["log_prob"]
+            log_probs.append(log_prob)
+            rand_probs.append(rand_prob)
             means.append(mean)
             stds.append(std)
             rollout.append(state.pipeline_state)
@@ -170,14 +185,14 @@ def main(train_config: DictConfig):
             {
                 "eval/rollout_rtrunk": wandb.plot.line(
                     table,
-                    "Frame",
+                    "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
                 )
             }
         )
 
-        # Plot action means over rollout
+        # Plot action means over rollout (array of array)
         data = np.array(means).T
         wandb.log(
             {
@@ -205,17 +220,50 @@ def main(train_config: DictConfig):
             }
         )
 
+        # Plot policy action prob over rollout
+        data = [[x, y] for (x, y) in zip(range(len(log_probs)), log_probs)]
+        table = wandb.Table(data=data, columns=["frame", "log_probs"])
+        wandb.log(
+            {
+                "logits/rollout_log_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "log_probs",
+                    title="Policy action probability for each rollout frame",
+                )
+            }
+        )
+
+        # Plot random action prob over rollout
+        data = [[x, y] for (x, y) in zip(range(len(rand_probs)), rand_probs)]
+        table = wandb.Table(data=data, columns=["frame", "rand_probs"])
+        wandb.log(
+            {
+                "logits/rollout_rand_probs": wandb.plot.line(
+                    table,
+                    "frame",
+                    "rand_probs",
+                    title="Random action probability for each rollout frame",
+                )
+            }
+        )
+
+        # Plot reward over rollout
+        data = [[x, y] for (x, y) in zip(range(len(rewards)), rewards)]
+        table = wandb.Table(data=data, columns=["frame", "reward"])
+        wandb.log(
+            {
+                "eval/rollout_reward": wandb.plot.line(
+                    table,
+                    "frame",
+                    "reward",
+                    title="reward for each rollout frame",
+                )
+            }
+        )
+
         # Render the walker with the reference expert demonstration trajectory
         os.environ["MUJOCO_GL"] = "osmesa"
-
-        def f(x):
-            if len(x.shape) != 1:
-                return jax.lax.dynamic_slice_in_dim(
-                    x,
-                    0,
-                    train_config["episode_length"],
-                )
-            return jp.array([])
 
         def f(x):
             if len(x.shape) != 1:
@@ -235,7 +283,6 @@ def main(train_config: DictConfig):
 
         qposes_rollout = [data.qpos for data in rollout]
 
-        # TODO: Overlay expert rendering
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
         )
@@ -260,9 +307,7 @@ def main(train_config: DictConfig):
         video_path = f"{model_path}/{num_steps}.mp4"
 
         with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
-            for i, (qpos1, qpos2) in enumerate(zip(qposes_ref, qposes_rollout)):
-                # Set keypoints
-                # physics, mj_model = ctrl.set_keypoint_sites(physics, keypoint_sites, kps)
+            for qpos1, qpos2 in zip(qposes_ref, qposes_rollout):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
@@ -271,7 +316,6 @@ def main(train_config: DictConfig):
                 )
 
                 pixels = renderer.render()
-                # pixels = 0.5 * pixels # adding transparency alpha
                 video.append_data(pixels)
                 frames.append(pixels)
 
@@ -281,7 +325,7 @@ def main(train_config: DictConfig):
         environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn
     )
 
-    final_save_path = f"{model_path}/finished_mlp"
+    final_save_path = f"{model_path}/finished"
     model.save_params(final_save_path, params)
     print(f"Run finished. Model saved to {final_save_path}")
 

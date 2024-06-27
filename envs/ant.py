@@ -23,7 +23,6 @@ import pickle
 
 
 class AntTracking(PipelineEnv):
-
     def __init__(
         self,
         params,

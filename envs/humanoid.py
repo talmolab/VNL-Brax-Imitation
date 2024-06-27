@@ -23,7 +23,6 @@ import pickle
 
 
 class HumanoidTracking(PipelineEnv):
-
     def __init__(
         self,
         params,
@@ -468,7 +467,6 @@ class HumanoidTracking(PipelineEnv):
 
 
 class HumanoidStanding(PipelineEnv):
-
     def __init__(
         self,
         params,
