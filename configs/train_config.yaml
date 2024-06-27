@@ -11,7 +11,6 @@ num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.3
 kl_weight: 0.000001
-kl_weight: 0.000001
 terminate_when_unhealthy: true
 intention_latent_size: 128
 encoder_layer_sizes: [512, 256]
