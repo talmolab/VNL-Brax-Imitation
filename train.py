@@ -86,10 +86,6 @@ def main(train_config: DictConfig):
     env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
-        params=env_cfg[train_config.env_name],
-        termination_threshold=train_config["env_params"]["termination_threshold"],
-        explore_time=train_config["env_params"]["explore_time"],
-        sub_clip_length=train_config["env_params"]["sub_clip_length"],
         **env_args,
     )
 
