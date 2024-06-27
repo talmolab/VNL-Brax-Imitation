@@ -116,8 +116,6 @@ def main(train_config: DictConfig):
         seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
-        action_variance=train_config["action_variance"],
-        top_k=train_config["top_k"],
         network_factory=intention_network_factory,
     )
 

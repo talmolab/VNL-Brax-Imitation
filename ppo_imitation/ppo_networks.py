@@ -77,9 +77,9 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             )
             return postprocessed_actions, {
                 "log_prob": log_prob,
-                "rand_log_prob": rand_log_prob,  # should be low
+                "rand_log_prob": rand_log_prob,  # should be random
                 "raw_action": raw_actions,
-                "logits": logits,  # logits is previous raw action, mean, sd
+                "logits": logits,  # logits is tuple of (previous raw action, mean, sd)
             }
 
         return policy

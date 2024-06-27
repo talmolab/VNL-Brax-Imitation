@@ -22,7 +22,6 @@ import pickle
 class ReferenceClip:
     """This dataclass is used to store the trajectory in the env.
     """
-
     # qpos
     position: jp.ndarray = None
     quaternion: jp.ndarray = None

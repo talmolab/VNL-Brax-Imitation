@@ -93,8 +93,6 @@ def train(
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
     kl_weight: float = 1e-4,  # default kl_weight in MIMIC
-    action_variance: float = 0.01,
-    top_k: int = 10
 ):
     """PPO training.
 
@@ -248,8 +246,6 @@ def train(
         clipping_epsilon=clipping_epsilon,
         normalize_advantage=normalize_advantage,
         kl_weight=kl_weight,
-        action_variance=action_variance,
-        top_k=top_k
     )
 
     gradient_update_fn = gradients.gradient_update_fn(
