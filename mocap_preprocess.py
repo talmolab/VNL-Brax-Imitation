@@ -18,6 +18,7 @@ import subprocess
 import jax
 from jax import numpy as jp
 from flax import struct
+import walker
 from walker import Rat
 from typing import Any
 
@@ -35,7 +36,8 @@ def process(
     verbatim: bool = False,
     ref_steps: Tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
 ):
-    """Summary
+    """Process a set of joint angles into the features that
+       the referenced trajectory is composed of
 
     Args:
         stac_path (Text): Path to stac file containing reference.
@@ -60,7 +62,7 @@ def process(
         scale_factor,
         scale_factor,
     )
-    physics = mjcf.Physics.from_mjcf_model(walker.mjcf_model)
+    mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
 
     """Extract featires from the reference qpos"""
     if n_steps is None:
@@ -365,7 +367,17 @@ class ClipCollection:
             # without access to the actual clip we cannot specify an end_steps default
             if self.end_steps is not None:
                 assert len(self.end_steps) == num_clips
+            # without access to the actual clip we cannot specify an end_steps default
+            if self.end_steps is not None:
+                assert len(self.end_steps) == num_clips
 
+            if self.weights is None:
+                self.weights = (1.0,) * num_clips
+            else:
+                assert len(self.weights) == num_clips
+                assert jp.all(np.array(self.weights) >= 0.0)
+        except AssertionError as e:
+            raise ValueError("ClipCollection validation failed. {}".format(e))
             if self.weights is None:
                 self.weights = (1.0,) * num_clips
             else:

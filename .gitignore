@@ -8,6 +8,10 @@ outputs/
 tutorial.ipynb
 *.mp4
 
+# The full clip data
+clips/transform1.p
+clips/all_snips.p
+
 # selected reference trajectory
 all_snips.p
 ant_traj_still.p
@@ -32,3 +36,4 @@ scripts/
 __pycache__/
 
 .DS_Store
+clips/transform1.p
