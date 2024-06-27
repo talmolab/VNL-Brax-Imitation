@@ -28,12 +28,21 @@ rodent:
   solver: cg
   iterations: 6
   ls_iterations: 6
+  stac_path: transform_snips.p
+  clip_idx: 1
+  clip_length: 250
   clip_path: clips/transform_snips_groom.p
   end_eff_names:
     - foot_L
     - foot_R 
     - hand_L
     - hand_R
+  appendage_names:
+    - foot_L
+    - foot_R 
+    - hand_L
+    - hand_R
+    - skull
   walker_body_names:
     - torso
     - pelvis
@@ -86,5 +95,7 @@ rodent:
     - shoulder_sup_R
     - elbow_R
     - wrist_R
+    - finger_R
+  center_of_mass: torso
   camera: close_profile
   rendering_mjcf: rodent_pair.xml

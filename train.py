@@ -26,6 +26,7 @@ from brax import envs
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
+from preprocessing.mjx_preprocess import process_clip
 
 # rendering related
 from dm_control.mujoco import wrapper
@@ -72,11 +73,19 @@ def main(train_config: DictConfig):
     cfg = hydra.compose(config_name="env_config")
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
+    env_params = cfg[train_config.env_name]
+
+    # Process rodent clip
+    if cfg[train_config.env_name]["name"] == "rodent":
+        env_params["reference_clip"] = process_clip(
+            env_params["stac_path"],
+            start_step=env_params["clip_idx"] * env_params["clip_length"],
+            clip_length=env_params["clip_length"],
+        )
     env = envs.get_environment(
         cfg[train_config.env_name]["name"],
         params=cfg[train_config.env_name],
         termination_threshold=train_config["env_params"]["termination_threshold"],
-        explore_time=train_config["env_params"]["explore_time"],
         sub_clip_length=train_config["env_params"]["sub_clip_length"],
         curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
     )
@@ -267,54 +276,12 @@ def main(train_config: DictConfig):
         # extract qpos from rollout
         ref_traj = env._ref_traj
         ref_traj = jax.tree_util.tree_map(f, ref_traj)
-
         qposes_ref = jp.hstack(
             [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
         )
 
         qposes_rollout = [data.qpos for data in rollout]
 
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
-
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
-
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
-
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
-
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
-
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
         )
@@ -339,9 +306,7 @@ def main(train_config: DictConfig):
         video_path = f"{model_path}/{num_steps}.mp4"
 
         with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
-            for i, (qpos1, qpos2) in enumerate(zip(qposes_ref, qposes_rollout)):
-                # Set keypoints
-                # physics, mj_model = ctrl.set_keypoint_sites(physics, keypoint_sites, kps)
+            for qpos1, qpos2 in zip(qposes_ref, qposes_rollout):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
@@ -359,7 +324,7 @@ def main(train_config: DictConfig):
         environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn
     )
 
-    final_save_path = f"{model_path}/finished_mlp"
+    final_save_path = f"{model_path}/finished"
     model.save_params(final_save_path, params)
     print(f"Run finished. Model saved to {final_save_path}")
 
