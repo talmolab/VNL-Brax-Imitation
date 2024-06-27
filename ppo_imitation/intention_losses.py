@@ -185,7 +185,7 @@ def compute_ppo_intention_loss(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar)
+    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar) #30 and 30
 
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
