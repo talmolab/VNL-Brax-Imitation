@@ -15,8 +15,3 @@ terminate_when_unhealthy: true
 intention_latent_size: 64
 encoder_layer_sizes: [256, 128]
 decoder_layer_sizes: [128, 256]
-
-env_params:
-  termination_threshold: 5
-  sub_clip_length: 10
-  curriculum_max_time: 50
