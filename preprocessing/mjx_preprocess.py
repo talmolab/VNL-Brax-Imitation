@@ -21,10 +21,6 @@ import pickle
 @struct.dataclass
 class ReferenceClip:
     """This dataclass is used to store the trajectory in the env.
-
-    There will be io functions to read in an h5 file of preprocessed features
-    and load it into this dataclass,
-    We need to convert the numpy arrays to jax arrays bc h5 can only have numpy arrays
     """
 
     # qpos
