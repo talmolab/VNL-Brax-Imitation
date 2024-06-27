@@ -105,18 +105,16 @@ class RodentTracking(PipelineEnv):
         self._max_ref_step = self._ref_steps[-1]
         self._min_steps = min_steps
 
-
         with open(params["clip_path"], "rb") as f:
             self._ref_traj = pickle.load(f)
 
         if self._sub_clip_length > self._clip_length:
             raise ValueError("sub clip length cannot be greater than clip_length!")
 
-
     def _load_reference_data(
         self, ref_path, proto_modifier, dataset: mp.ClipCollection
     ):
-        '''load dataset'''
+        """load dataset"""
 
         # TODO: what is the relevant for loading .p directly?
         # TODO: what is proto_modifier?
@@ -143,14 +141,14 @@ class RodentTracking(PipelineEnv):
             self._all_clips = [None] * self._num_clips
 
     def _get_possible_starts(self):
-        '''
+        """
         All possible (clip, step) starting points
-        '''
+        """
 
         self._possible_starts = []
         self._start_probabilities = []
         dataset = self._dataset
-        
+
         for clip_number, (start, end, weight) in enumerate(
             zip(dataset.start_steps, dataset.end_steps, dataset.weights)
         ):
@@ -174,11 +172,11 @@ class RodentTracking(PipelineEnv):
         )
 
     def _get_clip_to_track(self, random_state: np.random.RandomState):
-        '''
+        """
         main muticlip selection function
         1. self._possible_starts stores all (clip_index, start_step)
         2. self._start_probabilities keeps weighted clip's prob
-        '''
+        """
         # get specific clip index and start frame
         index = random_state.choice(
             len(self._possible_starts), p=self._start_probabilities
@@ -188,8 +186,8 @@ class RodentTracking(PipelineEnv):
 
         # get clip id
         clip_id = self._dataset.ids[self._current_clip_index]
-        
-        #TODO: fetch selected trajectory from loader?
+
+        # TODO: fetch selected trajectory from loader?
         if self._all_clips[self._current_clip_index] is None:
             self._all_clips[self._current_clip_index] = self._loader.get_trajectory(
                 clip_id,
@@ -201,7 +199,6 @@ class RodentTracking(PipelineEnv):
             self._clip_reference_features = self._current_clip.as_dict()
             self._strip_reference_prefix()
 
-    
     def reset(self, rng) -> State:
         """
         Resets the environment to an initial state.

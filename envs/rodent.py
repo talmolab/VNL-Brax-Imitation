@@ -75,9 +75,9 @@ class RodentTracking(PipelineEnv):
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in params['joint_names']
-                ]
-            )
+                for joint in params["joint_names"]
+            ]
+        )
 
         sys = mjcf_brax.load_model(mj_model)
 
@@ -188,7 +188,7 @@ class RodentTracking(PipelineEnv):
         )
         data = self.pipeline_init(qpos, qvel)
         traj = self._get_traj(data, start_frame)
-        
+
         info = {
             "cur_frame": start_frame,
             "traj": traj,
@@ -228,7 +228,6 @@ class RodentTracking(PipelineEnv):
         info["first_reset"] += 1
         info["curriculum_length"] += 1
 
-
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info["cur_frame"])
 
@@ -250,7 +249,8 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
 
         sub_clip_length = jp.where(
-            (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
+            (info["curriculum_length"] % self._curriculum_max_time == 0)
+            | (info["termination_error"] >= 0.25),
             info["sub_clip_length"] * 2,
             info["sub_clip_length"],
         )  # values from data
