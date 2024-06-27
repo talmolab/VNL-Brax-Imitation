@@ -93,13 +93,14 @@ class RodentTracking(PipelineEnv):
         self._body_error_multiplier = body_error_multiplier
         self._clip_length = clip_length
         self._sub_clip_length = sub_clip_length
-        self._sub_clip_length = sub_clip_length
         self._ref_traj_length = ref_traj_length
         self._body_error_multiplier = body_error_multiplier
-
         self._ref_traj = params["reference_clip"]
+        
+        # initial fiteration
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
+        
         if self._sub_clip_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
@@ -233,7 +234,6 @@ class RodentTracking(PipelineEnv):
         rvel *= 0.01
         rapp *= 0.01
         rtrunk *= 0.01
-        rtrunk += 0
         rquat *= 0.01
         ract *= 0.0001
 
@@ -243,6 +243,12 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
+        sub_clip_healthy = jp.where(
+            info["sub_clip_frame"] < self._sub_clip_length,
+            jp.array(1, float),
+            jp.array(0, float),
+        )
+
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
         done = jp.where(
@@ -250,6 +256,8 @@ class RodentTracking(PipelineEnv):
         )
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
+
+        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)
@@ -510,3 +518,9 @@ class RodentTracking(PipelineEnv):
         # Divide by 2 and add an axis to ensure consistency with expected return
         # shape and magnitude.
         return 0.5 * jp.arccos(dist)[..., np.newaxis]
+
+
+class RodentMultiClipTracking(RodentTracking):
+    def __init__(
+    ):
+        return

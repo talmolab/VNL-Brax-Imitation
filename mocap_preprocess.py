@@ -378,14 +378,6 @@ class ClipCollection:
                 assert jp.all(np.array(self.weights) >= 0.0)
         except AssertionError as e:
             raise ValueError("ClipCollection validation failed. {}".format(e))
-            if self.weights is None:
-                self.weights = (1.0,) * num_clips
-            else:
-                assert len(self.weights) == num_clips
-                assert jp.all(np.array(self.weights) >= 0.0)
-        except AssertionError as e:
-            raise ValueError("ClipCollection validation failed. {}".format(e))
-
 
 def save_dataclass_pickle(pickle_path, mocap_features):
     data = ReferenceClip(**mocap_features)

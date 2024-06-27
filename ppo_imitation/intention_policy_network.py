@@ -105,7 +105,7 @@ class IntentionNetwork(nn.Module):
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
         action = self.decoder(
             jnp.concatenate([z, obs], axis=-1)
-        )  # should be 2 value, mean, sd, no stochstic yet
+        )  # action should be 2 value tuple (mean, sd) no stochstic sampling yet
 
         return action, intention_mean, intention_logvar
 

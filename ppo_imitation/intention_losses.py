@@ -102,6 +102,7 @@ def compute_ppo_intention_loss(
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
     kl_weight: float = 1e-4,
+    action_variance: float = 0.01
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
@@ -138,6 +139,7 @@ def compute_ppo_intention_loss(
         data.observation,
         policy_rng,
     )
+    action_mean, action_logvar = policy_logits
 
     baseline = value_apply(
         normalizer_params, params.value, data.observation
@@ -185,12 +187,13 @@ def compute_ppo_intention_loss(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar) #30 and 30
-
+    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar) #30 means and 30 variance
+    kl_action = kl_weight * kl_divergence(action_mean, jnp.full(action_mean.shape[0], action_variance))
+    
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
 
-    total_loss = policy_loss + v_loss + entropy_loss + kl_intention
+    total_loss = policy_loss + v_loss + entropy_loss + kl_intention + kl_action
 
     return total_loss, {
         "total_loss": total_loss,
@@ -198,6 +201,7 @@ def compute_ppo_intention_loss(
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
         "kl_loss_intention": kl_intention,
+        "kl_loss_action": kl_action,
         "prediction_corr": prediction_corr,
         "explained_variance": explained_variance,
     }
