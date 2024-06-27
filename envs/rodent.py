@@ -111,13 +111,12 @@ class RodentTracking(PipelineEnv):
         Resets the environment to an initial state.
         TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
-        # start_frame = jax.random.randint(
-        #     rng,
-        #     (),
-        #     0,
-        #     self._clip_length - self._sub_clip_length - self._ref_traj_length,
-        # )
-        start_frame = 0
+        start_frame = jax.random.randint(
+            rng,
+            (),
+            0,
+            self._clip_length - self._sub_clip_length - self._ref_traj_length,
+        )
 
         old, rng = jax.random.split(rng)
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
