@@ -462,3 +462,8 @@ class RodentTracking(PipelineEnv):
         # Divide by 2 and add an axis to ensure consistency with expected return
         # shape and magnitude.
         return 0.5 * jp.arccos(dist)[..., np.newaxis]
+    
+class RodentMultiClipTracking(RodentTracking):
+    def __init__(
+    ):
+        return
