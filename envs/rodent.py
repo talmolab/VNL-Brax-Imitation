@@ -111,13 +111,13 @@ class RodentTracking(PipelineEnv):
         Resets the environment to an initial state.
         TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
-        start_frame = jax.random.randint(
-            rng,
-            (),
-            0,
-            self._clip_length - self._sub_clip_length - self._ref_traj_length,
-        )
-        # start_frame = 0
+        # start_frame = jax.random.randint(
+        #     rng,
+        #     (),
+        #     0,
+        #     self._clip_length - self._sub_clip_length - self._ref_traj_length,
+        # )
+        start_frame = 0
 
         old, rng = jax.random.split(rng)
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
@@ -249,20 +249,20 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
-        sub_clip_length = jp.where(
-            (info["curriculum_length"] % self._curriculum_max_time == 0)
-            | (info["termination_error"] >= 0.25),
-            info["sub_clip_length"] * 2,
-            info["sub_clip_length"],
-        )  # values from data
+        # sub_clip_length = jp.where(
+        #     (info["curriculum_length"] % self._curriculum_max_time == 0)
+        #     | (info["termination_error"] >= 0.25),
+        #     info["sub_clip_length"] * 2,
+        #     info["sub_clip_length"],
+        # )  # values from data
 
-        self._sub_clip_length = sub_clip_length
+        # self._sub_clip_length = sub_clip_length
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
 
-        # done = jp.where(
-        #     (info["first_reset"] <= self._explore_time), jp.array(0, float), done
-        # )
+        done = jp.where(
+            (info["first_reset"] <= self._explore_time), jp.array(0, float), done
+        )
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
 
