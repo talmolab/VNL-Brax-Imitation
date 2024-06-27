@@ -12,6 +12,7 @@ num_updates_per_batch: 16
 clipping_epsilon: 0.3
 kl_weight: 0.000001
 action_variance: 0.01
+top_k: 10
 terminate_when_unhealthy: true
 intention_latent_size: 128
 encoder_layer_sizes: [512, 256]

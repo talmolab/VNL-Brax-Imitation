@@ -6,6 +6,7 @@ from brax.training.agents.ppo import networks as ppo_networks
 
 from brax.training.types import Params
 import flax
+import flax.linen
 import jax
 import jax.numpy as jnp
 
@@ -102,7 +103,8 @@ def compute_ppo_intention_loss(
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
     kl_weight: float = 1e-4,
-    action_variance: float = 0.01
+    action_variance: float = 0.01,
+    top_k: int=10
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
@@ -171,6 +173,10 @@ def compute_ppo_intention_loss(
 
     if normalize_advantage:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+    top_k_indices = jnp.argsort(advantages, axis=None)[-top_k:]
+    advantages = jnp.take(advantages, top_k_indices)
+    
     rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)
 
     surrogate_loss1 = rho_s * advantages
