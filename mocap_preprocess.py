@@ -18,6 +18,7 @@ import subprocess
 import jax
 from jax import numpy as jp
 from flax import struct
+import walker
 from walker import Rat
 from typing import Any
 

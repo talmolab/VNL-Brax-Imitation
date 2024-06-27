@@ -96,7 +96,6 @@ class RodentTracking(PipelineEnv):
         self._clip_length = clip_length
         self._sub_clip_length = sub_clip_length
         self._ref_traj_length = ref_traj_length
-        self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
         self._curriculum_max_time = curriculum_max_time
 
@@ -229,7 +228,6 @@ class RodentTracking(PipelineEnv):
         info["first_reset"] += 1
         info["curriculum_length"] += 1
 
-
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info["cur_frame"])
 
@@ -251,7 +249,8 @@ class RodentTracking(PipelineEnv):
         info["traj"] = traj
 
         sub_clip_length = jp.where(
-            (info["curriculum_length"] % self._curriculum_max_time == 0) | (info["termination_error"] >= 0.25),
+            (info["curriculum_length"] % self._curriculum_max_time == 0)
+            | (info["termination_error"] >= 0.25),
             info["sub_clip_length"] * 2,
             info["sub_clip_length"],
         )  # values from data

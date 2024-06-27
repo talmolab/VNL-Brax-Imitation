@@ -21,16 +21,13 @@ from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
-from typing import Sequence, Tuple, Union
-import brax
+from typing import Union
 from brax import envs
-from brax.training.types import Policy
-from brax.training.types import PRNGKey
-from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
 
+# rendering related
 from dm_control.mujoco import wrapper
 from dm_control.mujoco.wrapper.mjbindings import enums
 
@@ -81,7 +78,7 @@ def main(train_config: DictConfig):
         termination_threshold=train_config["env_params"]["termination_threshold"],
         explore_time=train_config["env_params"]["explore_time"],
         sub_clip_length=train_config["env_params"]["sub_clip_length"],
-        curriculum_max_time=train_config["env_params"]["curriculum_max_time"]
+        curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
     )
 
     # TODO: make the intention network factory a part of the config
@@ -291,7 +288,33 @@ def main(train_config: DictConfig):
         scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
         scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
 
-        # TODO: Overlay expert rendering
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
+
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
         )
