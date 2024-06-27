@@ -154,11 +154,10 @@ def main(train_config: DictConfig):
             reference_clip=reference_clip,
             **eval_env_args,
         )
-
+        reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
         jit_step = jax.jit(env.step)
-        state = env.reset_to_frame(0)
+        state = env.reset(reset_rng)
         rollout = [state.pipeline_state]
-        act_rng = jax.random.PRNGKey(0)
         errors = []
         rewards = []
         means = []

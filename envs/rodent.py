@@ -198,15 +198,15 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
-        sub_clip_done = jp.where(
-            info["sub_clip_frame"] > self._sub_clip_length,
+        sub_clip_healthy = jp.where(
+            info["sub_clip_frame"] < self._sub_clip_length,
             jp.array(1, float),
             jp.array(0, float),
         )
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
-        done = jp.max(jp.array([1.0 - sub_clip_done, done]))
+        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
         # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
@@ -462,3 +462,8 @@ class RodentTracking(PipelineEnv):
         # Divide by 2 and add an axis to ensure consistency with expected return
         # shape and magnitude.
         return 0.5 * jp.arccos(dist)[..., np.newaxis]
+    
+class RodentMultiClipTracking(RodentTracking):
+    def __init__(
+    ):
+        return
