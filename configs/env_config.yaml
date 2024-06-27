@@ -27,7 +27,7 @@ rodent:
   name: rodent
   camera: close_profile
   rendering_mjcf: rodent_pair.xml
-  stac_path: transform_snips.p
+  stac_path: all_snips.p
   clip_idx: 1
   env_args:
     mjcf_path: "./assets/rodent.xml"
