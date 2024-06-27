@@ -24,11 +24,9 @@ class RodentTracking(PipelineEnv):
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
-        explore_time: int = 20,
         curriculum_max_time: int = 50,
         **kwargs,
     ):
-        # body_idxs => walker_bodies => body_positions
         root = mjcf.from_path("./assets/rodent.xml")
 
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
@@ -89,7 +87,6 @@ class RodentTracking(PipelineEnv):
         super().__init__(sys, **kwargs)
 
         self._healthy_z_range = healthy_z_range
-        self._explore_time = explore_time
         self._reset_noise_scale = reset_noise_scale
         self._termination_threshold = termination_threshold
         self._body_error_multiplier = body_error_multiplier
@@ -102,13 +99,12 @@ class RodentTracking(PipelineEnv):
         self._ref_traj = params["reference_clip"]
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
-        if self._subclip_length > self._clip_length:
+        if self._sub_clip_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
     def reset(self, rng) -> State:
         """
         Resets the environment to an initial state.
-        TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
         start_frame = jax.random.randint(
             rng,
@@ -258,10 +254,6 @@ class RodentTracking(PipelineEnv):
         self._sub_clip_length = sub_clip_length
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
-
-        # done = jp.where(
-        #     (info["first_reset"] <= self._explore_time), jp.array(0, float), done
-        # )
 
         done = jp.max(jp.array([1.0 - is_healthy, done]))
 

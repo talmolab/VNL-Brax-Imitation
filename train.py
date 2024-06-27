@@ -86,7 +86,6 @@ def main(train_config: DictConfig):
         cfg[train_config.env_name]["name"],
         params=cfg[train_config.env_name],
         termination_threshold=train_config["env_params"]["termination_threshold"],
-        explore_time=train_config["env_params"]["explore_time"],
         sub_clip_length=train_config["env_params"]["sub_clip_length"],
         curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
     )
