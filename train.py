@@ -88,6 +88,20 @@ def main(train_config: DictConfig):
         reference_clip=reference_clip,
         **env_args,
     )
+    
+    # TODO: Also have preset solver params here for eval 
+    # so we can relax params in training for faster sps?
+    
+    # Set the env to always start at frame 0 by maximizing sub_clip_length
+    eval_env_args = env_args.copy()
+    eval_env_args["sub_clip_length"] = (
+        env_args["clip_length"] - env_args["ref_traj_length"]
+    )
+    eval_env = envs.get_environment(
+        env_cfg[train_config.env_name]["name"],
+        reference_clip=reference_clip,
+        **eval_env_args,
+    )
 
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
@@ -141,22 +155,11 @@ def main(train_config: DictConfig):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-        
-        # TODO: Also have preset solver params here for eval 
-        # so we can relax params in training for faster sps?
-        # Set the env to always start at frame 0 by maximizing sub_clip_length
-        eval_env_args = env_args.copy()
-        eval_env_args["sub_clip_length"] = (
-            env_args["clip_length"] - env_args["ref_traj_length"]
-        )
-        env = envs.get_environment(
-            env_cfg[train_config.env_name]["name"],
-            reference_clip=reference_clip,
-            **eval_env_args,
-        )
+                
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        jit_step = jax.jit(env.step)
-        state = env.reset(reset_rng)
+        jit_step = jax.jit(eval_env.step)
+        state = eval_env.reset(reset_rng)
+
         rollout = [state.pipeline_state]
         errors = []
         rewards = []
@@ -281,7 +284,7 @@ def main(train_config: DictConfig):
             return jp.array([])
 
         # extract qpos from rollout
-        ref_traj = env._ref_traj
+        ref_traj = eval_env._ref_traj
         ref_traj = jax.tree_util.tree_map(f, ref_traj)
         qposes_ref = jp.hstack(
             [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
@@ -312,7 +315,7 @@ def main(train_config: DictConfig):
         # render while stepping using mujoco
         video_path = f"{model_path}/{num_steps}.mp4"
 
-        with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
+        with imageio.get_writer(video_path, fps=float(1.0 / eval_env.dt)) as video:
             for qpos1, qpos2 in zip(qposes_ref, qposes_rollout):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
@@ -328,7 +331,7 @@ def main(train_config: DictConfig):
         wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
     make_inference_fn, params, _ = train_fn(
-        environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn
+        environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn, eval_env=eval_env,
     )
 
     final_save_path = f"{model_path}/finished"
