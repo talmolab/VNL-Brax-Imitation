@@ -38,6 +38,12 @@ class RodentTracking(PipelineEnv):
     ):
         root = mjcf.from_path(mjcf_path)
 
+        # Change actuators to torque (from positional)
+        for actuator in root.find_all("actuator"):
+            actuator.gainprm = [actuator.forcerange[1]]
+            del actuator.biastype
+            del actuator.biasprm
+
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
             root,
@@ -462,8 +468,8 @@ class RodentTracking(PipelineEnv):
         # Divide by 2 and add an axis to ensure consistency with expected return
         # shape and magnitude.
         return 0.5 * jp.arccos(dist)[..., np.newaxis]
-    
+
+
 class RodentMultiClipTracking(RodentTracking):
-    def __init__(
-    ):
+    def __init__():
         return
