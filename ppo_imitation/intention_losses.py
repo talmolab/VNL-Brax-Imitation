@@ -176,7 +176,7 @@ def compute_ppo_intention_loss(
 
     # top_k_indices = jnp.argsort(advantages, axis=None)[-top_k:]
     # advantages = jnp.take(advantages, top_k_indices)
-    
+
     rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)
 
     surrogate_loss1 = rho_s * advantages
@@ -193,13 +193,15 @@ def compute_ppo_intention_loss(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar) #30 means and 30 variance
+    kl_intention = kl_weight * kl_divergence(
+        intention_mean, intention_logvar
+    )  # 30 means and 30 variance
     # kl_action = kl_weight * kl_divergence(action_mean, jnp.full(action_mean.shape[0], action_variance))
-    
+
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
 
-    total_loss = policy_loss + v_loss + entropy_loss + kl_intention #+ kl_action
+    total_loss = policy_loss + v_loss + entropy_loss + kl_intention  # + kl_action
 
     return total_loss, {
         "total_loss": total_loss,

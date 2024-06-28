@@ -141,8 +141,8 @@ def main(train_config: DictConfig):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-        
-        # TODO: Also have preset solver params here for eval 
+
+        # TODO: Also have preset solver params here for eval
         # so we can relax params in training for faster sps?
         # Set the env to always start at frame 0 by maximizing sub_clip_length
         eval_env_args = env_args.copy()

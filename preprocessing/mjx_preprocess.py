@@ -14,14 +14,14 @@ from dm_control.locomotion.walkers import rescale
 
 import preprocessing.transformations as tr
 
-from typing import Text
+from typing import Text, Optional, Sequence, Union
 import pickle
 
 
 @struct.dataclass
 class ReferenceClip:
-    """This dataclass is used to store the trajectory in the env.
-    """
+    """This dataclass is used to store the trajectory in the env."""
+
     # qpos
     position: jp.ndarray = None
     quaternion: jp.ndarray = None
@@ -37,6 +37,40 @@ class ReferenceClip:
 
     # xquat
     body_quaternions: jp.ndarray = None
+
+class ClipCollection:
+    """Dataclass representing a collection of mocap reference clips."""
+    def __init__(
+        self,
+        ids: Sequence[Text],
+        start_steps: Optional[Sequence[int]] = None,
+        end_steps: Optional[Sequence[int]] = None,
+        weights: Optional[Sequence[Union[int, float]]] = None,
+    ):
+        """Instantiate a ClipCollection."""
+        self.ids = ids
+        self.start_steps = start_steps
+        self.end_steps = end_steps
+        self.weights = weights
+        num_clips = len(self.ids)
+        try:
+            if self.start_steps is None:
+                # by default start at the beginning
+                self.start_steps = (0,) * num_clips
+            else:
+                assert len(self.start_steps) == num_clips
+
+            # without access to the actual clip we cannot specify an end_steps default
+            if self.end_steps is not None:
+                assert len(self.end_steps) == num_clips
+
+            if self.weights is None:
+                self.weights = (1.0,) * num_clips
+            else:
+                assert len(self.weights) == num_clips
+                assert jp.all(jp.array(self.weights) >= 0.0)
+        except AssertionError as e:
+            raise ValueError("ClipCollection validation failed. {}".format(e))
 
 
 def process_clip(
@@ -63,6 +97,7 @@ def process_clip(
         dt (float, optional): _description_. Defaults to 0.02.
         ref_steps (Tuple, optional): _description_. Defaults to (1, 2, 3, 4, 5, 6, 7, 8, 9, 10).
     """
+    # Load mocap data from a file.
     with open(stac_path, "rb") as file:
         d = pickle.load(file)
         mocap_qpos = jp.array(d["qpos"])[start_step : start_step + clip_length]
@@ -72,6 +107,8 @@ def process_clip(
     # https://github.com/peabody124/BodyModels/blob/f6ef1be5c5d4b7e51028adfc51125e510c13bcc2/body_models/biomechanics_mjx/forward_kinematics.py#L92
     # TODO: Set this up outside of this function as it only needs to be done once anyway
     root = mjcf.from_path("./assets/rodent.xml")
+    # rescale a rodent model.
+    
     rescale.rescale_subtree(
         root,
         scale_factor,
@@ -80,18 +117,19 @@ def process_clip(
     mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
     mj_data = mujoco.MjData(mj_model)
 
-    # Place into GPU
+    # Initialize MuJoCo model and data structures & place into GPU
     mjx_model = mjx.put_model(mj_model)
     mjx_data = mjx.put_data(mj_model, mj_data)
 
     # Feature logic for a single clip here
     clip = ReferenceClip()
 
+    # Extract features (position, orientation) for the clip
     clip = extract_features(mjx_model, mjx_data, clip, mocap_qpos)
     # Padding for velocity corner case.
     mocap_qpos = jp.concatenate([mocap_qpos, mocap_qpos[-1, jp.newaxis, :]], axis=0)
 
-    # Calculate qvel, clip.
+    # Compute velocities and clip them to a maximum value. Calculate qvel, clip.
     mocap_qvel = compute_velocity_from_kinematics(mocap_qpos, dt)
     vels = mocap_qvel[:, 6:]
     clipped_vels = jp.clip(vels, -max_qvel, max_qvel)
@@ -115,12 +153,16 @@ def extract_features(mjx_model, mjx_data, clip, mocap_qpos):
         xquat = mjx_data.xquat
         return mjx_data, (qpos[:3], qpos[3:7], qpos[7:], xpos, xquat)
 
-    mjx_data, (position, quaternion, joints, body_positions, body_quaternions) = (
-        jax.lax.scan(
-            f,
-            mjx_data,
-            mocap_qpos,
-        )
+    mjx_data, (
+        position,
+        quaternion,
+        joints,
+        body_positions,
+        body_quaternions,
+    ) = jax.lax.scan(
+        f,
+        mjx_data,
+        mocap_qpos,
     )
 
     # Add features to ReferenceClip
@@ -135,6 +177,8 @@ def extract_features(mjx_model, mjx_data, clip, mocap_qpos):
 
 def kinematics(mjx_model: mjx.Model, mjx_data: mjx.Data):
     """jit compiled forward kinematics
+    
+    Perform forward kinematics using smooth.kinematics
 
     Args:
         mjx_model (mjx.Model):
@@ -160,8 +204,14 @@ def set_position(
     Returns:
         mjx.Data: _description_
     """
+
+    # Set joint velocities to zero
     qvel = jp.zeros((mjx_model.nv,))
+
+    # Update the data with new joint positions and velocities
     mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
+
+    # Perform forward kinematics and return updated data
     mjx_data = kinematics(mjx_model, mjx_data)
     return mjx_data
 
