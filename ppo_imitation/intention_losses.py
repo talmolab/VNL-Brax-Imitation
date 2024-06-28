@@ -141,7 +141,7 @@ def compute_ppo_intention_loss(
         data.observation,
         policy_rng,
     )
-    action_mean, action_logvar = policy_logits
+    # action_mean, action_logvar = policy_logits
 
     baseline = value_apply(
         normalizer_params, params.value, data.observation
