@@ -134,6 +134,13 @@ def compute_ppo_intention_loss(
     # data is dynamically passed in to update, in a mini batch fashion
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
     rng, policy_rng = jax.random.split(rng)
+
+    # next time step? policy updated every gradient steps, loss lagging behind gradient steps, 
+    # Apply the new policy with old obseration (policy difference exist across batch)
+
+    # i.e. batch 1 perform gradient, have data saved from batch 1, collect more data for batch 2 
+    # with the new performed gradient policy (one batch behind for data usage) -> first update have 1 for policy lost
+
     policy_logits, intention_mean, intention_logvar = policy_apply(
         normalizer_params,
         params.policy,
@@ -141,24 +148,28 @@ def compute_ppo_intention_loss(
         data.observation,
         policy_rng,
     )
-    # action_mean, action_logvar = policy_logits
 
     baseline = value_apply(
         normalizer_params, params.value, data.observation
     )  # current prediction
 
-    # smart move from brax, value network direclty bootstrap one instance
+    # smart move from brax, value network direclty bootstrap one instance, no memory buffer
     bootstrap_value = value_apply(
         normalizer_params, params.value, data.next_observation[-1]
     )
 
     rewards = data.reward * reward_scaling
+
+    # top k adavantages
     truncation = data.extras["state_extras"]["truncation"]
     termination = (1 - data.discount) * (1 - truncation)
 
+    # Temporal differences: target_action_log_probs is the new steps' logits + old raw actions
     target_action_log_probs = parametric_action_distribution.log_prob(
         policy_logits, data.extras["policy_extras"]["raw_action"]
     )
+
+    # behaviour_action_log_probs uses old policy log_prob
     behaviour_action_log_probs = data.extras["policy_extras"]["log_prob"]
 
     vs, advantages = compute_gae(
@@ -174,11 +185,10 @@ def compute_ppo_intention_loss(
     if normalize_advantage:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-    # top_k_indices = jnp.argsort(advantages, axis=None)[-top_k:]
-    # advantages = jnp.take(advantages, top_k_indices)
-
+    # important sampling method: serve as KL divergence
     rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)
 
+    # rhos & advantages have batch dimension (ratio for advantages, weights the advantages based on change in distribution)
     surrogate_loss1 = rho_s * advantages
     surrogate_loss2 = (
         jnp.clip(rho_s, 1 - clipping_epsilon, 1 + clipping_epsilon) * advantages
@@ -196,12 +206,11 @@ def compute_ppo_intention_loss(
     kl_intention = kl_weight * kl_divergence(
         intention_mean, intention_logvar
     )  # 30 means and 30 variance
-    # kl_action = kl_weight * kl_divergence(action_mean, jnp.full(action_mean.shape[0], action_variance))
 
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
 
-    total_loss = policy_loss + v_loss + entropy_loss + kl_intention  # + kl_action
+    total_loss = policy_loss + v_loss + entropy_loss + kl_intention
 
     return total_loss, {
         "total_loss": total_loss,
@@ -209,7 +218,6 @@ def compute_ppo_intention_loss(
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
         "kl_loss_intention": kl_intention,
-        # "kl_loss_action": kl_action,
         "prediction_corr": prediction_corr,
         "explained_variance": explained_variance,
     }
