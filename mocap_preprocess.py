@@ -341,12 +341,11 @@ class ReferenceClip:
 
 
 class ClipCollection:
-    """Dataclass representing a collection of mocap reference clips.
-    Store all the clip ids for retrieving, only stores reference address to clips, not actual clips"""
+    """Dataclass representing a collection of mocap reference clips."""
 
     def __init__(
         self,
-        ids: Sequence[Text],  # this is the id of the specific clip
+        ids: Sequence[Text],
         start_steps: Optional[Sequence[int]] = None,
         end_steps: Optional[Sequence[int]] = None,
         weights: Optional[Sequence[Union[int, float]]] = None,
@@ -367,9 +366,6 @@ class ClipCollection:
             # without access to the actual clip we cannot specify an end_steps default
             if self.end_steps is not None:
                 assert len(self.end_steps) == num_clips
-            # without access to the actual clip we cannot specify an end_steps default
-            if self.end_steps is not None:
-                assert len(self.end_steps) == num_clips
 
             if self.weights is None:
                 self.weights = (1.0,) * num_clips
@@ -378,6 +374,7 @@ class ClipCollection:
                 assert jp.all(np.array(self.weights) >= 0.0)
         except AssertionError as e:
             raise ValueError("ClipCollection validation failed. {}".format(e))
+
 
 def save_dataclass_pickle(pickle_path, mocap_features):
     data = ReferenceClip(**mocap_features)
