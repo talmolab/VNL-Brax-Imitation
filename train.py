@@ -89,6 +89,10 @@ def main(train_config: DictConfig):
         **env_args,
     )
     
+    # TODO: Also have preset solver params here for eval 
+    # so we can relax params in training for faster sps?
+    
+    # Set the env to always start at frame 0 by maximizing sub_clip_length
     eval_env_args = env_args.copy()
     eval_env_args["sub_clip_length"] = (
         env_args["clip_length"] - env_args["ref_traj_length"]
@@ -151,14 +155,11 @@ def main(train_config: DictConfig):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-        
-        # TODO: Also have preset solver params here for eval 
-        # so we can relax params in training for faster sps?
-        # Set the env to always start at frame 0 by maximizing sub_clip_length
-        
+                
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
         jit_step = jax.jit(eval_env.step)
         state = eval_env.reset(reset_rng)
+
         rollout = [state.pipeline_state]
         errors = []
         rewards = []

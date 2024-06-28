@@ -104,3 +104,4 @@ rodent:
       - wrist_R
       - finger_R
     center_of_mass: torso
+    
