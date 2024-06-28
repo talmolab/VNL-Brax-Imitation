@@ -70,24 +70,23 @@ envs.register_environment("humanoidstanding", HumanoidStanding)
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
 def main(train_config: DictConfig):
-    cfg = hydra.compose(config_name="env_config")
-    cfg = OmegaConf.to_container(cfg, resolve=True)
-
-    env_params = cfg[train_config.env_name]
+    env_cfg = hydra.compose(config_name="env_config")
+    env_cfg = OmegaConf.to_container(env_cfg, resolve=True)
+    rodent_config = env_cfg[train_config.env_name]
+    env_args = rodent_config["env_args"]
 
     # Process rodent clip
-    if cfg[train_config.env_name]["name"] == "rodent":
-        env_params["reference_clip"] = process_clip(
-            env_params["stac_path"],
-            start_step=env_params["clip_idx"] * env_params["clip_length"],
-            clip_length=env_params["clip_length"],
-        )
+    reference_clip = process_clip(
+        rodent_config["stac_path"],
+        start_step=rodent_config["clip_idx"] * env_args["clip_length"],
+        clip_length=env_args["clip_length"],
+    )
+
+    # Init env
     env = envs.get_environment(
-        cfg[train_config.env_name]["name"],
-        params=cfg[train_config.env_name],
-        termination_threshold=train_config["env_params"]["termination_threshold"],
-        sub_clip_length=train_config["env_params"]["sub_clip_length"],
-        curriculum_max_time=train_config["env_params"]["curriculum_max_time"],
+        env_cfg[train_config.env_name]["name"],
+        reference_clip=reference_clip,
+        **env_args,
     )
 
     # TODO: make the intention network factory a part of the config
@@ -141,16 +140,24 @@ def main(train_config: DictConfig):
     def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
-        # rollout starting from frame 0
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-        env = envs.get_environment(
-            cfg[train_config.env_name]["name"], params=cfg[train_config.env_name]
+        
+        # TODO: Also have preset solver params here for eval 
+        # so we can relax params in training for faster sps?
+        # Set the env to always start at frame 0 by maximizing sub_clip_length
+        eval_env_args = env_args.copy()
+        eval_env_args["sub_clip_length"] = (
+            env_args["clip_length"] - env_args["ref_traj_length"]
         )
-
+        env = envs.get_environment(
+            env_cfg[train_config.env_name]["name"],
+            reference_clip=reference_clip,
+            **eval_env_args,
+        )
+        reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
         jit_step = jax.jit(env.step)
-        state = env.reset_to_frame(0)
+        state = env.reset(reset_rng)
         rollout = [state.pipeline_state]
-        act_rng = jax.random.PRNGKey(0)
         errors = []
         rewards = []
         means = []
@@ -324,7 +331,7 @@ def main(train_config: DictConfig):
         scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
         scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
         mj_model = mujoco.MjModel.from_xml_path(
-            f"./assets/{cfg[train_config.env_name]['rendering_mjcf']}"
+            f"./assets/{env_cfg[train_config.env_name]['rendering_mjcf']}"
         )
 
         mj_model.opt.solver = {
@@ -352,7 +359,7 @@ def main(train_config: DictConfig):
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
-                    mj_data, camera=f"{cfg[train_config.env_name]['camera']}"
+                    mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
                 )
 
                 pixels = renderer.render()
