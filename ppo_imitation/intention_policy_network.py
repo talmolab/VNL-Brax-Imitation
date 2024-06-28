@@ -17,11 +17,6 @@ import flax
 from flax import linen as nn
 
 
-# Define the KL divergence loss
-def kl_divergence(mean, logvar):
-    return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
-
-
 class Encoder(nn.Module):
     """outputs in the form of distributions in latent space"""
 

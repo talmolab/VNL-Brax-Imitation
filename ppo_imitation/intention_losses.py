@@ -22,7 +22,7 @@ class PPONetworkParams:
 # @jax.vmap
 def kl_divergence(mean, logvar):
     """kl_divergence for latent space regularization"""
-    return -0.5 * jnp.sum(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
+    return -0.5 * jnp.mean(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
 
 
 def compute_gae(
@@ -103,8 +103,6 @@ def compute_ppo_intention_loss(
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
     kl_weight: float = 1e-4,
-    # action_variance: float = 0.01,
-    # top_k: int=10
 ) -> Tuple[jnp.ndarray, types.Metrics]:
     """Computes PPO loss. stochatsic suffled data update
 
