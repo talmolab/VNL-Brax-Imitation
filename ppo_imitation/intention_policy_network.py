@@ -98,11 +98,11 @@ class IntentionNetwork(nn.Module):
         # construct the intention network
         intention_mean, intention_logvar = self.encoder(traj)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
-        action = self.decoder(
+        logits = self.decoder(
             jnp.concatenate([z, obs], axis=-1)
-        )  # action should be 2 value tuple (mean, sd) no stochstic sampling yet
+        )  # logits should be 2 value tuple (mean, sd) no stochstic sampling yet
 
-        return action, intention_mean, intention_logvar
+        return logits, intention_mean, intention_logvar
 
 
 def make_intention_policy(

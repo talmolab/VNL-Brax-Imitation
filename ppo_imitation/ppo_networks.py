@@ -23,6 +23,7 @@ import flax
 from flax import linen as nn
 
 from ppo_imitation import intention_policy_network as ipn
+from ppo_imitation import distribution
 
 
 @flax.struct.dataclass
@@ -100,8 +101,11 @@ def make_intention_ppo_networks(
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
     parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size
+        event_size=action_size, var_scale=0.5
     )
+    # parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
+    #     event_size=action_size
+    # )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
         latent_size=intention_latent_size,

@@ -38,6 +38,12 @@ class RodentTracking(PipelineEnv):
     ):
         root = mjcf.from_path(mjcf_path)
 
+        # Change actuators to torque (from positional)
+        for actuator in root.find_all("actuator"):
+            actuator.gainprm = [actuator.forcerange[1]]
+            del actuator.biastype
+            del actuator.biasprm
+
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
             root,
@@ -269,7 +275,7 @@ class RodentTracking(PipelineEnv):
             state (_type_): _description_
         """
         # location using com (dim=3)
-        com_c = data_c.subtree_com[1]
+        com_c = data_c.xpos[self._com_idx]
         com_ref = self._ref_traj.body_positions[:, self._com_idx][
             state.info["cur_frame"], :
         ]
