@@ -584,8 +584,13 @@ class RodentMultiClipTracking(RodentTracking):
     def _get_clip_to_track(self, rng):
         """
         main muticlip selection function
-        1. self._possible_starts stores all (clip_index, start_step)
-        2. self._start_probabilities keeps weighted clip's prob
+        1. need to call self._get_possible_starts() and self._load_reference_data() prior to calling this function.
+        2. self._all_clips is a list of ReferenceClip objects, it is initialized as list of None and then 
+        filling in gradually when call this function.
+        3. overides all self._start_frame and self_ref_traj from SingleClipTracking class.
+
+            - self._possible_starts stores all (clip_index, start_step)
+            - self._start_probabilities keeps weighted clip's prob
         """
         # get specific clip index and start frame
         index = jax.random.choice(
@@ -616,7 +621,6 @@ class RodentMultiClipTracking(RodentTracking):
     def reset(self, rng) -> State:
         """
         Resets the environment to an initial state.
-        TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
         self._load_reference_data(self._all_clips)
         self._get_possible_starts
