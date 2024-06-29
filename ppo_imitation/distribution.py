@@ -165,7 +165,7 @@ class NormalTanhDistributionFixedStd(ParametricDistribution):
         # of the code operate on pre-tanh actions and we take the postprocessor
         # jacobian into account in log_prob computations.
         super().__init__(
-            param_size=2 * event_size,
+            param_size=event_size,
             postprocessor=TanhBijector(),
             event_ndims=1,
             reparametrizable=True,
