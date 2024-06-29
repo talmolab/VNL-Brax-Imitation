@@ -22,6 +22,7 @@ import walker
 from walker import Rat
 from typing import Any
 
+
 def process(
     stac_path: Text,
     save_file: Text,
@@ -77,7 +78,7 @@ def process(
             )
             mocap_features = get_mocap_features(
                 mocap_qpos[start_step:end_step, :],
-                walker, # walker is rodent.Rat
+                walker,  # walker is rodent.Rat
                 mj_model,
                 max_qvel,
                 dt,
@@ -337,6 +338,7 @@ class ReferenceClip:
     quaternion: jp.ndarray
     scaling: jp.ndarray
     velocity: jp.ndarray
+
 
 def save_dataclass_pickle(pickle_path, mocap_features):
     data = ReferenceClip(**mocap_features)

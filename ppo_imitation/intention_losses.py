@@ -133,10 +133,10 @@ def compute_ppo_intention_loss(
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
     rng, policy_rng = jax.random.split(rng)
 
-    # next time step? policy updated every gradient steps, loss lagging behind gradient steps, 
+    # next time step? policy updated every gradient steps, loss lagging behind gradient steps,
     # Apply the new policy with old obseration (policy difference exist across batch)
 
-    # i.e. batch 1 perform gradient, have data saved from batch 1, collect more data for batch 2 
+    # i.e. batch 1 perform gradient, have data saved from batch 1, collect more data for batch 2
     # with the new performed gradient policy (one batch behind for data usage) -> first update have 1 for policy lost
 
     policy_logits, intention_mean, intention_logvar = policy_apply(

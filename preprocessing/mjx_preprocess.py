@@ -38,8 +38,10 @@ class ReferenceClip:
     # xquat
     body_quaternions: jp.ndarray = None
 
+
 class ClipCollection:
     """Dataclass representing a collection of mocap reference clips."""
+
     def __init__(
         self,
         ids: Sequence[Text],
@@ -108,7 +110,7 @@ def process_clip(
     # TODO: Set this up outside of this function as it only needs to be done once anyway
     root = mjcf.from_path("./assets/rodent.xml")
     # rescale a rodent model.
-    
+
     rescale.rescale_subtree(
         root,
         scale_factor,
@@ -177,7 +179,7 @@ def extract_features(mjx_model, mjx_data, clip, mocap_qpos):
 
 def kinematics(mjx_model: mjx.Model, mjx_data: mjx.Data):
     """jit compiled forward kinematics
-    
+
     Perform forward kinematics using smooth.kinematics
 
     Args:
