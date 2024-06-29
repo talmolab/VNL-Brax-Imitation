@@ -10,7 +10,6 @@ import warnings
 
 from brax.training import networks
 from brax.training import types
-from brax.training import distribution
 from brax.training.networks import MLP
 
 from brax.training.types import PRNGKey
@@ -23,6 +22,7 @@ import flax
 from flax import linen as nn
 
 from ppo_imitation import intention_policy_network as ipn
+from ppo_imitation import distribution
 
 
 @flax.struct.dataclass
@@ -39,7 +39,6 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
         params: types.PolicyParams, deterministic: bool = False
     ) -> types.Policy:
         policy_network = ppo_networks.policy_network
-        # can modify this to provide stochastic action + noise
         parametric_action_distribution = ppo_networks.parametric_action_distribution
 
         def policy(
@@ -99,9 +98,13 @@ def make_intention_ppo_networks(
     value_hidden_layer_sizes: Sequence[int] = (1024,) * 2,
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
-    parametric_action_distribution = distribution.NormalTanhDistribution(
+    # parametric_action_distribution = distribution.NormalTanhDistribution(
+    #     event_size=action_size
+    # )
+    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
         event_size=action_size
     )
+
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,
         latent_size=intention_latent_size,
