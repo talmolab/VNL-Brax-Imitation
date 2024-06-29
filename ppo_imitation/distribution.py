@@ -173,4 +173,5 @@ class NormalTanhDistributionFixedStd(ParametricDistribution):
         self._scale = scale
 
     def create_dist(self, parameters):
-        return NormalDistribution(loc=parameters, scale=self._scale)
+        scale = jnp.broadcast_to(self._scale, parameters.shape)
+        return NormalDistribution(loc=parameters, scale=scale)

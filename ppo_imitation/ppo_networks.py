@@ -92,7 +92,7 @@ def make_intention_ppo_networks(
     observation_size: int,
     action_size: int,
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
-    intention_latent_size: int = 64,
+    intention_latent_size: int = 60,
     encoder_layer_sizes: Sequence[int] = (1024,) * 2,
     decoder_layer_sizes: Sequence[int] = (1024,) * 2,
     value_hidden_layer_sizes: Sequence[int] = (1024,) * 2,
