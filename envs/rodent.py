@@ -475,6 +475,7 @@ class RodentTracking(PipelineEnv):
 class RodentMultiClipTracking(RodentTracking):
     def __init__(
         self,
+        reference_clip,
         end_eff_names,
         appendage_names,
         walker_body_names,
@@ -493,12 +494,10 @@ class RodentMultiClipTracking(RodentTracking):
         termination_threshold,
         body_error_multiplier,
         min_steps: int = 10,
-        all_clips: str = "clips/all_snips.p",
         always_init_at_clip_start: bool = True,
         reference_clip_path: str = "clips/all_snips.p",
         **kwargs,
     ):
-        reference_clip = mjxp.process_clip(reference_clip_path, 1, 150)
         super().__init__(
             reference_clip,
             end_eff_names,
@@ -521,12 +520,12 @@ class RodentMultiClipTracking(RodentTracking):
             **kwargs,
         )
 
-        self._all_clips = all_clips
-        self._ref_steps = np.sort(all_clips)
+        self._ref_steps = jp.arange(ref_traj_length)
         self._max_ref_step = self._ref_steps[-1]
         self._min_steps = min_steps
         self._max_end_step = 10000
         self._always_init_at_clip_start = always_init_at_clip_start
+        self._reference_clip_path = reference_clip_path
 
     def _load_reference_data(
         self,
@@ -547,13 +546,18 @@ class RodentMultiClipTracking(RodentTracking):
         self._dataset = dataset
         self._num_clips = len(self._dataset.ids) # should be 800
 
-        # self._all_clips is a list of ReferenceClip objects
-        self._all_clips = [None] * self._num_clips # load in all clips as None, load dynamically later, can change
+        if self._dataset.end_steps is None:
+            self._dataset.end_steps = jp.arange(self._ref_traj_length)
+        else:
+            # self._all_clips is a list of ReferenceClip objects
+            self._all_clips = [None] * self._num_clips # load in all clips as None, load dynamically later, can change
 
     def _get_possible_starts(self):
         """
         self._possible_starts stores all the possible (clip, step) starting points
         """
+
+        #TODO: not parralized JAX logic yet, that need to be changed
 
         self._possible_starts = []
         self._start_probabilities = []
@@ -578,8 +582,40 @@ class RodentMultiClipTracking(RodentTracking):
 
         # normalize start probabilities
         self._start_probabilities = jp.array(self._start_probabilities) / jp.sum(
-            self._start_probabilities
+            jp.array(self._start_probabilities)
         )
+    
+    # def _get_possible_starts(self):
+    #     """
+    #     self._possible_starts stores all the possible (clip, step) starting points
+    #     """
+    #     dataset = self._dataset
+
+    #     def compute_possible_starts(start, end, weight, clip_number):
+    #         last_possible_start = end - self._max_ref_step - self._min_steps
+    #         if self._always_init_at_clip_start:
+    #             possible_starts = [(clip_number, start)]
+    #             start_probabilities = [weight]
+    #         else:
+    #             possible_starts = [(clip_number, j) for j in range(start, last_possible_start)]
+    #             start_probabilities = [weight for _ in range(start, last_possible_start)]
+    #         return possible_starts, start_probabilities
+
+    #     # Vectorize the function across the dataset entries
+    #     clip_numbers = jp.arange(len(dataset.start_steps))
+    #     possible_starts, start_probabilities = jax.vmap(compute_possible_starts)(
+    #         jp.array(dataset.start_steps),
+    #         jp.array(dataset.end_steps),
+    #         jp.array(dataset.weights),
+    #         clip_numbers
+    #     )
+
+    #     # Flatten the lists of lists
+    #     self._possible_starts = [item for sublist in possible_starts for item in sublist]
+    #     self._start_probabilities = jp.array([item for sublist in start_probabilities for item in sublist])
+
+    #     # Normalize start probabilities
+    #     self._start_probabilities /= jp.sum(self._start_probabilities)
 
     def _get_clip_to_track(self, rng):
         """
@@ -595,15 +631,18 @@ class RodentMultiClipTracking(RodentTracking):
         # get specific clip index and start frame
         index = jax.random.choice(
                 rng,
+                shape=(),
                 a=jp.arange(len(self._possible_starts)),
-                p=jp.array(self._start_probabilities)
+                p=self._start_probabilities
             )
-        clip_index, start_step = self._possible_starts[index]
+        # SIngleClip is also traced array, TODO: solve trace array indexing issue
+        
+        clip_index, start_step = self._possible_starts[:,index]
         self._ref_traj_index = clip_index
 
         clip_id = self._dataset.ids[self._ref_traj_index]
 
-        # Replace the self._all_clips with valid ReferenceClip objects
+        # Replace the self._all_clips with valid ReferenceClip objects, need separately broken down clips
         self._all_clips[self._ref_traj_index] = self._loader.process_clip(
             clip_id, start_step=start_step, clip_length=self._clip_length
         )
@@ -622,8 +661,8 @@ class RodentMultiClipTracking(RodentTracking):
         """
         Resets the environment to an initial state.
         """
-        self._load_reference_data(self._all_clips)
-        self._get_possible_starts
+        self._load_reference_data(self._reference_clip_path)
+        self._get_possible_starts()
         self._get_clip_to_track(rng)
 
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
