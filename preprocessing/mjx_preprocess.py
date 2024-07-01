@@ -5,12 +5,12 @@ from jax import jit
 from jax import numpy as jp
 from flax import struct
 
+from dm_control import mjcf
+from dm_control.locomotion.walkers import rescale
+
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import smooth
-
-from dm_control import mjcf
-from dm_control.locomotion.walkers import rescale
 
 import preprocessing.transformations as tr
 
@@ -60,7 +60,7 @@ class ClipCollection:
                 # self._start_frame = (
                 #     start_step - self._dataset.start_steps[self._ref_traj_index]
                 # ) * self._ref_traj.dt
-                
+
                 self.start_steps = jp.zeros(num_clips)
             else:
                 assert len(self.start_steps) == num_clips
@@ -73,7 +73,7 @@ class ClipCollection:
             raise ValueError("ClipCollection validation failed. {}".format(e))
 
 
-def process_clip(
+def process_clip_to_train(
     stac_path: Text,
     scale_factor: float = 0.9,
     start_step: int = 0,
@@ -81,6 +81,9 @@ def process_clip(
     max_qvel: float = 20.0,
     dt: float = 0.02,
 ):
+    """Process clip function for ../train.py.
+    Just mujoco and data setup then calls process_clip"""
+
     """Process a set of joint angles into the features that
        the referenced trajectory is composed of. Unlike the original,
        this function will process and save only one clip.
@@ -120,6 +123,33 @@ def process_clip(
     # Initialize MuJoCo model and data structures & place into GPU
     mjx_model = mjx.put_model(mj_model)
     mjx_data = mjx.put_data(mj_model, mj_data)
+
+    return process_clip(mocap_qpos, mjx_model, mjx_data)
+
+def process_clip(
+    mocap_qpos,
+    mjx_model,
+    mjx_data,
+    max_qvel: float = 20.0,
+    dt: float = 0.02,
+):
+    
+    """Process a set of joint angles into the features that
+       the referenced trajectory is composed of. Unlike the original,
+       this function will process and save only one clip.
+       Once this is all ported to jax, it can be vmapped to parallelize the preprocessing
+
+        Rodent only for now.
+    Args:
+        stac_path (Text): _description_
+        save_file (Text): _description_
+        scale_factor (float, optional): _description_. Defaults to 0.9.
+        start_step (int, optional): _description_. Defaults to 0.
+        clip_length (int, optional): _description_. Defaults to 250.
+        max_qvel (float, optional): _description_. Defaults to 20.0.
+        dt (float, optional): _description_. Defaults to 0.02.
+        ref_steps (Tuple, optional): _description_. Defaults to (1, 2, 3, 4, 5, 6, 7, 8, 9, 10).
+    """
 
     # Feature logic for a single clip here
     clip = ReferenceClip()

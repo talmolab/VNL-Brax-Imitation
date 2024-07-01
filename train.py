@@ -26,7 +26,7 @@ from brax import envs
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
-from preprocessing.mjx_preprocess import process_clip
+from preprocessing.mjx_preprocess import process_clip_to_train
 
 # rendering related
 from dm_control.mujoco import wrapper
@@ -76,7 +76,7 @@ def main(train_config: DictConfig):
     env_args = rodent_config["env_args"]
 
     # Process rodent clip
-    reference_clip = process_clip(
+    reference_clip = process_clip_to_train(
         rodent_config["stac_path"],
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
