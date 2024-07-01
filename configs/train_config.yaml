@@ -1,17 +1,17 @@
 env_name: rodent
 algo_name: ppo
 task_name: track
-num_envs: 128
+num_envs: 2048
 num_timesteps: 3_000_000_000
-eval_every: 10_000
-episode_length: 150
-batch_size: 32
+eval_every: 10_000_000
+episode_length: 1000
+batch_size: 2048
 learning_rate: 6e-4
 num_minibatches: 32
 num_updates_per_batch: 16
-clipping_epsilon: 0.2
+clipping_epsilon: 0.1
 kl_weight: 1e-4
 terminate_when_unhealthy: true
 intention_latent_size: 64
-encoder_layer_sizes: [256, 128]
-decoder_layer_sizes: [128, 256]
+encoder_layer_sizes: [256, 256]
+decoder_layer_sizes: [256, 256]

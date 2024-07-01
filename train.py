@@ -103,6 +103,9 @@ def main(train_config: DictConfig):
         **eval_env_args,
     )
 
+    jit_step = jax.jit(eval_env.step)
+    jit_reset = jax.jit(eval_env.reset)
+    
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
         ppo_networks.make_intention_ppo_networks,
@@ -157,8 +160,8 @@ def main(train_config: DictConfig):
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
                 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        jit_step = jax.jit(eval_env.step)
-        state = eval_env.reset(reset_rng)
+        
+        state = jit_reset(reset_rng)
 
         rollout = [state.pipeline_state]
         errors = []
@@ -168,7 +171,7 @@ def main(train_config: DictConfig):
         log_probs = []
         rand_probs = []
 
-        for _ in range(train_config["episode_length"]):
+        for _ in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng
@@ -279,7 +282,7 @@ def main(train_config: DictConfig):
                 return jax.lax.dynamic_slice_in_dim(
                     x,
                     0,
-                    train_config["episode_length"],
+                    eval_env._clip_length,
                 )
             return jp.array([])
 
