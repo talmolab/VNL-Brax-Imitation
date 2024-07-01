@@ -476,7 +476,6 @@ class RodentMultiClipTracking(RodentTracking):
     def __init__(
         self,
         reference_clip,
-        all_reference_clip,
         end_eff_names,
         appendage_names,
         walker_body_names,
@@ -496,6 +495,7 @@ class RodentMultiClipTracking(RodentTracking):
         body_error_multiplier,
         min_steps: int = 10,
         always_init_at_clip_start: bool = True,
+        all_reference_clip_path="clips/test_all_clips.h5",
         **kwargs,
     ):
         super().__init__(
@@ -521,13 +521,14 @@ class RodentMultiClipTracking(RodentTracking):
         )
 
         # Cannot overide self._ref_traj in single clip tracking, only stored once
-        self._all_clips = (
-            all_reference_clip  # should be preprocessed already shape (842,)
-        )
+        self._all_clips = mjxp.load_reference_clip_from_h5(
+            all_reference_clip_path
+        )  # should be preprocessed already shape (842,)
         self._ref_steps = jp.arange(ref_traj_length)
         self._max_ref_step = self._ref_steps[-1]
         self._min_steps = min_steps
         self._always_init_at_clip_start = always_init_at_clip_start
+        self._dataset = mjxp.ReferenceClip(id=jp.arange(self._clip_length))
 
     def _get_possible_starts(self):
         """
@@ -596,7 +597,7 @@ class RodentMultiClipTracking(RodentTracking):
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, start_frame)
+        traj = self._get_traj(data, start_frame, id)
 
         info = {
             "cur_frame": start_frame,
@@ -625,18 +626,25 @@ class RodentMultiClipTracking(RodentTracking):
 
         return state
 
-    def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
+    def _get_traj(
+        self, data: mjx.Data, cur_frame: int, cur_clip_index: int
+    ) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state,
         use similar logic as SingleClipTracking, but ref_traj changed
         """
 
-        cur_ref_traj = (
-            ...
-        )  # access the data class with index calculated and stored in state.info, just need index, cur_frame passed in already
-
         # Get the relevant slice of the ref_traj
-        def f(x):
+        def f_single(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    cur_clip_index,
+                    1,
+                )
+            return jp.array([])
+
+        def f_database(x):
             if len(x.shape) != 1:
                 return jax.lax.dynamic_slice_in_dim(
                     x,
@@ -645,7 +653,10 @@ class RodentMultiClipTracking(RodentTracking):
                 )
             return jp.array([])
 
-        ref_traj = jax.tree_util.tree_map(f, cur_ref_traj)
+        cur_ref_traj = jax.tree_util.tree_map(
+            f_database, self._all_clips
+        )  # access the data class with index calculated and stored in state.info, just need index, cur_frame passed in already
+        ref_traj = jax.tree_util.tree_map(f_single, cur_ref_traj)
 
         reference_appendages = super().get_reference_appendages_pos(ref_traj)
         reference_rel_bodies_pos_local = super().get_reference_rel_bodies_pos_local(

@@ -126,6 +126,7 @@ def process_clip_to_train(
 
     return process_clip(mocap_qpos, mjx_model, mjx_data)
 
+
 def process_clip(
     mocap_qpos,
     mjx_model,
@@ -133,7 +134,6 @@ def process_clip(
     max_qvel: float = 20.0,
     dt: float = 0.02,
 ):
-    
     """Process a set of joint angles into the features that
        the referenced trajectory is composed of. Unlike the original,
        this function will process and save only one clip.
@@ -172,6 +172,29 @@ def process_clip(
     )
 
     return clip
+
+
+def load_reference_clip_from_h5(filename):
+    """
+    Load the contents of an .h5 file into a ReferenceClip object.
+
+    Args:
+        filename (str): The name of the .h5 file to load from.
+
+    Returns:
+        ReferenceClip: The reconstructed ReferenceClip object.
+    """
+    with h5py.File(filename, "r") as hf:
+        clip = ReferenceClip()
+        for attr in clip.__dict__.keys():
+            batch_data = []
+            batch_idx = 0
+            while f"{attr}/batch_{batch_idx}" in hf:
+                batch_data.append(hf[f"{attr}/batch_{batch_idx}"][:])
+                batch_idx += 1
+            if batch_data:
+                setattr(clip, attr, jp.stack(batch_data))
+        return clip
 
 
 @jit
