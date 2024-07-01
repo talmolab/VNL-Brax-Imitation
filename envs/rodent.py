@@ -621,7 +621,8 @@ class RodentMultiClipTracking(RodentTracking):
         #         a=jp.arange(len(self._possible_starts)),
         #         p=self._start_probabilities
         #     )
-        index = jax.random.randint(rng, (), 0, len(self._possible_starts))
+        # index = jax.random.randint(rng, (), 0, len(self._possible_starts))
+        index = np.random.randint(0, len(self._possible_starts))
 
         print(self._possible_starts.shape)
 
@@ -632,8 +633,8 @@ class RodentMultiClipTracking(RodentTracking):
 
         # print(clip_index.astype(int))
 
-        clip_id = self._dataset.ids[self._ref_traj_index]
-        # self._dataset.ids need to be a jax array and no str in it, should convert to integer, use numpy.random
+        clip_id = np.array(self._dataset.ids)[self._ref_traj_index.astype(int)]
+        # self._dataset.ids need to be a array (now list) and no str in it, should convert to integer, use numpy.random
         # we need string to load stuff anyways, no need for JAX
 
         # Replace the self._all_clips with valid ReferenceClip objects, need separately broken down clips

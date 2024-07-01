@@ -101,7 +101,7 @@ def make_intention_ppo_networks(
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
     parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=0.5
+        event_size=action_size, var_scale=0.01
     )
     # parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
     #     event_size=action_size
