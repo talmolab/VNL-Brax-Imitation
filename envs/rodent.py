@@ -633,7 +633,7 @@ class RodentMultiClipTracking(RodentTracking):
 
         # print(clip_index.astype(int))
 
-        clip_id = np.array(self._dataset.ids)[self._ref_traj_index.astype(int)]
+        clip_id = np.array(self._dataset.ids)[self._ref_traj_index.asarray().astype(int)]
         # self._dataset.ids need to be a array (now list) and no str in it, should convert to integer, use numpy.random
         # we need string to load stuff anyways, no need for JAX
 
