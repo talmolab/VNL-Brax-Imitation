@@ -26,7 +26,7 @@ from brax import envs
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
-from preprocessing.mjx_preprocess import process_clip
+from preprocessing.mjx_preprocess import process_clip_to_train
 
 # rendering related
 from dm_control.mujoco import wrapper
@@ -76,7 +76,7 @@ def main(train_config: DictConfig):
     env_args = rodent_config["env_args"]
 
     # Process rodent clip
-    reference_clip = process_clip(
+    reference_clip = process_clip_to_train(
         rodent_config["stac_path"],
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
@@ -88,10 +88,10 @@ def main(train_config: DictConfig):
         reference_clip=reference_clip,
         **env_args,
     )
-    
-    # TODO: Also have preset solver params here for eval 
+
+    # TODO: Also have preset solver params here for eval
     # so we can relax params in training for faster sps?
-    
+
     # Set the env to always start at frame 0 by maximizing sub_clip_length
     eval_env_args = env_args.copy()
     eval_env_args["sub_clip_length"] = (
@@ -158,7 +158,7 @@ def main(train_config: DictConfig):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-                
+
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
         
         state = jit_reset(reset_rng)
@@ -334,7 +334,10 @@ def main(train_config: DictConfig):
         wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
     make_inference_fn, params, _ = train_fn(
-        environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn, eval_env=eval_env,
+        environment=env,
+        progress_fn=wandb_progress,
+        policy_params_fn=policy_params_fn,
+        eval_env=eval_env,
     )
 
     final_save_path = f"{model_path}/finished"
