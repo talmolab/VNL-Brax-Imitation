@@ -544,84 +544,69 @@ class RodentMultiClipTracking(RodentTracking):
 
         self._loader = mjxp
         self._dataset = dataset
-        self._num_clips = len(self._dataset.ids) # should be 800
+        self._num_clips = len(self._dataset.ids)  # should be 800
 
         if self._dataset.end_steps is None:
-            self._dataset.end_steps = jp.arange(self._ref_traj_length)
+            self._dataset.end_steps = jp.arange(self._num_clips)
         else:
             # self._all_clips is a list of ReferenceClip objects
-            self._all_clips = [None] * self._num_clips # load in all clips as None, load dynamically later, can change
+            self._all_clips = [
+                None
+            ] * self._num_clips  # load in all clips as None, load dynamically later, can change
 
     def _get_possible_starts(self):
         """
-        self._possible_starts stores all the possible (clip, step) starting points
+        self._possible_starts stores all the possible/random (clip, step starting points)
         """
-
-        #TODO: not parralized JAX logic yet, that need to be changed
-
-        self._possible_starts = []
-        self._start_probabilities = []
-        dataset = self._dataset
-
-        for clip_number, (start, end, weight) in enumerate(
-            zip(dataset.start_steps, dataset.end_steps, dataset.weights)
-        ):
-            # length - required lookahead - minimum number of steps
-            last_possible_start = end - self._max_ref_step - self._min_steps
-
-            if self._always_init_at_clip_start:
-                self._possible_starts += [(clip_number, start)]
-                self._start_probabilities += [weight]
-            else:
-                self._possible_starts += [
-                    (clip_number, j) for j in range(start, last_possible_start)
-                ]
-                self._start_probabilities += [
-                    weight for _ in range(start, last_possible_start)
-                ]
-
-        # normalize start probabilities
+        self._start_probabilities = jp.ones(self._num_clips)
+        # normalize to get actual start probabilities
         self._start_probabilities = jp.array(self._start_probabilities) / jp.sum(
-            jp.array(self._start_probabilities)
+            self._start_probabilities
         )
-    
-    # def _get_possible_starts(self):
-    #     """
-    #     self._possible_starts stores all the possible (clip, step) starting points
-    #     """
-    #     dataset = self._dataset
 
-    #     def compute_possible_starts(start, end, weight, clip_number):
-    #         last_possible_start = end - self._max_ref_step - self._min_steps
-    #         if self._always_init_at_clip_start:
-    #             possible_starts = [(clip_number, start)]
-    #             start_probabilities = [weight]
-    #         else:
-    #             possible_starts = [(clip_number, j) for j in range(start, last_possible_start)]
-    #             start_probabilities = [weight for _ in range(start, last_possible_start)]
-    #         return possible_starts, start_probabilities
+        def compute_starts_for_all_clips(clip_number, start, end):
+            last_possible_start = end - self._max_ref_step - self._min_steps
+            if self._always_init_at_clip_start:
+                return jp.array([(clip_number, start)])
+            else:
+                return jp.array(
+                    [(clip_number, j) for j in range(start, last_possible_start)]
+                )
 
-    #     # Vectorize the function across the dataset entries
-    #     clip_numbers = jp.arange(len(dataset.start_steps))
-    #     possible_starts, start_probabilities = jax.vmap(compute_possible_starts)(
-    #         jp.array(dataset.start_steps),
-    #         jp.array(dataset.end_steps),
-    #         jp.array(dataset.weights),
-    #         clip_numbers
-    #     )
+        dataset = self._dataset
+        clip_numbers = jp.arange(self._num_clips)
 
-    #     # Flatten the lists of lists
-    #     self._possible_starts = [item for sublist in possible_starts for item in sublist]
-    #     self._start_probabilities = jp.array([item for sublist in start_probabilities for item in sublist])
+        print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
 
-    #     # Normalize start probabilities
-    #     self._start_probabilities /= jp.sum(self._start_probabilities)
+        vmap_compute_starts = jax.vmap(
+            compute_starts_for_all_clips, in_axes=(0, 0, 0), out_axes=1
+        )
+        self._possible_starts = vmap_compute_starts(
+            clip_numbers, dataset.start_steps, dataset.end_steps
+        )
+
+        self._possible_starts = jp.concatenate(self._possible_starts, axis=0)
+
+        # self._possible_starts = []
+        # dataset = self._dataset
+        # for clip_number, (start, end) in enumerate(
+        #     zip(dataset.start_steps, dataset.end_steps)
+        # ):
+        #     # length - required lookahead - minimum number of steps
+        #     last_possible_start = end - self._max_ref_step - self._min_steps
+
+        #     if self._always_init_at_clip_start:
+        #         self._possible_starts += [(clip_number, start)]
+        #     else:
+        #         self._possible_starts += [
+        #             (clip_number, j) for j in range(start, last_possible_start)
+        #         ]
 
     def _get_clip_to_track(self, rng):
         """
         main muticlip selection function
         1. need to call self._get_possible_starts() and self._load_reference_data() prior to calling this function.
-        2. self._all_clips is a list of ReferenceClip objects, it is initialized as list of None and then 
+        2. self._all_clips is a list of ReferenceClip objects, it is initialized as list of None and then
         filling in gradually when call this function.
         3. overides all self._start_frame and self_ref_traj from SingleClipTracking class.
 
@@ -629,18 +614,27 @@ class RodentMultiClipTracking(RodentTracking):
             - self._start_probabilities keeps weighted clip's prob
         """
         # get specific clip index and start frame
-        index = jax.random.choice(
-                rng,
-                shape=(),
-                a=jp.arange(len(self._possible_starts)),
-                p=self._start_probabilities
-            )
-        # SIngleClip is also traced array, TODO: solve trace array indexing issue
-        
-        clip_index, start_step = self._possible_starts[:,index]
+        # SingleClip is also traced array, TODO: solve trace array indexing issue
+        # index = jax.random.choice(
+        #         rng,
+        #         shape=(),
+        #         a=jp.arange(len(self._possible_starts)),
+        #         p=self._start_probabilities
+        #     )
+        index = jax.random.randint(rng, (), 0, len(self._possible_starts))
+
+        print(self._possible_starts.shape)
+
+        # print(self._possible_starts[...,index,:])
+
+        clip_index, start_step = self._possible_starts[...,index,:]
         self._ref_traj_index = clip_index
 
+        # print(clip_index.astype(int))
+
         clip_id = self._dataset.ids[self._ref_traj_index]
+        # self._dataset.ids need to be a jax array and no str in it, should convert to integer, use numpy.random
+        # we need string to load stuff anyways, no need for JAX
 
         # Replace the self._all_clips with valid ReferenceClip objects, need separately broken down clips
         self._all_clips[self._ref_traj_index] = self._loader.process_clip(

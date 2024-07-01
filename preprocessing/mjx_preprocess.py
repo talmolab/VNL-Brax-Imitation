@@ -47,18 +47,16 @@ class ClipCollection:
         ids: Sequence[Text],
         start_steps: Optional[Sequence[int]] = None,
         end_steps: Optional[Sequence[int]] = None,
-        weights: Optional[Sequence[Union[int, float]]] = None,
     ):
         """Instantiate a ClipCollection."""
         self.ids = ids
         self.start_steps = start_steps
         self.end_steps = end_steps
-        self.weights = weights
         num_clips = len(self.ids)
         try:
             if self.start_steps is None:
                 # by default start at the beginning
-                self.start_steps = (0,) * num_clips
+                self.start_steps = jp.zeros(num_clips)
             else:
                 assert len(self.start_steps) == num_clips
 
@@ -66,11 +64,6 @@ class ClipCollection:
             if self.end_steps is not None:
                 assert len(self.end_steps) == num_clips
 
-            if self.weights is None:
-                self.weights = (1.0,) * num_clips
-            else:
-                assert len(self.weights) == num_clips
-                assert jp.all(jp.array(self.weights) >= 0.0)
         except AssertionError as e:
             raise ValueError("ClipCollection validation failed. {}".format(e))
 
