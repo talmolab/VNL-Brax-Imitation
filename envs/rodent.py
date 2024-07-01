@@ -476,6 +476,7 @@ class RodentMultiClipTracking(RodentTracking):
     def __init__(
         self,
         reference_clip,
+        all_reference_clip,
         end_eff_names,
         appendage_names,
         walker_body_names,
@@ -495,7 +496,6 @@ class RodentMultiClipTracking(RodentTracking):
         body_error_multiplier,
         min_steps: int = 10,
         always_init_at_clip_start: bool = True,
-        reference_clip_path: str = "clips/all_snips.p",
         **kwargs,
     ):
         super().__init__(
@@ -520,51 +520,21 @@ class RodentMultiClipTracking(RodentTracking):
             **kwargs,
         )
 
+        # Cannot overide self._ref_traj in single clip tracking, only stored once
+        self._all_clips = (
+            all_reference_clip  # should be preprocessed already shape (842,)
+        )
         self._ref_steps = jp.arange(ref_traj_length)
         self._max_ref_step = self._ref_steps[-1]
         self._min_steps = min_steps
-        self._max_end_step = 10000
         self._always_init_at_clip_start = always_init_at_clip_start
-        self._reference_clip_path = reference_clip_path
-
-    def _load_reference_data(
-        self,
-        ref_path,
-    ):
-        """load the full dataset from the data class ClipCollections in mjxp
-        loader is used to get rajectory from id provided by ClipCollections class"""
-
-        with open(ref_path, "rb") as f:
-            all_traj = pickle.load(f)
-        clip_ids = [
-            traj.split("/")[-1].split(".")[0] for traj in all_traj["snips_order"]
-        ]
-
-        dataset = mjxp.ClipCollection(ids=clip_ids)
-
-        self._loader = mjxp
-        self._dataset = dataset
-        self._num_clips = len(self._dataset.ids)  # should be 800
-
-        if self._dataset.end_steps is None:
-            self._dataset.end_steps = jp.arange(self._num_clips)
-        else:
-            # self._all_clips is a list of ReferenceClip objects
-            self._all_clips = [
-                None
-            ] * self._num_clips  # load in all clips as None, load dynamically later, can change
 
     def _get_possible_starts(self):
         """
-        self._possible_starts stores all the possible/random (clip, step starting points)
+        self._possible_starts stores all the random (clip_index, start_frame) as tuple
         """
-        self._start_probabilities = jp.ones(self._num_clips)
-        # normalize to get actual start probabilities
-        self._start_probabilities = jp.array(self._start_probabilities) / jp.sum(
-            self._start_probabilities
-        )
 
-        def compute_starts_for_all_clips(clip_number, start, end):
+        def get_starts_for_all_clips(clip_number, start, end):
             last_possible_start = end - self._max_ref_step - self._min_steps
             if self._always_init_at_clip_start:
                 return jp.array([(clip_number, start)])
@@ -575,112 +545,62 @@ class RodentMultiClipTracking(RodentTracking):
 
         dataset = self._dataset
         clip_numbers = jp.arange(self._num_clips)
-
-        print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
+        # print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
 
         vmap_compute_starts = jax.vmap(
-            compute_starts_for_all_clips, in_axes=(0, 0, 0), out_axes=1
+            get_starts_for_all_clips, in_axes=(0, 0, 0), out_axes=1
         )
-        self._possible_starts = vmap_compute_starts(
+        possible_starts = vmap_compute_starts(
             clip_numbers, dataset.start_steps, dataset.end_steps
         )
 
-        self._possible_starts = jp.concatenate(self._possible_starts, axis=0)
+        return jp.concatenate(possible_starts, axis=0)
 
-        # self._possible_starts = []
-        # dataset = self._dataset
-        # for clip_number, (start, end) in enumerate(
-        #     zip(dataset.start_steps, dataset.end_steps)
-        # ):
-        #     # length - required lookahead - minimum number of steps
-        #     last_possible_start = end - self._max_ref_step - self._min_steps
-
-        #     if self._always_init_at_clip_start:
-        #         self._possible_starts += [(clip_number, start)]
-        #     else:
-        #         self._possible_starts += [
-        #             (clip_number, j) for j in range(start, last_possible_start)
-        #         ]
-
-    def _get_clip_to_track(self, rng):
+    def _get_clip_id(self, rng):
         """
         main muticlip selection function
-        1. need to call self._get_possible_starts() and self._load_reference_data() prior to calling this function.
-        2. self._all_clips is a list of ReferenceClip objects, it is initialized as list of None and then
-        filling in gradually when call this function.
-        3. overides all self._start_frame and self_ref_traj from SingleClipTracking class.
-
-            - self._possible_starts stores all (clip_index, start_step)
-            - self._start_probabilities keeps weighted clip's prob
+        1. self._all_clips is the database for all processed trajectory.
+        2. self._database is a list of ReferenceClip objects
+        3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class, only used in reset & _get_traj function, change there
         """
-        # get specific clip index and start frame
-        # SingleClip is also traced array, TODO: solve trace array indexing issue
-        # index = jax.random.choice(
-        #         rng,
-        #         shape=(),
-        #         a=jp.arange(len(self._possible_starts)),
-        #         p=self._start_probabilities
-        #     )
-        # index = jax.random.randint(rng, (), 0, len(self._possible_starts))
-        index = np.random.randint(0, len(self._possible_starts))
+        # get a random start index to retrieve combo
+        index = jax.random.randint(rng, (), 0, len(self._possible_starts))
+        start_list = self._get_possible_starts()
 
-        print(self._possible_starts.shape)
+        clip_index, start_frame = start_list[..., index, :].astype(int)
+        clip_id, start_frame = np.array(self._dataset.ids)[clip_index]
+        # self._dataset.ids need to be a array (now list), use numpy.random, we need string to load stuff anyways, no need for JAX
 
-        # print(self._possible_starts[...,index,:])
-
-        clip_index, start_step = self._possible_starts[...,index,:]
-        self._ref_traj_index = clip_index
-
-        # print(clip_index.astype(int))
-
-        clip_id = np.array(self._dataset.ids)[self._ref_traj_index.asarray().astype(int)]
-        # self._dataset.ids need to be a array (now list) and no str in it, should convert to integer, use numpy.random
-        # we need string to load stuff anyways, no need for JAX
-
-        # Replace the self._all_clips with valid ReferenceClip objects, need separately broken down clips
-        self._all_clips[self._ref_traj_index] = self._loader.process_clip(
-            clip_id, start_step=start_step, clip_length=self._clip_length
-        )
-        # This is where you get the current ref_traj, overide self._ref_traj in single clip tracking
-        self._ref_traj = self._all_clips[self._ref_traj_index]
-        filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
-        self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
-
-        self._time_step = start_step - self._dataset.start_steps[self._ref_traj_index]
-        self._start_frame = (
-            start_step - self._dataset.start_steps[self._ref_traj_index]
-        ) * self._ref_traj.dt
-        self._last_step = len(self._ref_traj.joints) - self._max_ref_step - 1
+        return clip_id, start_frame
 
     def reset(self, rng) -> State:
         """
-        Resets the environment to an initial state.
+        Resets the environment to random clip and random start.
         """
-        self._load_reference_data(self._reference_clip_path)
-        self._get_possible_starts()
-        self._get_clip_to_track(rng)
+        id, start_frame = self._get_clip_id_start(rng)
 
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
 
         qpos = jp.hstack(
             [
-                self._ref_traj.position[self._start_frame, :],
-                self._ref_traj.quaternion[self._start_frame, :],
-                self._ref_traj.joints[self._start_frame, :],
+                self._ref_traj.position[start_frame, :],
+                self._ref_traj.quaternion[start_frame, :],
+                self._ref_traj.joints[start_frame, :],
             ]
         )
         qvel = jp.hstack(
             [
-                self._ref_traj.velocity[self._start_frame, :],
-                self._ref_traj.angular_velocity[self._start_frame, :],
-                self._ref_traj.joints_velocity[self._start_frame, :],
+                self._ref_traj.velocity[start_frame, :],
+                self._ref_traj.angular_velocity[start_frame, :],
+                self._ref_traj.joints_velocity[start_frame, :],
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, self._start_frame)
+        traj = self._get_traj(data, start_frame)
 
         info = {
-            "cur_frame": self._start_frame,
+            "cur_frame": start_frame,
+            "cur_clip_id": id,
             "traj": traj,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
@@ -704,3 +624,47 @@ class RodentMultiClipTracking(RodentTracking):
         state = state.replace(info=info)
 
         return state
+
+    def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
+        """
+        Gets reference trajectory obs for separate pathway, storage in the info section of state,
+        use similar logic as SingleClipTracking, but ref_traj changed
+        """
+
+        cur_ref_traj = (
+            ...
+        )  # access the data class with index calculated and stored in state.info, just need index, cur_frame passed in already
+
+        # Get the relevant slice of the ref_traj
+        def f(x):
+            if len(x.shape) != 1:
+                return jax.lax.dynamic_slice_in_dim(
+                    x,
+                    cur_frame + 1,
+                    self._ref_traj_length,
+                )
+            return jp.array([])
+
+        ref_traj = jax.tree_util.tree_map(f, cur_ref_traj)
+
+        reference_appendages = super().get_reference_appendages_pos(ref_traj)
+        reference_rel_bodies_pos_local = super().get_reference_rel_bodies_pos_local(
+            data, ref_traj
+        )
+        reference_rel_bodies_pos_global = super().get_reference_rel_bodies_pos_global(
+            data, ref_traj
+        )
+        reference_rel_root_pos_local = super().get_reference_rel_root_pos_local(
+            data, ref_traj
+        )
+        reference_rel_joints = super().get_reference_rel_joints(data, ref_traj)
+
+        return jp.concatenate(
+            [
+                reference_appendages,
+                reference_rel_bodies_pos_local,
+                reference_rel_bodies_pos_global,
+                reference_rel_root_pos_local,
+                reference_rel_joints,
+            ]
+        )

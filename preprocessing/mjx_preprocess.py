@@ -56,6 +56,11 @@ class ClipCollection:
         try:
             if self.start_steps is None:
                 # by default start at the beginning
+                # need this when not start at 0
+                # self._start_frame = (
+                #     start_step - self._dataset.start_steps[self._ref_traj_index]
+                # ) * self._ref_traj.dt
+                
                 self.start_steps = jp.zeros(num_clips)
             else:
                 assert len(self.start_steps) == num_clips
