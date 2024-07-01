@@ -45,18 +45,17 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
         def policy(
             trajectories: types.Observation,
             observations: types.Observation,
+            prev_z: types.Observation,
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
             key_sample, key_network = jax.random.split(key_sample)
-            logits, _, _ = policy_network.apply(
-                *params, trajectories, observations, key_network
+            logits, _, _, z = policy_network.apply(
+                *params, trajectories, observations, key_network, prev_z
             )
             # logits comes from policy directly, raw predictions that decoder generates (action, intention_mean, intention_logvar)
 
             if deterministic:
                 return ppo_networks.parametric_action_distribution.mode(logits), {}
-
-            # action sampling is happening here, according to distribution parameter logits
             raw_actions = parametric_action_distribution.sample_no_postprocessing(
                 logits, key_sample
             )
@@ -77,9 +76,10 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             )
             return postprocessed_actions, {
                 "log_prob": log_prob,
-                "rand_log_prob": rand_log_prob,  # should be low
+                "rand_log_prob": rand_log_prob,
                 "raw_action": raw_actions,
                 "logits": logits,  # logits is previous raw action, mean, sd
+                "prev_z": z
             }
 
         return policy

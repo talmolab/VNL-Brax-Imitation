@@ -42,11 +42,12 @@ def actor_step(
     Collect data.
     Call the policy and feed in here
     """
-
-    # this action here is one value, already post ditribution process, stochasticity added
-    actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
+    # TODO: need to get prev z score here.
+    actions, policy_extras = policy(env_state.info["traj"], env_state.obs, env_state.info["prev_z"], key)
     nstate = env.step(env_state, actions)
+    nstate.info["prev_z"] = policy_extras["prev_z"]
     state_extras = {x: nstate.info[x] for x in extra_fields}
+    # this has infomation of this timestep and the next timestep
     return nstate, Transition(  # pytype: disable=wrong-arg-types  # jax-ndarray
         observation=env_state.obs,
         action=actions,

@@ -27,15 +27,25 @@ class Encoder(nn.Module):
     bias: bool = True
 
     @nn.compact
-    def __call__(self, x: jnp.ndarray):
+    def __call__(self, x: jnp.ndarray, prev_z: jnp.ndarray):
         # For each layer in the sequence
         for i, hidden_size in enumerate(self.layer_sizes):
-            x = nn.Dense(
-                hidden_size,
-                name=f"hidden_{i}",
-                kernel_init=self.kernel_init,
-                use_bias=self.bias,
-            )(x)
+            if i == 0:
+                # concat previous timestep intention to the intention
+                x = nn.Dense(
+                    self.layer_sizes[0],
+                    name=f"hidden_{i}",
+                    kernel_init=self.kernel_init,
+                    use_bias=self.bias,
+                )(jnp.concat([x, prev_z], axis=-1))
+            else:
+                # FC layer
+                x = nn.Dense(
+                    hidden_size,
+                    name=f"hidden_{i+1}",
+                    kernel_init=self.kernel_init,
+                    use_bias=self.bias,
+                )(x)
             x = self.activation(x)
             x = nn.LayerNorm()(x)
 
@@ -88,21 +98,22 @@ class IntentionNetwork(nn.Module):
         self.encoder = Encoder(layer_sizes=self.encoder_layers, latents=self.latents)
         self.decoder = Decoder(layer_sizes=self.decoder_layers)
 
-    def __call__(self, traj, obs, key):
+    def __call__(self, traj, obs, key, prev_z):
         """
         args:
         separate trajectory input + observation input
         """
         _, encoder_rng = jax.random.split(key, 2)
 
+
         # construct the intention network
-        intention_mean, intention_logvar = self.encoder(traj)
+        intention_mean, intention_logvar = self.encoder(traj, prev_z=prev_z)
         z = reparameterize(encoder_rng, intention_mean, intention_logvar)
         action = self.decoder(
             jnp.concatenate([z, obs], axis=-1)
         )  # should be 2 value, mean, sd, no stochstic yet
 
-        return action, intention_mean, intention_logvar
+        return action, intention_mean, intention_logvar, z
 
 
 def make_intention_policy(
@@ -122,15 +133,16 @@ def make_intention_policy(
         latents=latent_size,
     )
 
-    def apply(processor_params, policy_params, traj, obs, key):
+    def apply(processor_params, policy_params, traj, obs, key, prev_z):
         obs = preprocess_observations_fn(obs, processor_params)
-        return policy_module.apply(policy_params, traj=traj, obs=obs, key=key)
+        return policy_module.apply(policy_params, traj=traj, obs=obs, key=key, prev_z=prev_z)
 
+    dummy_prev_z = jnp.zeros(shape=[1, latent_size])
     dummy_obs = jnp.zeros((1, obs_size))
     dummy_traj = jnp.zeros((1, traj_size))
     dummy_key = jax.random.PRNGKey(0)
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs, dummy_key),
+        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs, dummy_key, dummy_prev_z),
         apply=apply,
     )

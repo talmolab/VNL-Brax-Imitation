@@ -86,12 +86,13 @@ def main(train_config: DictConfig):
     env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
+        intention_size=train_config["intention_latent_size"],
         **env_args,
     )
-    
-    # TODO: Also have preset solver params here for eval 
+
+    # TODO: Also have preset solver params here for eval
     # so we can relax params in training for faster sps?
-    
+
     # Set the env to always start at frame 0 by maximizing sub_clip_length
     eval_env_args = env_args.copy()
     eval_env_args["sub_clip_length"] = (
@@ -100,6 +101,7 @@ def main(train_config: DictConfig):
     eval_env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
+        intention_size=train_config["intention_latent_size"],
         **eval_env_args,
     )
 
@@ -155,7 +157,7 @@ def main(train_config: DictConfig):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
-                
+
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
         jit_step = jax.jit(eval_env.step)
         state = eval_env.reset(reset_rng)
@@ -168,7 +170,9 @@ def main(train_config: DictConfig):
         log_probs = []
         rand_probs = []
 
-        for _ in range(train_config["episode_length"]):
+        for i in range(train_config["episode_length"]):
+            if i == 0:
+                prev_z = jax.numpy.zeros(1) # TODO
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng

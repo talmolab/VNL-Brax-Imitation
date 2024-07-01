@@ -130,12 +130,13 @@ def compute_ppo_intention_loss(
     # data is dynamically passed in to update, in a mini batch fashion
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
     rng, policy_rng = jax.random.split(rng)
-    policy_logits, intention_mean, intention_logvar = policy_apply(
+    policy_logits, intention_mean, intention_logvar, _ = policy_apply(
         normalizer_params,
         params.policy,
         data.extras["state_extras"]["traj"],
         data.observation,
         policy_rng,
+        data.extras["policy_extras"]["prev_z"]
     )
 
     baseline = value_apply(
