@@ -172,13 +172,13 @@ def main(train_config: DictConfig):
 
         for i in range(train_config["episode_length"]):
             if i == 0:
-                prev_z = jax.numpy.zeros(1) # TODO
+                prev_z = jax.numpy.zeros(train_config["intention_latent_size"])
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng
             )  # extra is a dictionary
             state = jit_step(state, ctrl)
-
+            
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
