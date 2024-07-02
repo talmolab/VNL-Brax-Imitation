@@ -100,7 +100,7 @@ def make_intention_ppo_networks(
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
     parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size
+        event_size=action_size, var_scale=1e-9 # TEMP CHANGE VAR SCALE
     )
     policy_network = ipn.make_intention_policy(
         parametric_action_distribution.param_size,

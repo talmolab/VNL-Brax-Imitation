@@ -2,8 +2,8 @@ env_name: rodent
 algo_name: ppo
 task_name: track
 num_envs: 2048
-num_timesteps: 25_000_000_000
-eval_every: 100_000
+num_timesteps: 50_000_000 #25_000_000_000
+eval_every: 1_000_000
 episode_length: 250
 batch_size: 2048
 learning_rate: 2e-3
