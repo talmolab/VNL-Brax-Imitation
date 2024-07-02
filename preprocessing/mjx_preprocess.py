@@ -14,7 +14,9 @@ from mujoco.mjx._src import smooth
 
 import preprocessing.transformations as tr
 
-from typing import Text
+from collections import defaultdict
+from typing import Text, Union, List
+import h5py
 import pickle
 
 
@@ -84,7 +86,7 @@ def process_clip_to_train(
     mjx_model = mjx.put_model(mj_model)
     mjx_data = mjx.put_data(mj_model, mj_data)
 
-    return process_clip(mocap_qpos, mjx_model, mjx_data)
+    return process_clip(mocap_qpos, mjx_model, mjx_data, max_qvel=max_qvel, dt=dt)
 
 
 def process_clip(
@@ -215,3 +217,66 @@ def compute_velocity_from_kinematics(
     qvel_gyro = jp.stack(qvel_gyro)
     qvel_joints = (qpos_trajectory[1:, 7:] - qpos_trajectory[:-1, 7:]) / dt
     return jp.concatenate([qvel_translation, qvel_gyro, qvel_joints], axis=1)
+
+
+def save_reference_clip_to_h5(
+    filename: str, clip_names: Union[List[str], str], reference_clip: ReferenceClip
+):
+    """Save the contents of a ReferenceClip object to an .h5 file.
+    Handles single clip and multiple clips
+
+    Args:
+        filename (str):  The name of the .h5 file to save to.
+        clip_names (Union[List[str], str]): If multiclip, a list of clip names.
+            If single clip, one name as a string
+        reference_clip (ReferenceClip): The ReferenceClip object to save.
+    """
+    assert isinstance(clip_names, str) or isinstance(clip_names, list)
+
+    with h5py.File(filename, "w") as hf:
+        if isinstance(clip_names, str):
+            for attr, value in reference_clip.__dict__.items():
+                # Create a group for the clip and add the attributes as Datasets
+                group_name = f"{clip_names}/{attr}"
+                hf.create_dataset(group_name, data=value)
+        else:
+            for i, clip_name in enumerate(clip_names):
+                for attr, value in reference_clip.__dict__.items():
+                    # Create a group for each clip and add the attributes as Datasets
+                    group_name = f"{clip_name}/{attr}"
+                    hf.create_dataset(group_name, data=value[i])
+
+
+def load_reference_clip_from_h5(filename: str, clip_names: Union[List[str], str]):
+    """
+    Load the contents of an .h5 file into a ReferenceClip object.
+
+    Args:
+        filename (str): The name of the .h5 file to load from.
+        clip_names (Union[List[str], str]): The order of clips given by a list of names
+
+    Returns:
+        ReferenceClip: The reconstructed ReferenceClip object.
+    """
+    assert isinstance(clip_names, str) or isinstance(clip_names, list)
+
+    if isinstance(clip_names, str):
+        clip_names = [clip_names]
+
+    aggregated = defaultdict(lambda: [])
+    with h5py.File(filename, "r") as hf:
+        clip = ReferenceClip()
+        # Get lists of arrays for each feature, using the given clip order
+        for clip_name in clip_names:
+            for attr in clip.__dict__.keys():
+                if f"{clip_name}/{attr}" in hf:
+                    aggregated[attr].append(hf[f"{clip_name}/{attr}"][:])
+
+        # Stack them as jax arrays
+        for key in aggregated.keys():
+            aggregated[key] = jp.stack(aggregated[key])
+
+        # Set the values in the ReferenceClip
+        clip = clip.replace(**aggregated)
+
+        return clip
