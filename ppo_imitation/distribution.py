@@ -174,5 +174,7 @@ class NormalTanhDistributionFixedStd(ParametricDistribution):
 
     def create_dist(self, parameters):
         # parameters is logits from networks
+        # decoder have extra params argument for last layer when output, which now is passed in as action size instead of parameter size
+        # this would make the pass in of event size as action size make sense
         scale = jnp.broadcast_to(self._scale, parameters.shape)
         return NormalDistribution(loc=parameters, scale=scale)

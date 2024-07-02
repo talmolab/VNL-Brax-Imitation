@@ -176,7 +176,10 @@ def main(train_config: DictConfig):
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
 
+            min_std = 0.01
+            scale_std = 1e-3
             mean, std = np.split(extras["logits"], 2)
+            std = (jax.nn.softplus(std) + min_std) * scale_std
             log_prob = extras["log_prob"]
             log_probs.append(log_prob)
             means.append(mean)

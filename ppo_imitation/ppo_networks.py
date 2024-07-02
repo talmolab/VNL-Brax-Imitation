@@ -91,12 +91,16 @@ def make_intention_ppo_networks(
     value_hidden_layer_sizes: Sequence[int] = (1024,) * 2,
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
-    parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=1e-3
-    )
-    # parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
-    #     event_size=action_size, scale=0.01
+    
+    # in order for neural network to learn a variance that is strictly bounded -> apply SoftPlut to get strctly positive, (in tanh function)
+    # sampling -> tanh to limit sample bewteen -1 and 1
+    # parametric_action_distribution = distribution.NormalTanhDistribution(
+    #     event_size=action_size, var_scale=1e-3
     # )
+
+    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
+        event_size=action_size, scale=1e-3
+    )
     
     policy_network = ipn.make_intention_policy(
         # parametric_action_distribution.param_size,
