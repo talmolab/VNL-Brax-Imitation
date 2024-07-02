@@ -43,6 +43,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+os.environ["NUMEXPR_MAX_THREADS"] = "32"
 
 
 def jax_has_gpu():
@@ -175,10 +176,10 @@ def main(train_config: DictConfig):
                 prev_z = jax.numpy.zeros(train_config["intention_latent_size"])
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
-                state.info["traj"], state.obs, act_rng
+                state.info["traj"], state.obs, prev_z, act_rng
             )  # extra is a dictionary
             state = jit_step(state, ctrl)
-            
+
             if train_config.env_name != "humanoidstanding":
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
@@ -376,7 +377,10 @@ def main(train_config: DictConfig):
         wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
     make_inference_fn, params, _ = train_fn(
-        environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn, eval_env=eval_env,
+        environment=env,
+        progress_fn=wandb_progress,
+        policy_params_fn=policy_params_fn,
+        eval_env=eval_env,
     )
 
     final_save_path = f"{model_path}/finished"
