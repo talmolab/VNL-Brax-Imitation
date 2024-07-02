@@ -26,7 +26,7 @@ from brax import envs
 from brax.v1 import envs as envs_v1
 import numpy as np
 import uuid
-from preprocessing.mjx_preprocess import process_clip
+from preprocessing.mjx_preprocess import process_clip_to_train
 
 # rendering related
 from dm_control.mujoco import wrapper
@@ -77,7 +77,7 @@ def main(train_config: DictConfig):
     env_args = rodent_config["env_args"]
 
     # Process rodent clip
-    reference_clip = process_clip(
+    reference_clip = process_clip_to_train(
         rodent_config["stac_path"],
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
@@ -106,6 +106,9 @@ def main(train_config: DictConfig):
         **eval_env_args,
     )
 
+    jit_step = jax.jit(eval_env.step)
+    jit_reset = jax.jit(eval_env.reset)
+    
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
         ppo_networks.make_intention_ppo_networks,
@@ -160,8 +163,8 @@ def main(train_config: DictConfig):
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        jit_step = jax.jit(eval_env.step)
-        state = eval_env.reset(reset_rng)
+        
+        state = jit_reset(reset_rng)
 
         rollout = [state.pipeline_state]
         errors = []
@@ -171,7 +174,7 @@ def main(train_config: DictConfig):
         log_probs = []
         rand_probs = []
 
-        for i in range(train_config["episode_length"]):
+        for i in range(eval_env._clip_length):
             if i == 0:
                 prev_z = jax.numpy.zeros(train_config["intention_latent_size"])
             _, act_rng = jax.random.split(act_rng)
@@ -284,7 +287,7 @@ def main(train_config: DictConfig):
                 return jax.lax.dynamic_slice_in_dim(
                     x,
                     0,
-                    train_config["episode_length"],
+                    eval_env._clip_length,
                 )
             return jp.array([])
 

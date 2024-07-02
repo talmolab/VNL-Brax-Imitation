@@ -277,7 +277,7 @@ class RodentTracking(PipelineEnv):
             state (_type_): _description_
         """
         # location using com (dim=3)
-        com_c = data_c.subtree_com[1]
+        com_c = data_c.xpos[self._com_idx]
         com_ref = self._ref_traj.body_positions[:, self._com_idx][
             state.info["cur_frame"], :
         ]
@@ -441,8 +441,6 @@ class RodentTracking(PipelineEnv):
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
         diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
-
-        # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):
