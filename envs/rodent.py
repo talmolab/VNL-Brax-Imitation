@@ -494,7 +494,6 @@ class RodentMultiClipTracking(RodentTracking):
         termination_threshold,
         body_error_multiplier,
         min_steps: int = 10,
-        always_init_at_clip_start: bool = True,
         all_reference_clip_path="clips/test_all_clips.h5",
         **kwargs,
     ):
@@ -521,39 +520,48 @@ class RodentMultiClipTracking(RodentTracking):
         )
 
         # Cannot overide self._ref_traj in single clip tracking, only stored once
+
+        # TODO: this is only for getting all names, change to be more efficient
+        ref_path = "clips/all_snips.p"
+        with open(ref_path, "rb") as f:
+            all_traj = pickle.load(f)
+        names = [traj.split("/")[-1].split(".")[0] for traj in all_traj["snips_order"]]
+
         self._all_clips = mjxp.load_reference_clip_from_h5(
-            all_reference_clip_path
+            all_reference_clip_path, names
         )  # should be preprocessed already shape (842,)
+        self._num_clips = len(names)
         self._ref_steps = jp.arange(ref_traj_length)
-        self._max_ref_step = self._ref_steps[-1]
+        self._max_ref_step = 10
         self._min_steps = min_steps
-        self._always_init_at_clip_start = always_init_at_clip_start
-        self._dataset = mjxp.ReferenceClip(id=jp.arange(self._clip_length))
+        self._dataset = mjxp.ClipCollection(ids=jp.arange(self._num_clips))
 
     def _get_possible_starts(self):
         """
         self._possible_starts stores all the random (clip_index, start_frame) as tuple
         """
 
-        def get_starts_for_all_clips(clip_number, start, end):
-            last_possible_start = end - self._max_ref_step - self._min_steps
-            if self._always_init_at_clip_start:
-                return jp.array([(clip_number, start)])
-            else:
-                return jp.array(
-                    [(clip_number, j) for j in range(start, last_possible_start)]
-                )
+        def get_starts_for_all_clips(clip_number, start):
+            # last_possible_start = end - self._max_ref_step - self._min_steps
+            # if self._always_init_at_clip_start:
+            #     return jp.array([(clip_number, start)])
+            # else:
+            #     return jp.array(
+            #         [(clip_number, j) for j in range(start, last_possible_start)]
+            #     )
+            return jp.array([(clip_number, start)])
 
         dataset = self._dataset
         clip_numbers = jp.arange(self._num_clips)
         # print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
 
+        if dataset.end_steps is None:
+            dataset.end_steps = np.full((self._num_clips), self._clip_length)
+
         vmap_compute_starts = jax.vmap(
-            get_starts_for_all_clips, in_axes=(0, 0, 0), out_axes=1
+            get_starts_for_all_clips, in_axes=(0, 0), out_axes=1
         )
-        possible_starts = vmap_compute_starts(
-            clip_numbers, dataset.start_steps, dataset.end_steps
-        )
+        possible_starts = vmap_compute_starts(clip_numbers, dataset.start_steps)
 
         return jp.concatenate(possible_starts, axis=0)
 
@@ -565,12 +573,12 @@ class RodentMultiClipTracking(RodentTracking):
         3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class, only used in reset & _get_traj function, change there
         """
         # get a random start index to retrieve combo
-        index = jax.random.randint(rng, (), 0, len(self._possible_starts))
         start_list = self._get_possible_starts()
+        index = jax.random.randint(rng, (), 0, len(start_list))
 
         clip_index, start_frame = start_list[..., index, :].astype(int)
-        clip_id, start_frame = np.array(self._dataset.ids)[clip_index]
-        # self._dataset.ids need to be a array (now list), use numpy.random, we need string to load stuff anyways, no need for JAX
+
+        clip_id = jp.array(self._dataset.ids)[clip_index]
 
         return clip_id, start_frame
 
@@ -578,9 +586,13 @@ class RodentMultiClipTracking(RodentTracking):
         """
         Resets the environment to random clip and random start.
         """
-        id, start_frame = self._get_clip_id_start(rng)
+
+        # id is directly an number here
+        id, start_frame = self._get_clip_id(rng)
 
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
+
+        # TODO: we need to still initialize  self._ref_traj as something?
 
         qpos = jp.hstack(
             [
@@ -635,16 +647,19 @@ class RodentMultiClipTracking(RodentTracking):
         """
 
         # Get the relevant slice of the ref_traj
-        def f_single(x):
+        def f_database(x):
+            """get 1 clip out"""
             if len(x.shape) != 1:
-                return jax.lax.dynamic_slice_in_dim(
+                sliced = jax.lax.dynamic_slice_in_dim(
                     x,
                     cur_clip_index,
                     1,
                 )
+                return jp.squeeze(sliced, axis=0)
             return jp.array([])
 
-        def f_database(x):
+        def f_single(x):
+            """get 5 frames out"""
             if len(x.shape) != 1:
                 return jax.lax.dynamic_slice_in_dim(
                     x,

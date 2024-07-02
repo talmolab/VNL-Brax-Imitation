@@ -16,7 +16,7 @@ import preprocessing.transformations as tr
 from collections import defaultdict
 import h5py
 
-from typing import Text, Optional, Sequence, Union
+from typing import Text, Optional, Sequence, Union, List
 import pickle
 
 
