@@ -102,11 +102,11 @@ def make_intention_ppo_networks(
     #     event_size=action_size
     # )
     parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=0.1
+        event_size=action_size, var_scale=0.01
     )
 
     policy_network = ipn.make_intention_policy(
-        parametric_action_distribution.param_size,
+        action_size,
         latent_size=intention_latent_size,
         traj_size=traj_size,
         obs_size=observation_size,
