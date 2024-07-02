@@ -1,7 +1,6 @@
 import functools
 import jax
 from jax import numpy as jp
-from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -10,7 +9,6 @@ from brax.io import model
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
 import mujoco
 import imageio
 
@@ -108,7 +106,7 @@ def main(train_config: DictConfig):
 
     jit_step = jax.jit(eval_env.step)
     jit_reset = jax.jit(eval_env.reset)
-    
+
     # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
         ppo_networks.make_intention_ppo_networks,
@@ -146,7 +144,7 @@ def main(train_config: DictConfig):
     run = wandb.init(
         project="VNL_SingleClipImitationPPO_Intention",
         config=OmegaConf.to_container(train_config, resolve=True),
-        notes=f"",
+        notes=train_config["note"],
         dir="/tmp",
     )
 
@@ -163,7 +161,7 @@ def main(train_config: DictConfig):
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        
+
         state = jit_reset(reset_rng)
 
         rollout = [state.pipeline_state]
