@@ -163,7 +163,7 @@ def main(train_config: DictConfig):
         means = []
         stds = []
         log_probs = []
-        rand_probs = []
+        ctrls = []
 
         for _ in range(train_config["episode_length"]):
             _, act_rng = jax.random.split(act_rng)
@@ -177,11 +177,11 @@ def main(train_config: DictConfig):
                 rewards.append(state.reward)
 
             mean, std = np.split(extras["logits"], 2)
-            log_prob, rand_prob = extras["rand_log_prob"], extras["log_prob"]
+            log_prob = extras["log_prob"]
             log_probs.append(log_prob)
-            rand_probs.append(rand_prob)
             means.append(mean)
             stds.append(std)
+            ctrls.append(ctrl)
             rollout.append(state.pipeline_state)
 
         # Plot rtrunk over rollout
@@ -194,6 +194,20 @@ def main(train_config: DictConfig):
                     "frame",
                     "rtrunk",
                     title="rtrunk for each rollout frame",
+                )
+            }
+        )
+
+        # Plot action means over rollout (array of array)
+        data = np.array(ctrls).T
+        wandb.log(
+            {
+                f"logits/rollout_ctrls": wandb.plot.line_series(
+                    xs=range(data.shape[1]),
+                    ys=data,
+                    keys=[str(i) for i in range(data.shape[0])],
+                    xname="Frame",
+                    title=f"Action actuator Ctrls for each rollout frame",
                 )
             }
         )
@@ -236,20 +250,6 @@ def main(train_config: DictConfig):
                     "frame",
                     "log_probs",
                     title="Policy action probability for each rollout frame",
-                )
-            }
-        )
-
-        # Plot random action prob over rollout
-        data = [[x, y] for (x, y) in zip(range(len(rand_probs)), rand_probs)]
-        table = wandb.Table(data=data, columns=["frame", "rand_probs"])
-        wandb.log(
-            {
-                "logits/rollout_rand_probs": wandb.plot.line(
-                    table,
-                    "frame",
-                    "rand_probs",
-                    title="Random action probability for each rollout frame",
                 )
             }
         )

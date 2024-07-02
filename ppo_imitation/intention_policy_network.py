@@ -62,6 +62,7 @@ class Decoder(nn.Module):
                 kernel_init=self.kernel_init,
                 use_bias=self.bias,
             )(x)
+            # last layer is param_size
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 x = self.activation(x)
                 x = nn.LayerNorm()(
