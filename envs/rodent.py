@@ -494,7 +494,8 @@ class RodentMultiClipTracking(RodentTracking):
         termination_threshold,
         body_error_multiplier,
         min_steps: int = 10,
-        all_reference_clip_path="clips/test_all_clips.h5",
+        all_reference_clip_path: str = "clips/test_all_clips.h5",
+        random_start: bool = True,
         **kwargs,
     ):
         super().__init__(
@@ -535,8 +536,9 @@ class RodentMultiClipTracking(RodentTracking):
         self._max_ref_step = 10
         self._min_steps = min_steps
         self._dataset = mjxp.ClipCollection(ids=jp.arange(self._num_clips))
+        self.random_start = random_start
 
-    def _get_possible_starts(self):
+    def _get_possible_starts(self, rng):
         """
         self._possible_starts stores all the random (clip_index, start_frame) as tuple
         """
@@ -556,7 +558,10 @@ class RodentMultiClipTracking(RodentTracking):
         # print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
 
         if dataset.end_steps is None:
-            dataset.end_steps = np.full((self._num_clips), self._clip_length)
+            dataset.end_steps = np.full((self._num_clips,), self._clip_length - self._sub_clip_length - self._ref_traj_length)
+        
+        if self.random_start:
+            dataset.start_steps = jax.random.randint(rng, (self._num_clips,), dataset.start_steps[0], dataset.end_steps[0])
 
         vmap_compute_starts = jax.vmap(
             get_starts_for_all_clips, in_axes=(0, 0), out_axes=1
@@ -573,7 +578,7 @@ class RodentMultiClipTracking(RodentTracking):
         3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class, only used in reset & _get_traj function, change there
         """
         # get a random start index to retrieve combo
-        start_list = self._get_possible_starts()
+        start_list = self._get_possible_starts(rng)
         index = jax.random.randint(rng, (), 0, len(start_list))
 
         clip_index, start_frame = start_list[..., index, :].astype(int)
@@ -614,6 +619,7 @@ class RodentMultiClipTracking(RodentTracking):
         info = {
             "cur_frame": start_frame,
             "cur_clip_id": id,
+            "sub_clip_frame": 0,
             "traj": traj,
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
@@ -637,6 +643,70 @@ class RodentMultiClipTracking(RodentTracking):
         state = state.replace(info=info)
 
         return state
+    
+    def step(self, state: State, action: jp.ndarray) -> State:
+        """Runs one timestep of the environment's dynamics.
+        no need to use super() here"""
+        data0 = state.pipeline_state
+        data = self.pipeline_step(data0, action)
+
+        info = state.info.copy()
+        info["cur_frame"] += 1
+        info["sub_clip_frame"] += 1
+
+        obs = self._get_obs(data, action, state.info)
+        traj = self._get_traj(data, info["cur_frame"], info['cur_clip_id'])
+
+        rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
+            state, data
+        )
+        rcom *= 0.01
+        rvel *= 0.01
+        rapp *= 0.01
+        rtrunk *= 0.01
+        rtrunk += 0
+        rquat *= 0.01
+        ract *= 0.0001
+
+        total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
+
+        # increment frame tracker and update termination error
+        info["termination_error"] = rtrunk
+        info["traj"] = traj
+
+        sub_clip_healthy = jp.where(
+            info["sub_clip_frame"] < self._sub_clip_length,
+            jp.array(1, float),
+            jp.array(0, float),
+        )
+
+        done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
+        done = jp.max(jp.array([1.0 - is_healthy, done]))
+        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
+
+        # Handle nans during sim by resetting env
+        reward = jp.nan_to_num(total_reward)
+        obs = jp.nan_to_num(obs)
+
+        from jax.flatten_util import ravel_pytree
+
+        flattened_vals, _ = ravel_pytree(data)
+        num_nans = jp.sum(jp.isnan(flattened_vals))
+        done = jp.where(num_nans > 0, 1.0, done)
+
+        state.metrics.update(
+            rcom=rcom,
+            rvel=rvel,
+            rapp=rapp,
+            rquat=rquat,
+            rtrunk=rtrunk,
+            ract=ract,
+            termination_error=rtrunk,
+        )
+
+        return state.replace(
+            pipeline_state=data, obs=obs, reward=reward, done=done, info=info
+        )
 
     def _get_traj(
         self, data: mjx.Data, cur_frame: int, cur_clip_index: int
@@ -672,6 +742,9 @@ class RodentMultiClipTracking(RodentTracking):
             f_database, self._all_clips
         )  # access the data class with index calculated and stored in state.info, just need index, cur_frame passed in already
         ref_traj = jax.tree_util.tree_map(f_single, cur_ref_traj)
+
+        filtered_bodies = ref_traj.body_positions[:, self._body_idxs]
+        ref_traj = ref_traj.replace(body_positions=filtered_bodies)
 
         reference_appendages = super().get_reference_appendages_pos(ref_traj)
         reference_rel_bodies_pos_local = super().get_reference_rel_bodies_pos_local(
