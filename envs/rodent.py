@@ -498,6 +498,7 @@ class RodentMultiClipTracking(RodentTracking):
         random_start: bool = True,
         **kwargs,
     ):
+        #TODO: reference_clip is currently still passed in, for rendering maybe?
         super().__init__(
             reference_clip,
             end_eff_names,

@@ -19,7 +19,7 @@ from ppo_imitation import ppo_networks
 
 from envs.humanoid import HumanoidTracking, HumanoidStanding
 from envs.ant import AntTracking
-from envs.rodent import RodentTracking
+from envs.rodent import RodentTracking, RodentMultiClipTracking
 
 from typing import Union
 from brax import envs
@@ -66,6 +66,7 @@ envs.register_environment("humanoidtracking", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
 envs.register_environment("humanoidstanding", HumanoidStanding)
+envs.register_environment("rodentmuticlip", RodentMultiClipTracking)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
@@ -81,8 +82,6 @@ def main(train_config: DictConfig):
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
     )
-
-    # Init env
     env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
