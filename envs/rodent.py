@@ -558,10 +558,15 @@ class RodentMultiClipTracking(RodentTracking):
         # print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
 
         if dataset.end_steps is None:
-            dataset.end_steps = np.full((self._num_clips,), self._clip_length - self._sub_clip_length - self._ref_traj_length)
-        
+            dataset.end_steps = np.full(
+                (self._num_clips,),
+                self._clip_length - self._sub_clip_length - self._ref_traj_length,
+            )
+
         if self.random_start:
-            dataset.start_steps = jax.random.randint(rng, (self._num_clips,), dataset.start_steps[0], dataset.end_steps[0])
+            dataset.start_steps = jax.random.randint(
+                rng, (self._num_clips,), dataset.start_steps[0], dataset.end_steps[0]
+            )
 
         vmap_compute_starts = jax.vmap(
             get_starts_for_all_clips, in_axes=(0, 0), out_axes=1
@@ -575,7 +580,8 @@ class RodentMultiClipTracking(RodentTracking):
         main muticlip selection function
         1. self._all_clips is the database for all processed trajectory.
         2. self._database is a list of ReferenceClip objects
-        3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class, only used in reset & _get_traj function, change there
+        3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class,
+        only used in reset & _get_traj function, change there
         """
         # get a random start index to retrieve combo
         start_list = self._get_possible_starts(rng)
@@ -595,22 +601,23 @@ class RodentMultiClipTracking(RodentTracking):
         # id is directly an number here
         id, start_frame = self._get_clip_id(rng)
 
+        ref_traj = self._slice_correct_traj(start_frame, id)
+
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
 
-        # TODO: we need to still initialize  self._ref_traj as something?
-
+        # Intitialize to the random clip and random index
         qpos = jp.hstack(
             [
-                self._ref_traj.position[start_frame, :],
-                self._ref_traj.quaternion[start_frame, :],
-                self._ref_traj.joints[start_frame, :],
+                ref_traj.position[start_frame, :],
+                ref_traj.quaternion[start_frame, :],
+                ref_traj.joints[start_frame, :],
             ]
         )
         qvel = jp.hstack(
             [
-                self._ref_traj.velocity[start_frame, :],
-                self._ref_traj.angular_velocity[start_frame, :],
-                self._ref_traj.joints_velocity[start_frame, :],
+                ref_traj.velocity[start_frame, :],
+                ref_traj.angular_velocity[start_frame, :],
+                ref_traj.joints_velocity[start_frame, :],
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
@@ -643,7 +650,7 @@ class RodentMultiClipTracking(RodentTracking):
         state = state.replace(info=info)
 
         return state
-    
+
     def step(self, state: State, action: jp.ndarray) -> State:
         """Runs one timestep of the environment's dynamics.
         no need to use super() here"""
@@ -655,7 +662,9 @@ class RodentMultiClipTracking(RodentTracking):
         info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
-        traj = self._get_traj(data, info["cur_frame"], info['cur_clip_id'])
+
+        #TODO: this is techniqually the only line that is changed
+        traj = self._get_traj(data, info["cur_frame"], info["cur_clip_id"])
 
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
@@ -716,6 +725,34 @@ class RodentMultiClipTracking(RodentTracking):
         use similar logic as SingleClipTracking, but ref_traj changed
         """
 
+        ref_traj = self._slice_correct_traj(cur_frame, cur_clip_index)
+
+        reference_appendages = super().get_reference_appendages_pos(ref_traj)
+        reference_rel_bodies_pos_local = super().get_reference_rel_bodies_pos_local(
+            data, ref_traj
+        )
+        reference_rel_bodies_pos_global = super().get_reference_rel_bodies_pos_global(
+            data, ref_traj
+        )
+        reference_rel_root_pos_local = super().get_reference_rel_root_pos_local(
+            data, ref_traj
+        )
+        reference_rel_joints = super().get_reference_rel_joints(data, ref_traj)
+
+        return jp.concatenate(
+            [
+                reference_appendages,
+                reference_rel_bodies_pos_local,
+                reference_rel_bodies_pos_global,
+                reference_rel_root_pos_local,
+                reference_rel_joints,
+            ]
+        )
+
+    def _slice_correct_traj(self, cur_frame: int, cur_clip_index: int) -> jp.ndarray:
+        """Slice out correct clip according to clip_index and correct frmae according to cur_frame
+        Used by _get_traj and reset function, filters are applied."""
+
         # Get the relevant slice of the ref_traj
         def f_database(x):
             """get 1 clip out"""
@@ -746,24 +783,4 @@ class RodentMultiClipTracking(RodentTracking):
         filtered_bodies = ref_traj.body_positions[:, self._body_idxs]
         ref_traj = ref_traj.replace(body_positions=filtered_bodies)
 
-        reference_appendages = super().get_reference_appendages_pos(ref_traj)
-        reference_rel_bodies_pos_local = super().get_reference_rel_bodies_pos_local(
-            data, ref_traj
-        )
-        reference_rel_bodies_pos_global = super().get_reference_rel_bodies_pos_global(
-            data, ref_traj
-        )
-        reference_rel_root_pos_local = super().get_reference_rel_root_pos_local(
-            data, ref_traj
-        )
-        reference_rel_joints = super().get_reference_rel_joints(data, ref_traj)
-
-        return jp.concatenate(
-            [
-                reference_appendages,
-                reference_rel_bodies_pos_local,
-                reference_rel_bodies_pos_global,
-                reference_rel_root_pos_local,
-                reference_rel_joints,
-            ]
-        )
+        return ref_traj
