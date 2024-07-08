@@ -96,13 +96,14 @@ def make_intention_ppo_networks(
     encoder_layer_sizes: Sequence[int] = (1024,) * 2,
     decoder_layer_sizes: Sequence[int] = (1024,) * 2,
     value_hidden_layer_sizes: Sequence[int] = (1024,) * 2,
+    var_action_dist: float = 1e2 # the variance of the action distribution
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
     # parametric_action_distribution = distribution.NormalTanhDistribution(
     #     event_size=action_size
     # )
     parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
-        event_size=action_size,  # scale=1e-3
+        event_size=action_size, scale=var_action_dist
     )
 
     policy_network = ipn.make_intention_policy(

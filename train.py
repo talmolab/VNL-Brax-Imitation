@@ -41,7 +41,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
-os.environ["NUMEXPR_MAX_THREADS"] = "32"
+os.environ["NUMEXPR_MAX_THREADS"] = "64"
 
 
 def jax_has_gpu():
@@ -107,12 +107,12 @@ def main(train_config: DictConfig):
     jit_step = jax.jit(eval_env.step)
     jit_reset = jax.jit(eval_env.reset)
 
-    # TODO: make the intention network factory a part of the config
     intention_network_factory = functools.partial(
         ppo_networks.make_intention_ppo_networks,
         intention_latent_size=train_config.intention_latent_size,
         encoder_layer_sizes=train_config.encoder_layer_sizes,
         decoder_layer_sizes=train_config.decoder_layer_sizes,
+        var_action_dist=train_config.var_action_dist,
     )
 
     train_fn = functools.partial(
