@@ -24,6 +24,9 @@ from envs.rodent import RodentTracking
 from typing import Union
 from brax import envs
 from brax.v1 import envs as envs_v1
+from brax.training.agents.ppo.losses import compute_ppo_loss as mlp_ppo_loss
+from ppo_imitation import losses as ppo_losses
+
 import numpy as np
 import uuid
 from preprocessing.mjx_preprocess import process_clip_to_train
@@ -105,14 +108,24 @@ def main(train_config: DictConfig):
 
     jit_step = jax.jit(eval_env.step)
     jit_reset = jax.jit(eval_env.reset)
-    
-    # TODO: make the intention network factory a part of the config
-    intention_network_factory = functools.partial(
-        ppo_networks.make_intention_ppo_networks,
-        intention_latent_size=train_config.intention_latent_size,
-        encoder_layer_sizes=train_config.encoder_layer_sizes,
-        decoder_layer_sizes=train_config.decoder_layer_sizes,
-    )
+
+    # Make this a dictionary mapping or similar
+    if train_config["policy_network_name"] == "mlp":
+        network_factory = functools.partial(
+            ppo_networks.make_mlp_ppo_networks,
+            policy_layer_sizes=train_config.decoder_layer_sizes,
+        )
+        # set KL weight to 0 for mlp
+        train_config["kl_weight"] = 0.0
+    elif train_config["policy_network_name"] == "intention":
+        network_factory = functools.partial(
+            ppo_networks.make_intention_ppo_networks,
+            intention_latent_size=train_config.intention_latent_size,
+            encoder_layer_sizes=train_config.encoder_layer_sizes,
+            decoder_layer_sizes=train_config.decoder_layer_sizes,
+        )
+    else:
+        raise Exception("invalid config: policy_network_name")
 
     train_fn = functools.partial(
         ppo.train,
@@ -133,7 +146,7 @@ def main(train_config: DictConfig):
         seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
-        network_factory=intention_network_factory,
+        network_factory=network_factory,
     )
 
     # Generates a completely random UUID (version 4)
@@ -160,7 +173,7 @@ def main(train_config: DictConfig):
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        
+
         state = jit_reset(reset_rng)
 
         rollout = [state.pipeline_state]

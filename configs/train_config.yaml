@@ -1,17 +1,23 @@
 env_name: rodent
 algo_name: ppo
 task_name: track
-num_envs: 2048
+num_envs: 128
 num_timesteps: 3_000_000_000
-eval_every: 10_000_000
+eval_every: 10_000
 episode_length: 1000
-batch_size: 2048
+batch_size: 32
 learning_rate: 6e-4
 num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.1
-kl_weight: 1e-4
 terminate_when_unhealthy: true
-intention_latent_size: 64
+# Either "mlp" or "intention"
+policy_network_name: "mlp"
+# If using mlp policy network
+mlp_policy_layer_sizes: [256, 256]
+# If using intention policy network
 encoder_layer_sizes: [256, 256]
+intention_latent_size: 64
 decoder_layer_sizes: [256, 256]
+kl_weight: 1e-4
+
