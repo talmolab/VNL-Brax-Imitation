@@ -68,7 +68,6 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             )
             return postprocessed_actions, {
                 "log_prob": log_prob,
-                "rand_log_prob": 0.0,  # should be low
                 "raw_action": raw_actions,
                 "logits": logits,  # logits is previous raw action, mean, sd
             }
@@ -128,11 +127,8 @@ def make_mlp_ppo_networks(
     value_hidden_layer_sizes: Sequence[int] = (256,) * 2,
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
-    # parametric_action_distribution = distribution.NormalTanhDistribution(
-    #     event_size=action_size
-    # )
-    parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=0.1
+    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
+        event_size=action_size, scale=0.1
     )
 
     policy_network = imitationnetworks.make_mlp_policy(

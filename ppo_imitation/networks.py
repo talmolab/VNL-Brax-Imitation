@@ -14,38 +14,27 @@ from jax import random
 
 import flax
 from flax import linen as nn
+from flax import linen
+
+ActivationFn = Callable[[jnp.ndarray], jnp.ndarray]
+Initializer = Callable[..., Any]
 
 
-class MLP(nn.Module):
+class ImitationMLP(linen.Module):
     """MLP module."""
 
     layer_sizes: Sequence[int]
-    activation = nn.relu
-    kernel_init = jax.nn.initializers.lecun_uniform()
+    activation: ActivationFn = linen.relu
+    kernel_init: Initializer = jax.nn.initializers.lecun_uniform()
     activate_final: bool = False
     bias: bool = True
     layer_norm: bool = False
 
-
-class ImitationMLP(nn.Module):
-    """Feedfoward MLP module sharing the same signature
-    as the encoder/decoder module
-    """
-
-    layer_sizes: Sequence[int]
-    activation = nn.relu
-    kernel_init = jax.nn.initializers.he_normal()
-    activate_final: bool = False
-    bias: bool = True
-    layer_norm: bool = True
-
-    @nn.compact
-    def __call__(self, traj, obs, key):
-        # Stack column-wise, return zeros for where the loss fn
-        # expects mean and logvar of a latent space
-        hidden = jnp.concatenate((traj, obs), axis=-1)
+    @linen.compact
+    def __call__(self, data: jnp.ndarray):
+        hidden = data
         for i, hidden_size in enumerate(self.layer_sizes):
-            hidden = nn.Dense(
+            hidden = linen.Dense(
                 hidden_size,
                 name=f"hidden_{i}",
                 kernel_init=self.kernel_init,
@@ -54,7 +43,7 @@ class ImitationMLP(nn.Module):
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 hidden = self.activation(hidden)
                 if self.layer_norm:
-                    hidden = nn.LayerNorm()(hidden)
+                    hidden = linen.LayerNorm()(hidden)
         return hidden, 0.0, 0.0
 
 
@@ -186,17 +175,19 @@ def make_mlp_policy(
 ) -> IntentionNetwork:
     """Creates an intention policy network."""
 
-    policy_module = ImitationMLP(layer_sizes=layer_sizes + [param_size])
+    policy_module = ImitationMLP(layer_sizes=list(layer_sizes) + [param_size])
 
     def apply(processor_params, policy_params, traj, obs, key):
         obs = preprocess_observations_fn(obs, processor_params)
-        return policy_module.apply(policy_params, traj=traj, obs=obs, key=key)
+        data = jnp.concatenate([traj, obs], axis=-1)
+        return policy_module.apply(policy_params, data=data)
 
     dummy_obs = jnp.zeros((1, obs_size))
     dummy_traj = jnp.zeros((1, traj_size))
-    dummy_key = jax.random.PRNGKey(0)
 
     return networks.FeedForwardNetwork(
-        init=lambda key: policy_module.init(key, dummy_traj, dummy_obs, dummy_key),
+        init=lambda key: policy_module.init(
+            key, data=jnp.concatenate([dummy_traj, dummy_obs], axis=-1)
+        ),
         apply=apply,
     )
