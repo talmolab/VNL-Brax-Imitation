@@ -147,14 +147,16 @@ class RodentTracking(PipelineEnv):
                 self._ref_traj.joints_velocity[self._start_frame, :],
             ]
         )
-        data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, self._start_frame)
 
         info = {
             "cur_frame": self._start_frame,
             "sub_clip_frame": 0,
-            "traj": traj,
         }
+        data = self.pipeline_init(qpos + noise, qvel)
+        traj = self._get_traj(data, info)
+
+        info['traj'] = traj
+
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
         metrics = {
@@ -187,7 +189,7 @@ class RodentTracking(PipelineEnv):
         info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
-        traj = self._get_traj(data, info["cur_frame"])
+        traj = self._get_traj(data, info)
 
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
@@ -345,10 +347,12 @@ class RodentTracking(PipelineEnv):
             ]
         )
 
-    def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
+    def _get_traj(self, data: mjx.Data, info: dict) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state
         """
+
+        cur_frame = info["cur_frame"]
 
         # Get the relevant slice of the ref_traj
         def f(x):
@@ -498,7 +502,7 @@ class RodentMultiClipTracking(RodentTracking):
         random_start: bool = True,
         **kwargs,
     ):
-        #TODO: reference_clip is currently still passed in, for rendering maybe?
+        # TODO: reference_clip is currently still passed in, for rendering maybe?
         super().__init__(
             reference_clip,
             end_eff_names,
@@ -536,7 +540,7 @@ class RodentMultiClipTracking(RodentTracking):
         self._ref_steps = jp.arange(ref_traj_length)
         self._max_ref_step = 10
         self._min_steps = min_steps
-        self._dataset = mjxp.ClipCollection(ids=jp.arange(self._num_clips))
+        self._clip_relevants = mjxp.ClipCollection(ids=jp.arange(self._num_clips))
         self.random_start = random_start
 
     def _get_possible_starts(self, rng):
@@ -554,25 +558,25 @@ class RodentMultiClipTracking(RodentTracking):
             #     )
             return jp.array([(clip_number, start)])
 
-        dataset = self._dataset
+        clip_relevants = self._clip_relevants
         clip_numbers = jp.arange(self._num_clips)
-        # print(clip_numbers.shape, dataset.start_steps.shape, dataset.end_steps.shape)
+        # print(clip_numbers.shape, clip_relevants.start_steps.shape, clip_relevants.end_steps.shape)
 
-        if dataset.end_steps is None:
-            dataset.end_steps = np.full(
+        if clip_relevants.end_steps is None:
+            clip_relevants.end_steps = np.full(
                 (self._num_clips,),
                 self._clip_length - self._sub_clip_length - self._ref_traj_length,
             )
 
         if self.random_start:
-            dataset.start_steps = jax.random.randint(
-                rng, (self._num_clips,), dataset.start_steps[0], dataset.end_steps[0]
+            clip_relevants.start_steps = jax.random.randint(
+                rng, (self._num_clips,), clip_relevants.start_steps[0], clip_relevants.end_steps[0]
             )
 
         vmap_compute_starts = jax.vmap(
             get_starts_for_all_clips, in_axes=(0, 0), out_axes=1
-        )
-        possible_starts = vmap_compute_starts(clip_numbers, dataset.start_steps)
+        ) # for each i in clip_numbers & start steps -> stacking horizontally
+        possible_starts = vmap_compute_starts(clip_numbers, clip_relevants.start_steps)
 
         return jp.concatenate(possible_starts, axis=0)
 
@@ -590,7 +594,7 @@ class RodentMultiClipTracking(RodentTracking):
 
         clip_index, start_frame = start_list[..., index, :].astype(int)
 
-        clip_id = jp.array(self._dataset.ids)[clip_index]
+        clip_id = jp.array(self._clip_relevants.ids)[clip_index]
 
         return clip_id, start_frame
 
@@ -621,15 +625,16 @@ class RodentMultiClipTracking(RodentTracking):
                 ref_traj.joints_velocity[start_frame, :],
             ]
         )
-        data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, start_frame, id)
-
         info = {
             "cur_frame": start_frame,
             "cur_clip_id": id,
             "sub_clip_frame": 0,
-            "traj": traj,
         }
+        data = self.pipeline_init(qpos + noise, qvel)
+        traj = self._get_traj(data, info)
+
+        info["traj"] = traj
+
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
         metrics = {
@@ -652,79 +657,14 @@ class RodentMultiClipTracking(RodentTracking):
 
         return state
 
-    def step(self, state: State, action: jp.ndarray) -> State:
-        """Runs one timestep of the environment's dynamics.
-        no need to use super() here"""
-        data0 = state.pipeline_state
-        data = self.pipeline_step(data0, action)
-
-        info = state.info.copy()
-        info["cur_frame"] += 1
-        info["sub_clip_frame"] += 1
-
-        obs = self._get_obs(data, action, state.info)
-
-        #TODO: this is techniqually the only line that is changed
-        traj = self._get_traj(data, info["cur_frame"], info["cur_clip_id"])
-
-        rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
-            state, data
-        )
-        rcom *= 0.01
-        rvel *= 0.01
-        rapp *= 0.01
-        rtrunk *= 0.01
-        rtrunk += 0
-        rquat *= 0.01
-        ract *= 0.0001
-
-        total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
-
-        # increment frame tracker and update termination error
-        info["termination_error"] = rtrunk
-        info["traj"] = traj
-
-        sub_clip_healthy = jp.where(
-            info["sub_clip_frame"] < self._sub_clip_length,
-            jp.array(1, float),
-            jp.array(0, float),
-        )
-
-        done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
-        done = jp.max(jp.array([1.0 - is_healthy, done]))
-        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
-
-        # Handle nans during sim by resetting env
-        reward = jp.nan_to_num(total_reward)
-        obs = jp.nan_to_num(obs)
-
-        from jax.flatten_util import ravel_pytree
-
-        flattened_vals, _ = ravel_pytree(data)
-        num_nans = jp.sum(jp.isnan(flattened_vals))
-        done = jp.where(num_nans > 0, 1.0, done)
-
-        state.metrics.update(
-            rcom=rcom,
-            rvel=rvel,
-            rapp=rapp,
-            rquat=rquat,
-            rtrunk=rtrunk,
-            ract=ract,
-            termination_error=rtrunk,
-        )
-
-        return state.replace(
-            pipeline_state=data, obs=obs, reward=reward, done=done, info=info
-        )
-
-    def _get_traj(
-        self, data: mjx.Data, cur_frame: int, cur_clip_index: int
-    ) -> jp.ndarray:
+    def _get_traj(self, data: mjx.Data, info: dict) -> jp.ndarray:
         """
         Gets reference trajectory obs for separate pathway, storage in the info section of state,
         use similar logic as SingleClipTracking, but ref_traj changed
         """
+
+        cur_frame = info["cur_frame"]
+        cur_clip_index = info["cur_clip_id"]
 
         ref_traj = self._slice_correct_traj(cur_frame, cur_clip_index)
 
