@@ -176,7 +176,7 @@ def main(train_config: DictConfig):
                 rewards.append(state.reward)
 
             min_std = 0.01
-            scale_std = 1e-10
+            scale_std = 0.01
             mean, std = np.split(extras["logits"], 2)
             std = (jax.nn.softplus(std) + min_std) * scale_std
             log_prob = extras["log_prob"]
