@@ -63,20 +63,12 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             # probability of selection specific action, actions with higher reward should have higher probability
             log_prob = parametric_action_distribution.log_prob(logits, raw_actions)
 
-            action_size = logits.shape[-1] // 2
-            random_actions = jax.random.uniform(
-                key_sample, shape=(action_size,), minval=-1, maxval=1
-            )
-            rand_log_prob = parametric_action_distribution.log_prob(
-                logits, random_actions
-            )
-
             postprocessed_actions = parametric_action_distribution.postprocess(
                 raw_actions
             )
             return postprocessed_actions, {
                 "log_prob": log_prob,
-                "rand_log_prob": rand_log_prob,  # should be low
+                "rand_log_prob": 0.0,  # should be low
                 "raw_action": raw_actions,
                 "logits": logits,  # logits is previous raw action, mean, sd
             }
@@ -101,8 +93,8 @@ def make_intention_ppo_networks(
     # parametric_action_distribution = distribution.NormalTanhDistribution(
     #     event_size=action_size
     # )
-    parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=0.1
+    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
+        event_size=action_size, scale=0.01
     )
 
     policy_network = imitationnetworks.make_intention_policy(
