@@ -152,10 +152,12 @@ def main(train_config: DictConfig):
     # Generates a completely random UUID (version 4)
     run_id = uuid.uuid4()
     model_path = f"./model_checkpoints/{run_id}"
+    
+    merged_conf = OmegaConf.merge(env_cfg, train_config)
 
     run = wandb.init(
         project="VNL_SingleClipImitationPPO_Intention",
-        config=OmegaConf.to_container(train_config, resolve=True),
+        config=OmegaConf.to_container(merged_conf, resolve=True),
         notes=f"",
         dir="/tmp",
     )

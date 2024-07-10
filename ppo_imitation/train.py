@@ -320,6 +320,7 @@ def train(
             (),
             length=batch_size * num_minibatches // num_envs,
         )
+        print(jax.tree_map(lambda x: x.shape, data))
         # Have leading dimensions (batch_size * num_minibatches, unroll_length)
         data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 1, 2), data)
         data = jax.tree_util.tree_map(

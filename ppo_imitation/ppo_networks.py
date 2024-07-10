@@ -128,7 +128,7 @@ def make_mlp_ppo_networks(
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
     parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
-        event_size=action_size, scale=0.1
+        event_size=action_size, scale=0.001
     )
 
     policy_network = imitationnetworks.make_mlp_policy(

@@ -27,7 +27,7 @@ rodent:
   name: rodent
   camera: close_profile
   rendering_mjcf: rodent_pair.xml
-  stac_path: transform_snips.p
+  stac_path: clips/all_snips.p
   clip_idx: 1
   env_args:
     mjcf_path: "./assets/rodent.xml"
@@ -38,7 +38,7 @@ rodent:
     clip_length: 250
     sub_clip_length: 10
     ref_traj_length: 5
-    termination_threshold: 5
+    termination_threshold: 10
     end_eff_names:
       - foot_L
       - foot_R 

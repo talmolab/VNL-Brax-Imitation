@@ -168,9 +168,6 @@ class RodentTracking(PipelineEnv):
         state = State(data, obs, reward, done, metrics, info)
         termination_error = self._calculate_termination(state)
         info["termination_error"] = termination_error
-        # if termination_error > 1e-1:
-        #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
-        #                     'This is likely due to a proto/walker mismatch.'))
         state = state.replace(info=info)
 
         return state
