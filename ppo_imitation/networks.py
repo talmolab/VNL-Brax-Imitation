@@ -14,27 +14,26 @@ from jax import random
 
 import flax
 from flax import linen as nn
-from flax import linen
 
 ActivationFn = Callable[[jnp.ndarray], jnp.ndarray]
 Initializer = Callable[..., Any]
 
 
-class ImitationMLP(linen.Module):
+class ImitationMLP(nn.Module):
     """MLP module."""
 
     layer_sizes: Sequence[int]
-    activation: ActivationFn = linen.relu
+    activation: ActivationFn = nn.relu
     kernel_init: Initializer = jax.nn.initializers.lecun_uniform()
     activate_final: bool = False
     bias: bool = True
     layer_norm: bool = False
 
-    @linen.compact
+    @nn.compact
     def __call__(self, data: jnp.ndarray):
         hidden = data
         for i, hidden_size in enumerate(self.layer_sizes):
-            hidden = linen.Dense(
+            hidden = nn.Dense(
                 hidden_size,
                 name=f"hidden_{i}",
                 kernel_init=self.kernel_init,
@@ -43,7 +42,7 @@ class ImitationMLP(linen.Module):
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 hidden = self.activation(hidden)
                 if self.layer_norm:
-                    hidden = linen.LayerNorm()(hidden)
+                    hidden = nn.LayerNorm()(hidden)
         return hidden, 0.0, 0.0
 
 
