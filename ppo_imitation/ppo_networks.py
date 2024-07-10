@@ -70,6 +70,7 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
                 "log_prob": log_prob,
                 "raw_action": raw_actions,
                 "logits": logits,  # logits is previous raw action, mean, sd
+                "actions": postprocessed_actions
             }
 
         return policy

@@ -152,7 +152,7 @@ def main(train_config: DictConfig):
     # Generates a completely random UUID (version 4)
     run_id = uuid.uuid4()
     model_path = f"./model_checkpoints/{run_id}"
-    
+
     merged_conf = OmegaConf.merge(env_cfg, train_config)
 
     run = wandb.init(
@@ -182,7 +182,7 @@ def main(train_config: DictConfig):
         errors = []
         rewards = []
         means = []
-        stds = []
+        actions = []
         log_probs = []
 
         for _ in range(eval_env._clip_length):
@@ -196,11 +196,12 @@ def main(train_config: DictConfig):
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
 
-            mean, std = np.split(extras["logits"], 2)
+            mean = extras["logits"]
             log_prob = extras["log_prob"]
+            action = extras["actions"]
             log_probs.append(log_prob)
             means.append(mean)
-            stds.append(std)
+            actions.append(action)
             rollout.append(state.pipeline_state)
 
         # Plot rtrunk over rollout
@@ -226,21 +227,21 @@ def main(train_config: DictConfig):
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator means for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (un-processed)",
                 )
             }
         )
 
-        # Plot action stds over rollout (optimize this later)
-        data = np.array(stds).T
+        # Plot action means over rollout (array of array)
+        data = np.array(actions).T
         wandb.log(
             {
-                f"logits/rollout_stds": wandb.plot.line_series(
+                f"logits/rollout_actions": wandb.plot.line_series(
                     xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator stds for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (post-processed)",
                 )
             }
         )
