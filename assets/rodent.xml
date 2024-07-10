@@ -18,7 +18,7 @@
     </asset>
   
     <default>
-      <joint limited="true" solreflimit="0.01 1" solimplimit="0.9 0.95 0.001 1 2" armature="6e-07" damping="0.1"/>
+      <joint limited="true" solreflimit="0.01 1" solimplimit="0.5 0.95 0.001 0.1 2" armature="6e-07" damping="0.01"/>
       <geom friction="0.7 0.005 0.0001" solref="0.005 1"/>
       <site group="3" rgba="0 0 1 1"/>
       <general ctrllimited="true" ctrlrange="-1 1" forcelimited="true" gainprm="0.01"/>
@@ -58,7 +58,7 @@
         </default>
       </default>
       <default class="cervical">
-        <joint group="3" pos="-0.02 0 -0.05" stiffness="1.0" armature="0.001" damping="1.0" />
+        <joint group="3" pos="-0.02 0 -0.05" stiffness="1.0" armature="0.001" damping="1.0"  />
         <default class="cervical_extend">
           <joint range="-0.4072434921320102 0.6108652381980153"/>
           <general gainprm="2.5"/>
@@ -73,15 +73,15 @@
         </default>
       </default>
       <default class="atlas">
-        <joint axis="0 -1 0" stiffness="0.002" range="-0.08726646259971647 0.7853981633974483" damping="0.02"  />
+        <joint axis="0 -1 0" stiffness="0.002" range="-0.08726646259971647 0.7853981633974483" damping="0.002"  />
         <general gainprm="0.025"/>
       </default>
       <default class="mandible">
-        <joint stiffness="0.002" range="-0.296705972839036 0.2617993877991494" springref="-0.314159265359" damping="0.02"  />
+        <joint stiffness="0.002" range="-0.296705972839036 0.2617993877991494" springref="-0.314159265359" damping="0.002"  />
         <general gainprm="0.025"/>
       </default>
       <default class="caudal">
-        <joint group="3" stiffness="1e-05" damping="0.02"  />
+        <joint group="3" stiffness="1e-05" damping="0.002"  />
         <general gainprm="0.005"/>
         <default class="caudal_extend">
           <joint range="-0.08726646259971647 0.08726646259971647"/>
@@ -105,19 +105,19 @@
         </default>
       </default>
       <default class="knee">
-        <joint range="-1.221730476396031 1.53588974175501" damping="0.05"  />
+        <joint range="-1.221730476396031 1.53588974175501" damping="0.005"  />
         <general gainprm="0.2"/>
       </default>
       <default class="ankle">
-        <joint range="-0.1396263401595464 1.396263401595464" damping="0.03"  />
+        <joint range="-0.1396263401595464 1.396263401595464" damping="0.003"  />
         <general gainprm="0.2"/>
       </default>
       <default class="toe">
-        <joint range="0 0.8726646259971648" damping="0.1"  />
+        <joint range="0 0.8726646259971648" damping="0.001"  />
         <general gainprm="0.025"/>
       </default>
       <default class="scapula">
-        <joint damping="0.05"  />
+        <joint damping="0.005"  />
         <general gainprm="0.25"/>
         <default class="scapula_supinate">
           <joint pos="0 0.005000000000000001 0" range="-0.0174532925199433 0.1745329251994329"/>
@@ -131,23 +131,23 @@
         </default>
       </default>
       <default class="shoulder">
-        <joint range="-1.308996938995747 0.8726646259971648" damping="0.05"  />
+        <joint range="-1.308996938995747 0.8726646259971648" damping="0.005"  />
         <general gainprm="0.15"/>
       </default>
       <default class="shoulder_sup">
-        <joint range="-0.05235987755982989 1.134464013796314" damping="0.05"  />
+        <joint range="-0.05235987755982989 1.134464013796314" damping="0.005"  />
         <general gainprm="0.15"/>
       </default>
       <default class="elbow">
-        <joint range="-1.308996938995747 0.6981317007977318" damping="0.03"  />
+        <joint range="-1.308996938995747 0.6981317007977318" damping="0.003"  />
         <general gainprm="0.15"/>
       </default>
       <default class="wrist">
-        <joint range="-0.3490658503988659 2.094395102393195" damping="0.02"  />
+        <joint range="-0.3490658503988659 2.094395102393195" damping="0.002"  />
         <general gainprm="0.05"/>
       </default>
       <default class="finger">
-        <joint range="0 1.570796326794897" damping="0.02"  />
+        <joint range="0 1.570796326794897" damping="0.002"  />
         <general gainprm="0.025"/>
       </default>
       <default class="sensor">
@@ -495,6 +495,48 @@
         </body>
       </body>
     </worldbody>
+  <!-- 
+    <contact>
+      <exclude name="pelvis:vertebra_C2" body1="pelvis" body2="vertebra_C2"/>
+      <exclude name="pelvis:vertebra_C3" body1="pelvis" body2="vertebra_C3"/>
+      <exclude name="pelvis:vertebra_C4" body1="pelvis" body2="vertebra_C4"/>
+      <exclude name="vertebra_C1:vertebra_C3" body1="vertebra_C1" body2="vertebra_C3"/>
+      <exclude name="vertebra_C1:vertebra_C4" body1="vertebra_C1" body2="vertebra_C4"/>
+      <exclude name="vertebra_C2:vertebra_C4" body1="vertebra_C2" body2="vertebra_C4"/>
+      <exclude name="vertebra_C3:vertebra_C5" body1="vertebra_C3" body2="vertebra_C5"/>
+      <exclude name="vertebra_C4:vertebra_C6" body1="vertebra_C4" body2="vertebra_C6"/>
+      <exclude name="vertebra_C5:vertebra_C7" body1="vertebra_C5" body2="vertebra_C7"/>
+      <exclude name="vertebra_axis:skull" body1="vertebra_axis" body2="skull"/>
+      <exclude name="pelvis:vertebra_C5" body1="pelvis" body2="vertebra_C5"/>
+      <exclude name="pelvis:vertebra_C6" body1="pelvis" body2="vertebra_C6"/>
+      <exclude name="vertebra_C2:vertebra_C5" body1="vertebra_C2" body2="vertebra_C5"/>
+      <exclude name="vertebra_C3:vertebra_C6" body1="vertebra_C3" body2="vertebra_C6"/>
+      <exclude name="vertebra_C4:vertebra_C7" body1="vertebra_C4" body2="vertebra_C7"/>
+      <exclude name="upper_arm_L:upper_arm_R" body1="upper_arm_L" body2="upper_arm_R"/>
+      <exclude name="upper_leg_L:vertebra_C1" body1="upper_leg_L" body2="vertebra_C1"/>
+      <exclude name="upper_leg_L:vertebra_C2" body1="upper_leg_L" body2="vertebra_C2"/>
+      <exclude name="upper_leg_R:vertebra_C1" body1="upper_leg_R" body2="vertebra_C1"/>
+      <exclude name="upper_leg_R:vertebra_C2" body1="upper_leg_R" body2="vertebra_C2"/>
+      <exclude name="vertebra_cervical_1:skull" body1="vertebra_cervical_1" body2="skull"/>
+      <exclude name="vertebra_cervical_2:skull" body1="vertebra_cervical_2" body2="skull"/>
+      <exclude name="upper_arm_L:torso" body1="upper_arm_L" body2="torso"/>
+      <exclude name="upper_arm_R:torso" body1="upper_arm_R" body2="torso"/>
+      <exclude name="lower_leg_L:pelvis" body1="lower_leg_L" body2="pelvis"/>
+      <exclude name="lower_leg_R:pelvis" body1="lower_leg_R" body2="pelvis"/>
+  
+      <pair geom1="foot_L_collision" geom2="floor"/>
+      <pair geom1="foot_R_collision" geom2="floor"/>
+      <pair geom1="hand_L_collision" geom2="floor"/>
+      <pair geom1="hand_R_collision" geom2="floor"/>
+      <pair geom1="toe_L0_collision" geom2="floor"/>
+      <pair geom1="toe_L1_collision" geom2="floor"/>
+      <pair geom1="toe_L2_collision" geom2="floor"/>
+      <pair geom1="toe_R0_collision" geom2="floor"/>
+      <pair geom1="toe_R1_collision" geom2="floor"/>
+      <pair geom1="toe_R2_collision" geom2="floor"/>
+      <pair geom1="collision_torso" geom2="floor"/>
+  
+    </contact> -->
   
     <actuator>
       <general name="hip_L_supinate" forcerange="-0.2 0.2" joint="hip_L_supinate" dyntype="filter" biastype="affine" dynprm="0.04" gainprm="0.2443460952792061" biasprm="-0.0349065850398866 -0.4"/>
