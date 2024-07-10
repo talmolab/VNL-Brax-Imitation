@@ -34,6 +34,7 @@ class RodentTracking(PipelineEnv):
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
+        intention_size=1,
         **kwargs,
     ):
         root = mjcf.from_path(mjcf_path)
@@ -109,7 +110,7 @@ class RodentTracking(PipelineEnv):
         self._sub_clip_length = sub_clip_length
         self._ref_traj_length = ref_traj_length
         self._body_error_multiplier = body_error_multiplier
-
+        self._intention_size = intention_size
         self._ref_traj = reference_clip
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
@@ -120,13 +121,13 @@ class RodentTracking(PipelineEnv):
         """
         Resets the environment to an initial state.
         """
-        start_frame = jax.random.randint(
-            rng,
-            (),
-            0,
-            self._clip_length - self._sub_clip_length - self._ref_traj_length,
-        )
-        # start_frame = 0
+        # start_frame = jax.random.randint(
+        #     rng,
+        #     (),
+        #     0,
+        #     self._clip_length - self._sub_clip_length - self._ref_traj_length,
+        # )
+        start_frame = 0
 
         old, rng = jax.random.split(rng)
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
@@ -152,6 +153,7 @@ class RodentTracking(PipelineEnv):
             "cur_frame": start_frame,
             "sub_clip_frame": 0,
             "traj": traj,
+            "prev_z": jax.numpy.zeros([self._intention_size])
         }
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)

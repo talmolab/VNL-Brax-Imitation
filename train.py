@@ -1,7 +1,6 @@
 import functools
 import jax
 from jax import numpy as jp
-from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -10,7 +9,6 @@ from brax.io import model
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
 import mujoco
 import imageio
 
@@ -46,6 +44,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+os.environ["NUMEXPR_MAX_THREADS"] = "64"
 
 
 def jax_has_gpu():
@@ -89,6 +88,7 @@ def main(train_config: DictConfig):
     env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
+        intention_size=train_config["intention_latent_size"],
         **env_args,
     )
 
@@ -103,6 +103,7 @@ def main(train_config: DictConfig):
     eval_env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
+        intention_size=train_config["intention_latent_size"],
         **eval_env_args,
     )
 
@@ -158,7 +159,7 @@ def main(train_config: DictConfig):
     run = wandb.init(
         project="VNL_SingleClipImitationPPO_Intention",
         config=OmegaConf.to_container(merged_conf, resolve=True),
-        notes=f"",
+        notes=train_config["note"],
         dir="/tmp",
     )
 
@@ -185,7 +186,9 @@ def main(train_config: DictConfig):
         actions = []
         log_probs = []
 
-        for _ in range(eval_env._clip_length):
+        for i in range(eval_env._clip_length):
+            if i == 0:
+                prev_z = jax.numpy.zeros(train_config["intention_latent_size"])
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng
@@ -295,6 +298,47 @@ def main(train_config: DictConfig):
 
         qposes_rollout = [data.qpos for data in rollout]
 
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
+
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
+
+        # render overlay
+        scene_option = wrapper.MjvOption()
+        scene_option.geomgroup[2] = 1
+        scene_option.sitegroup[2] = 1
+
+        scene_option.sitegroup[3] = 1
+        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
+        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
+        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
+        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
+        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
         mj_model = mujoco.MjModel.from_xml_path(
             f"./assets/{env_cfg[train_config.env_name]['rendering_mjcf']}"
         )

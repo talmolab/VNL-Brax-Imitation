@@ -224,9 +224,9 @@ def train(
     # TODO Traj size
     # use info to keep track of traj
     ppo_network = network_factory(
-        env_state.info["traj"].shape[-1],
-        env_state.obs.shape[-1],
-        env.action_size,
+        traj_size=env_state.info["traj"].shape[-1],
+        observation_size=env_state.obs.shape[-1],
+        action_size=env.action_size,
         preprocess_observations_fn=normalize,
     )
 
