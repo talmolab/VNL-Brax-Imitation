@@ -25,7 +25,7 @@ class ImitationMLP(linen.Module):
 
     layer_sizes: Sequence[int]
     activation: ActivationFn = linen.relu
-    kernel_init: Initializer = jax.nn.initializers.lecun_uniform()
+    kernel_init: Initializer = jax.nn.initializers.he_uniform()
     activate_final: bool = False
     bias: bool = True
     layer_norm: bool = False
