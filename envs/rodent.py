@@ -543,43 +543,6 @@ class RodentMultiClipTracking(RodentTracking):
         self._clip_relevants = mjxp.ClipCollection(ids=jp.arange(self._num_clips))
         self.random_start = random_start
 
-    def _get_possible_starts(self, rng):
-        """
-        self._possible_starts stores all the random (clip_index, start_frame) as tuple
-        """
-
-        def get_starts_for_all_clips(clip_number, start):
-            # last_possible_start = end - self._max_ref_step - self._min_steps
-            # if self._always_init_at_clip_start:
-            #     return jp.array([(clip_number, start)])
-            # else:
-            #     return jp.array(
-            #         [(clip_number, j) for j in range(start, last_possible_start)]
-            #     )
-            return jp.array([(clip_number, start)])
-
-        clip_relevants = self._clip_relevants
-        clip_numbers = jp.arange(self._num_clips)
-        # print(clip_numbers.shape, clip_relevants.start_steps.shape, clip_relevants.end_steps.shape)
-
-        if clip_relevants.end_steps is None:
-            clip_relevants.end_steps = np.full(
-                (self._num_clips,),
-                self._clip_length - self._sub_clip_length - self._ref_traj_length,
-            )
-
-        if self.random_start:
-            clip_relevants.start_steps = jax.random.randint(
-                rng, (self._num_clips,), clip_relevants.start_steps[0], clip_relevants.end_steps[0]
-            )
-
-        vmap_compute_starts = jax.vmap(
-            get_starts_for_all_clips, in_axes=(0, 0), out_axes=1
-        ) # for each i in clip_numbers & start steps -> stacking horizontally
-        possible_starts = vmap_compute_starts(clip_numbers, clip_relevants.start_steps)
-
-        return jp.concatenate(possible_starts, axis=0)
-
     def _get_clip_id(self, rng):
         """
         main muticlip selection function
@@ -588,11 +551,22 @@ class RodentMultiClipTracking(RodentTracking):
         3. cannot just overides self._start_frame and self_ref_traj from SingleClipTracking class,
         only used in reset & _get_traj function, change there
         """
-        # get a random start index to retrieve combo
-        start_list = self._get_possible_starts(rng)
-        index = jax.random.randint(rng, (), 0, len(start_list))
+        clip_relevants = self._clip_relevants
 
-        clip_index, start_frame = start_list[..., index, :].astype(int)
+        if clip_relevants.end_steps is None:
+            clip_relevants.end_steps = np.full(
+                (self._num_clips,),
+                self._clip_length - self._sub_clip_length - self._ref_traj_length,
+            )
+
+        # if self.random_start:
+        #     clip_relevants.start_steps = jax.random.randint(
+        #         rng, (self._num_clips,), clip_relevants.start_steps[0], clip_relevants.end_steps[0]
+        #     )
+
+        # get a random start index to retrieve combo
+        clip_index = jax.random.randint(rng, (), 0, self._num_clips)
+        start_frame = jax.random.randint(rng, (), 0, self._clip_length)
 
         clip_id = jp.array(self._clip_relevants.ids)[clip_index]
 
