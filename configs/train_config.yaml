@@ -10,7 +10,7 @@ learning_rate: 6e-4
 num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.1
-terminate_when_unhealthy: true
+entropy_cost: 1e-2
 # Either "mlp" or "intention"
 policy_network_name: "mlp"
 # If using mlp policy network
