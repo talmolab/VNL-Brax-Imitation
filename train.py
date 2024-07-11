@@ -1,7 +1,6 @@
 import functools
 import jax
 from jax import numpy as jp
-from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -10,7 +9,6 @@ from brax.io import model
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
 import mujoco
 import imageio
 
@@ -46,6 +44,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+os.environ["NUMEXPR_MAX_THREADS"] = "64"
 
 
 def jax_has_gpu():
@@ -140,7 +139,7 @@ def main(train_config: DictConfig):
         num_updates_per_batch=train_config["num_updates_per_batch"],
         discounting=0.99,
         learning_rate=train_config["learning_rate"],
-        entropy_cost=1e-3,
+        entropy_cost=train_config["entropy_cost"],
         num_envs=train_config["num_envs"] * n_devices,
         batch_size=train_config["batch_size"] * n_devices,
         seed=0,
@@ -153,10 +152,12 @@ def main(train_config: DictConfig):
     run_id = uuid.uuid4()
     model_path = f"./model_checkpoints/{run_id}"
 
+    merged_conf = OmegaConf.merge(env_cfg, train_config)
+
     run = wandb.init(
         project="VNL_SingleClipImitationPPO_Intention",
-        config=OmegaConf.to_container(train_config, resolve=True),
-        notes=f"",
+        config=OmegaConf.to_container(merged_conf, resolve=True),
+        notes=train_config["note"],
         dir="/tmp",
     )
 
@@ -180,10 +181,10 @@ def main(train_config: DictConfig):
         errors = []
         rewards = []
         means = []
-        stds = []
+        actions = []
         log_probs = []
 
-        for _ in range(eval_env._clip_length):
+        for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng
@@ -194,11 +195,12 @@ def main(train_config: DictConfig):
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
 
-            mean, std = np.split(extras["logits"], 2)
+            mean = extras["logits"]
             log_prob = extras["log_prob"]
+            action = extras["actions"]
             log_probs.append(log_prob)
             means.append(mean)
-            stds.append(std)
+            actions.append(action)
             rollout.append(state.pipeline_state)
 
         # Plot rtrunk over rollout
@@ -224,21 +226,21 @@ def main(train_config: DictConfig):
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator means for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (un-processed)",
                 )
             }
         )
 
-        # Plot action stds over rollout (optimize this later)
-        data = np.array(stds).T
+        # Plot action means over rollout (array of array)
+        data = np.array(actions).T
         wandb.log(
             {
-                f"logits/rollout_stds": wandb.plot.line_series(
+                f"logits/rollout_actions": wandb.plot.line_series(
                     xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator stds for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (post-processed)",
                 )
             }
         )
