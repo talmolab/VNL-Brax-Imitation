@@ -141,7 +141,7 @@ def main(train_config: DictConfig):
         num_updates_per_batch=train_config["num_updates_per_batch"],
         discounting=0.99,
         learning_rate=train_config["learning_rate"],
-        entropy_cost=1e-3,
+        entropy_cost=train_config["entropy_cost"],
         num_envs=train_config["num_envs"] * n_devices,
         batch_size=train_config["batch_size"] * n_devices,
         seed=0,

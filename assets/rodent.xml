@@ -18,7 +18,7 @@
     </asset>
   
     <default>
-      <joint limited="true" solreflimit="0.01 1" solimplimit="0.5 0.95 0.001 0.1 2" armature="6e-07" damping="0.01"/>
+      <joint limited="true" solreflimit="0.01 1" solimplimit="0.1 0.95 0.001 0.1 2" armature="6e-07" damping="0.01"/>
       <geom friction="0.7 0.005 0.0001" solref="0.005 1"/>
       <site group="3" rgba="0 0 1 1"/>
       <general ctrllimited="true" ctrlrange="-1 1" forcelimited="true" gainprm="0.01"/>

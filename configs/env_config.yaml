@@ -28,7 +28,7 @@ rodent:
   camera: close_profile
   rendering_mjcf: rodent_pair.xml
   stac_path: clips/all_snips.p
-  clip_idx: 1
+  clip_idx: 84
   env_args:
     mjcf_path: "./assets/rodent.xml"
     scale_factor: 0.9
