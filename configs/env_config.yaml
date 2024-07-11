@@ -36,9 +36,9 @@ rodent:
     iterations: 6
     ls_iterations: 6
     clip_length: 250
-    sub_clip_length: 10
+    sub_clip_length: 100
     ref_traj_length: 5
-    termination_threshold: 5
+    termination_threshold: 10
     end_eff_names:
       - foot_L
       - foot_R 
@@ -104,4 +104,4 @@ rodent:
       - wrist_R
       - finger_R
     center_of_mass: torso
-    
+
