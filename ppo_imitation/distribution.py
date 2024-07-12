@@ -119,8 +119,7 @@ class ActionClipping:
     """
 
     def forward(self, x):
-        # need to parametrize this, shrink the output of the NN by a factor of 3
-        return jnp.divide(x, jnp.max(jnp.abs(x))) # standardize it to -1 to 1 in a varing way
+        return jnp.clip(x / 5, -0.5, 0.5) # clipping it to -0.5 to 0.5 and scale the output of the x by the factor of 5
 
     def forward_log_det_jacobian(self, x):
         # since this is a linear transformations.
