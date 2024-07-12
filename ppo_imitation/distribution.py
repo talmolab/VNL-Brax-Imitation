@@ -113,6 +113,20 @@ class TanhBijector:
         return 2.0 * (jnp.log(2.0) - x - jax.nn.softplus(-2.0 * x))
 
 
+class ActionClipping:
+    """
+    Clip the output of the NN to be within the range of -1 and 1
+    """
+
+    def forward(self, x):
+        # need to parametrize this, shrink the output of the NN by a factor of 3
+        return jnp.divide(x, jnp.max(jnp.abs(x))) # standardize it to -1 to 1 in a varing way
+
+    def forward_log_det_jacobian(self, x):
+        # since this is a linear transformations.
+        return 0.0
+
+
 class NormalTanhDistribution(ParametricDistribution):
     """Normal distribution followed by tanh."""
 
@@ -169,6 +183,37 @@ class NormalTanhDistributionFixedStd(ParametricDistribution):
             postprocessor=TanhBijector(),
             event_ndims=1,
             reparametrizable=True,
+        )
+        self._scale = scale
+
+    def create_dist(self, parameters):
+        scale = jnp.broadcast_to(self._scale, parameters.shape)
+        return NormalDistribution(loc=parameters, scale=scale)
+
+
+class NormalClipDistributionFixedStd(ParametricDistribution):
+    """Normal distribution with fixed variance followed by Clip output range."""
+
+    def __init__(self, event_size, scale=0.1):
+        """Initialize the distribution.
+
+        Args:
+          event_size: the size of events (i.e. actions).
+          min_std: minimum std for the gaussian.
+          var_scale: adjust the gaussian's scale parameter.
+        """
+        # We apply tanh to gaussian actions to bound them.
+        # Normally we would use TransformedDistribution to automatically
+        # apply tanh to the distribution.
+        # We can't do it here because of tanh saturation
+        # which would make log_prob computations impossible. Instead, most
+        # of the code operate on pre-tanh actions and we take the postprocessor
+        # jacobian into account in log_prob computations.
+        super().__init__(
+            param_size=2 * event_size,
+            postprocessor=ActionClipping(),
+            event_ndims=1,
+            reparametrizable=False,
         )
         self._scale = scale
 

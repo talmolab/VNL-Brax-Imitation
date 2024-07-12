@@ -128,8 +128,8 @@ def make_mlp_ppo_networks(
     value_hidden_layer_sizes: Sequence[int] = (256,) * 2,
 ) -> PPOImitationNetworks:
     """Make Imitation PPO networks with preprocessor."""
-    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
-        event_size=action_size, scale=0.001
+    parametric_action_distribution = distribution.NormalClipDistributionFixedStd(
+        event_size=action_size, scale=0.01
     )
 
     policy_network = imitationnetworks.make_mlp_policy(
