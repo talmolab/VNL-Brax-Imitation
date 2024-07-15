@@ -30,7 +30,7 @@ rodent:
   stac_path: clips/all_snips.p
   clip_idx: 84
   env_args:
-    mjcf_path: "./assets/rodent.xml"
+    mjcf_path: "./assets/rodent_modified.xml"
     scale_factor: 0.9
     solver: cg
     iterations: 6
@@ -71,33 +71,29 @@ rodent:
       - finger_R
     joint_names:
       - vertebra_1_extend
+      - vertebra_4_extend
       - hip_L_supinate
-      - hip_L_abduct
-      - hip_L_extend
       - knee_L
       - ankle_L
       - toe_L
       - hip_R_supinate
-      - hip_R_abduct
-      - hip_R_extend
       - knee_R
       - ankle_R
       - toe_R
-      - vertebra_C11_extend
+      - vertebra_cervical_5_extend
+      - vertebra_cervical_3_twist
       - vertebra_cervical_1_bend
       - vertebra_axis_twist
+      - vertebra_atlant_extend
       - atlas
       - mandible
       - scapula_L_supinate
-      - scapula_L_abduct
       - shoulder_L
-      - shoulder_sup_L
       - elbow_L
       - wrist_L
+      - finger_L
       - scapula_R_supinate
-      - scapula_R_abduct
       - shoulder_R
-      - shoulder_sup_R
       - elbow_R
       - wrist_R
       - finger_R
