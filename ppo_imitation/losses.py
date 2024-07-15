@@ -188,9 +188,13 @@ def compute_ppo_intention_loss(
 
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
-    output_variance_loss = jnp.square(policy_logits).sum() * 5  # penalize the mean of the output. *2 is a weighting on it.
+    # scale the output KL loss by the kl_weight, currently assumes the variance of the output distribution is 1. 
+    # If you want a differnet variance, then scaling the KL weight differently.
+    output_kl_loss = jnp.square(policy_logits).sum() * kl_weight
 
-    total_loss = policy_loss + v_loss + entropy_loss + kl_intention + output_variance_loss
+    total_loss = (
+        policy_loss + v_loss + entropy_loss + kl_intention + output_kl_loss
+    )
 
     return total_loss, {
         "total_loss": total_loss,
@@ -200,5 +204,5 @@ def compute_ppo_intention_loss(
         "kl_loss_intention": kl_intention,
         "prediction_corr": prediction_corr,
         "explained_variance": explained_variance,
-        "output_variance_loss": output_variance_loss,
+        "output_kl_loss": output_kl_loss,
     }

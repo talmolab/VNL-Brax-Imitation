@@ -119,7 +119,7 @@ class ActionClipping:
     """
 
     def forward(self, x):
-        return jnp.clip(x / 5, -0.5, 0.5) # clipping it to -0.5 to 0.5 and scale the output of the x by the factor of 5
+        return jnp.clip(x, -1, 1) # clipping it to -0.5 to 0.5 and scale the output of the x by the factor of 5
 
     def forward_log_det_jacobian(self, x):
         # since this is a linear transformations.
