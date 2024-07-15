@@ -23,6 +23,7 @@ ant:
   camera: track
 
 # Note: clip_length is used both as an env arg and outside of env as well
+# Note: clip_length is used both as an env arg and outside of env as well
 rodent:
   name: rodent
   camera: close_profile

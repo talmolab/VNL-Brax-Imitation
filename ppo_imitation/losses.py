@@ -19,7 +19,6 @@ class PPONetworkParams:
     value: Params
 
 
-# @jax.vmap
 def kl_divergence(mean, logvar):
     """kl_divergence for latent space regularization"""
     return -0.5 * jnp.mean(1 + logvar - jnp.square(mean) - jnp.exp(logvar))

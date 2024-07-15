@@ -10,7 +10,6 @@ import warnings
 
 from brax.training import networks
 from brax.training import types
-from brax.training import distribution
 from brax.training.networks import MLP
 
 from brax.training.types import PRNGKey
@@ -40,7 +39,6 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
         params: types.PolicyParams, deterministic: bool = False
     ) -> types.Policy:
         policy_network = ppo_networks.policy_network
-        # can modify this to provide stochastic action + noise
         parametric_action_distribution = ppo_networks.parametric_action_distribution
 
         def policy(
@@ -85,7 +83,7 @@ def make_intention_ppo_networks(
     observation_size: int,
     action_size: int,
     preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
-    intention_latent_size: int = 64,
+    intention_latent_size: int = 60,
     encoder_layer_sizes: Sequence[int] = (1024,) * 2,
     decoder_layer_sizes: Sequence[int] = (1024,) * 2,
     value_hidden_layer_sizes: Sequence[int] = (1024,) * 2,
@@ -111,6 +109,39 @@ def make_intention_ppo_networks(
         preprocess_observations_fn=preprocess_observations_fn,
         encoder_layer_sizes=encoder_layer_sizes,
         decoder_layer_sizes=decoder_layer_sizes,
+    )
+    value_network = networks.make_value_network(
+        observation_size,
+        preprocess_observations_fn=preprocess_observations_fn,
+        hidden_layer_sizes=value_hidden_layer_sizes,
+    )
+
+    return PPOImitationNetworks(
+        policy_network=policy_network,
+        value_network=value_network,
+        parametric_action_distribution=parametric_action_distribution,
+    )
+
+
+def make_mlp_ppo_networks(
+    traj_size: int,
+    observation_size: int,
+    action_size: int,
+    preprocess_observations_fn: types.PreprocessObservationFn = types.identity_observation_preprocessor,
+    policy_layer_sizes: Sequence[int] = (256,) * 2,
+    value_hidden_layer_sizes: Sequence[int] = (256,) * 2,
+) -> PPOImitationNetworks:
+    """Make Imitation PPO networks with preprocessor."""
+    parametric_action_distribution = distribution.NormalTanhDistributionFixedStd(
+        event_size=action_size, scale=0.01
+    )
+
+    policy_network = imitationnetworks.make_mlp_policy(
+        action_size,
+        traj_size=traj_size,
+        obs_size=observation_size,
+        preprocess_observations_fn=preprocess_observations_fn,
+        layer_sizes=policy_layer_sizes,
     )
     value_network = networks.make_value_network(
         observation_size,

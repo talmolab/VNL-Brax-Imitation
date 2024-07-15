@@ -5,6 +5,7 @@ num_envs: 128
 num_timesteps: 3_000_000_000
 eval_every: 10_000
 episode_length: 1000
+episode_length: 1000
 batch_size: 32
 learning_rate: 6e-4
 num_minibatches: 32

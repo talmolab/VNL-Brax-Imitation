@@ -1,7 +1,6 @@
 import functools
 import jax
 from jax import numpy as jp
-from jax import random
 from typing import Dict
 import wandb
 import numpy as np
@@ -10,7 +9,6 @@ from brax.io import model
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
 import mujoco
 import imageio
 
@@ -24,8 +22,12 @@ from envs.rodent import RodentTracking, RodentMultiClipTracking
 from typing import Union
 from brax import envs
 from brax.v1 import envs as envs_v1
+from brax.training.agents.ppo.losses import compute_ppo_loss as mlp_ppo_loss
+from ppo_imitation import losses as ppo_losses
+
 import numpy as np
 import uuid
+from preprocessing.mjx_preprocess import process_clip_to_train
 from preprocessing.mjx_preprocess import process_clip_to_train
 
 # rendering related
@@ -43,6 +45,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+os.environ["NUMEXPR_MAX_THREADS"] = "64"
 
 
 def jax_has_gpu():
@@ -75,6 +78,10 @@ def main(train_config: DictConfig):
     env_cfg = OmegaConf.to_container(env_cfg, resolve=True)
     rodent_config = env_cfg[train_config.env_name]
     env_args = rodent_config["env_args"]
+    env_cfg = hydra.compose(config_name="env_config")
+    env_cfg = OmegaConf.to_container(env_cfg, resolve=True)
+    rodent_config = env_cfg[train_config.env_name]
+    env_args = rodent_config["env_args"]
 
     # Process rodent clip
     reference_clip = process_clip_to_train(
@@ -88,13 +95,40 @@ def main(train_config: DictConfig):
         **env_args,
     )
 
-    # TODO: make the intention network factory a part of the config
-    intention_network_factory = functools.partial(
-        ppo_networks.make_intention_ppo_networks,
-        intention_latent_size=train_config.intention_latent_size,
-        encoder_layer_sizes=train_config.encoder_layer_sizes,
-        decoder_layer_sizes=train_config.decoder_layer_sizes,
+    # TODO: Also have preset solver params here for eval
+    # so we can relax params in training for faster sps?
+
+    # Set the env to always start at frame 0 by maximizing sub_clip_length
+    eval_env_args = env_args.copy()
+    eval_env_args["sub_clip_length"] = (
+        env_args["clip_length"] - env_args["ref_traj_length"]
     )
+    eval_env = envs.get_environment(
+        env_cfg[train_config.env_name]["name"],
+        reference_clip=reference_clip,
+        **eval_env_args,
+    )
+
+    jit_step = jax.jit(eval_env.step)
+    jit_reset = jax.jit(eval_env.reset)
+
+    # Make this a dictionary mapping or similar
+    if train_config["policy_network_name"] == "mlp":
+        network_factory = functools.partial(
+            ppo_networks.make_mlp_ppo_networks,
+            policy_layer_sizes=train_config.mlp_policy_layer_sizes,
+        )
+        # set KL weight to 0 for mlp
+        train_config["kl_weight"] = 0.0
+    elif train_config["policy_network_name"] == "intention":
+        network_factory = functools.partial(
+            ppo_networks.make_intention_ppo_networks,
+            intention_latent_size=train_config.intention_latent_size,
+            encoder_layer_sizes=train_config.encoder_layer_sizes,
+            decoder_layer_sizes=train_config.decoder_layer_sizes,
+        )
+    else:
+        raise Exception("invalid config: policy_network_name")
 
     train_fn = functools.partial(
         ppo.train,
@@ -109,23 +143,25 @@ def main(train_config: DictConfig):
         num_updates_per_batch=train_config["num_updates_per_batch"],
         discounting=0.99,
         learning_rate=train_config["learning_rate"],
-        entropy_cost=1e-3,
+        entropy_cost=train_config["entropy_cost"],
         num_envs=train_config["num_envs"] * n_devices,
         batch_size=train_config["batch_size"] * n_devices,
         seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
-        network_factory=intention_network_factory,
+        network_factory=network_factory,
     )
 
     # Generates a completely random UUID (version 4)
     run_id = uuid.uuid4()
     model_path = f"./model_checkpoints/{run_id}"
 
+    merged_conf = OmegaConf.merge(env_cfg, train_config)
+
     run = wandb.init(
         project="VNL_SingleClipImitationPPO_Intention",
-        config=OmegaConf.to_container(train_config, resolve=True),
-        notes=f"",
+        config=OmegaConf.to_container(merged_conf, resolve=True),
+        notes=train_config["note"],
         dir="/tmp",
     )
 
@@ -141,30 +177,19 @@ def main(train_config: DictConfig):
         model.save_params(f"{model_path}/{num_steps}", params)
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
 
-        # TODO: Also have preset solver params here for eval
-        # so we can relax params in training for faster sps?
-        # Set the env to always start at frame 0 by maximizing sub_clip_length
-        eval_env_args = env_args.copy()
-        eval_env_args["sub_clip_length"] = (
-            env_args["clip_length"] - env_args["ref_traj_length"]
-        )
-        env = envs.get_environment(
-            env_cfg[train_config.env_name]["name"],
-            reference_clip=reference_clip,
-            **eval_env_args,
-        )
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
-        jit_step = jax.jit(env.step)
-        state = env.reset(reset_rng)
+
+        state = jit_reset(reset_rng)
+
         rollout = [state.pipeline_state]
         errors = []
         rewards = []
         means = []
-        stds = []
+        actions = []
         log_probs = []
         ctrls = []
 
-        for _ in range(train_config["episode_length"]):
+        for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
                 state.info["traj"], state.obs, act_rng
@@ -223,21 +248,21 @@ def main(train_config: DictConfig):
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator means for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (un-processed)",
                 )
             }
         )
 
-        # Plot action stds over rollout (optimize this later)
-        data = np.array(stds).T
+        # Plot action means over rollout (array of array)
+        data = np.array(actions).T
         wandb.log(
             {
-                f"logits/rollout_stds": wandb.plot.line_series(
+                f"logits/rollout_actions": wandb.plot.line_series(
                     xs=range(data.shape[1]),
                     ys=data,
                     keys=[str(i) for i in range(data.shape[0])],
                     xname="Frame",
-                    title=f"Action actuator stds for each rollout frame",
+                    title=f"Action actuator means for each rollout frame (post-processed)",
                 )
             }
         )
@@ -278,12 +303,12 @@ def main(train_config: DictConfig):
                 return jax.lax.dynamic_slice_in_dim(
                     x,
                     0,
-                    train_config["episode_length"],
+                    eval_env._clip_length,
                 )
             return jp.array([])
 
         # extract qpos from rollout
-        ref_traj = env._ref_traj
+        ref_traj = eval_env._ref_traj
         ref_traj = jax.tree_util.tree_map(f, ref_traj)
         qposes_ref = jp.hstack(
             [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
@@ -314,12 +339,13 @@ def main(train_config: DictConfig):
         # render while stepping using mujoco
         video_path = f"{model_path}/{num_steps}.mp4"
 
-        with imageio.get_writer(video_path, fps=float(1.0 / env.dt)) as video:
+        with imageio.get_writer(video_path, fps=float(1.0 / eval_env.dt)) as video:
             for qpos1, qpos2 in zip(qposes_ref, qposes_rollout):
                 mj_data.qpos = np.append(qpos1, qpos2)
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
+                    mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
                     mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
                 )
 
@@ -330,7 +356,10 @@ def main(train_config: DictConfig):
         wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
     make_inference_fn, params, _ = train_fn(
-        environment=env, progress_fn=wandb_progress, policy_params_fn=policy_params_fn
+        environment=env,
+        progress_fn=wandb_progress,
+        policy_params_fn=policy_params_fn,
+        eval_env=eval_env,
     )
 
     final_save_path = f"{model_path}/finished"

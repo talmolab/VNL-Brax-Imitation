@@ -1,6 +1,7 @@
 import jax
 from jax import numpy as jp
 from typing import List
+from typing import List
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
@@ -45,10 +46,19 @@ class RodentTracking(PipelineEnv):
             actuator.gainprm = [actuator.forcerange[1]]
             del actuator.biastype
             del actuator.biasprm
+        root = mjcf.from_path(mjcf_path)
+
+        # Change actuators to torque (from positional)
+        for actuator in root.find_all("actuator"):
+            actuator.gainprm = [actuator.forcerange[1]]
+            del actuator.biastype
+            del actuator.biasprm
 
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
             root,
+            scale_factor,
+            scale_factor,
             scale_factor,
             scale_factor,
         )
@@ -63,10 +73,15 @@ class RodentTracking(PipelineEnv):
         mj_model.opt.iterations = iterations
         mj_model.opt.ls_iterations = ls_iterations
         mj_model.opt.jacobian = 0  # Dense is faster on GPU
+        }[solver.lower()]
+        mj_model.opt.iterations = iterations
+        mj_model.opt.ls_iterations = ls_iterations
+        mj_model.opt.jacobian = 0  # Dense is faster on GPU
 
         self._end_eff_idx = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
+                for body in end_eff_names
                 for body in end_eff_names
             ]
         )
@@ -74,9 +89,11 @@ class RodentTracking(PipelineEnv):
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in appendage_names
+                for body in appendage_names
             ]
         )
         self._com_idx = mujoco.mj_name2id(
+            mj_model, mujoco.mju_str2Type("body"), center_of_mass
             mj_model, mujoco.mju_str2Type("body"), center_of_mass
         )
 
@@ -84,12 +101,14 @@ class RodentTracking(PipelineEnv):
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in walker_body_names
+                for body in walker_body_names
             ]
         )
 
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
+                for joint in joint_names
                 for joint in joint_names
             ]
         )
@@ -112,6 +131,7 @@ class RodentTracking(PipelineEnv):
         self._ref_traj_length = ref_traj_length
         self._body_error_multiplier = body_error_multiplier
 
+        self._ref_traj = reference_clip
         self._ref_traj = reference_clip
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
@@ -187,6 +207,7 @@ class RodentTracking(PipelineEnv):
         info = state.info.copy()
         info["cur_frame"] += 1
         info["sub_clip_frame"] += 1
+        info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info)
@@ -213,11 +234,18 @@ class RodentTracking(PipelineEnv):
             jp.array(1, float),
             jp.array(0, float),
         )
+        sub_clip_healthy = jp.where(
+            info["sub_clip_frame"] < self._sub_clip_length,
+            jp.array(1, float),
+            jp.array(0, float),
+        )
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
         done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
+        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
+        # Handle nans during sim by resetting env
         # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)
@@ -279,6 +307,7 @@ class RodentTracking(PipelineEnv):
             state (_type_): _description_
         """
         # location using com (dim=3)
+        com_c = data_c.xpos[self._com_idx]
         com_c = data_c.xpos[self._com_idx]
         com_ref = self._ref_traj.body_positions[:, self._com_idx][
             state.info["cur_frame"], :
@@ -445,8 +474,6 @@ class RodentTracking(PipelineEnv):
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
         diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
-
-        # diff = (qpos_ref - data.qpos[7:])[:,self._joint_idxs]
         return diff.flatten()
 
     def get_reference_appendages_pos(self, ref_traj):
