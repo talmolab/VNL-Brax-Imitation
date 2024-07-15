@@ -136,7 +136,7 @@ def make_mlp_ppo_networks(
         event_size=action_size, scale=0.01
     )
 
-    policy_network = imitationnetworks.make_mlp_policy(
+    policy_network = ipn.make_mlp_policy(
         action_size,
         traj_size=traj_size,
         obs_size=observation_size,
