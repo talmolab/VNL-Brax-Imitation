@@ -118,8 +118,6 @@ def main(train_config: DictConfig):
             ppo_networks.make_mlp_ppo_networks,
             policy_layer_sizes=train_config.mlp_policy_layer_sizes,
         )
-        # set KL weight to 0 for mlp
-        train_config["kl_weight"] = 0.0
     elif train_config["policy_network_name"] == "intention":
         network_factory = functools.partial(
             ppo_networks.make_intention_ppo_networks,

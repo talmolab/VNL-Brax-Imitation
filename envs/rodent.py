@@ -190,7 +190,7 @@ class RodentTracking(PipelineEnv):
         }
 
         state = State(data, obs, reward, done, metrics, info)
-        termination_error = self._calculate_termination(state)
+        termination_error, is_healhty = self._calculate_termination(state)
         info["termination_error"] = termination_error
         # if termination_error > 1e-1:
         #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
@@ -293,7 +293,10 @@ class RodentTracking(PipelineEnv):
             error / self._termination_threshold
         )  # low threshold, easier to terminate, more sensitive
 
-        return termination_error
+        is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
+        is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+
+        return termination_error, is_healthy
 
     def _calculate_reward(self, state, data_c):
         """
@@ -326,7 +329,7 @@ class RodentTracking(PipelineEnv):
         rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - qvel_ref)))
 
         # rtrunk = termination error
-        rtrunk = self._calculate_termination(state)
+        rtrunk, is_healthy = self._calculate_termination(state)
 
         quat_c = data_c.qpos[3:7]
         quat_ref = self._ref_traj.quaternion[state.info["cur_frame"], :]
@@ -344,8 +347,6 @@ class RodentTracking(PipelineEnv):
 
         rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
 
-        is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
-        is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
         return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
