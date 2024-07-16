@@ -210,7 +210,6 @@ class RodentTracking(PipelineEnv):
         )
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
-        done = jp.max(jp.array([1.0 - is_healthy, done]))
         done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
         # Handle nans during sim by resetting env
