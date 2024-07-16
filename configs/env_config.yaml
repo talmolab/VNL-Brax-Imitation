@@ -1,11 +1,12 @@
 humanoidtracking:
   name: humanoidtracking
-  solver: cg
-  iterations: 6
-  ls_iterations: 6
-  clip_path: clips/humanoid_traj.p
-  camera: side
+  stac_path: clips/humanoid_traj.p
   rendering_mjcf: humanoid_pair.xml
+  camera: side
+  env_args:
+    solver: cg
+    iterations: 6
+    ls_iterations: 6
 
 humanoidstanding:
   name: humanoidstanding
