@@ -183,6 +183,7 @@ def main(train_config: DictConfig):
         errors = []
         rewards = []
         means = []
+        stds = []
         actions = []
         log_probs = []
         ctrls = []
@@ -203,10 +204,13 @@ def main(train_config: DictConfig):
             mean, std = np.split(extras["logits"], 2)
             std = (jax.nn.softplus(std) + min_std) * scale_std
             log_prob = extras["log_prob"]
+            action = extras["actions"]
+
             log_probs.append(log_prob)
             means.append(mean)
             stds.append(std)
             ctrls.append(ctrl)
+            actions.append(action)
             rollout.append(state.pipeline_state)
 
         # Plot rtrunk over rollout
@@ -343,7 +347,6 @@ def main(train_config: DictConfig):
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
-                    mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
                     mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
                 )
 
