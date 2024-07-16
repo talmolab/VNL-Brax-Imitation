@@ -16,7 +16,7 @@ clips/all_snips.p
 ant_traj_still.p
 ant_traj.p
 humanoid_traj_stand.p
-humanoid_traj.p
+# humanoid_traj.p
 
 # h5 files
 clips/test_all_clips.h5
