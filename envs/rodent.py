@@ -194,7 +194,6 @@ class RodentTracking(PipelineEnv):
         info = state.info.copy()
         info["cur_frame"] += 1
         info["sub_clip_frame"] += 1
-        info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
         traj = self._get_traj(data, info)
@@ -221,15 +220,9 @@ class RodentTracking(PipelineEnv):
             jp.array(1, float),
             jp.array(0, float),
         )
-        sub_clip_healthy = jp.where(
-            info["sub_clip_frame"] < self._sub_clip_length,
-            jp.array(1, float),
-            jp.array(0, float),
-        )
 
         done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
-        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
         done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
         # Handle nans during sim by resetting env
