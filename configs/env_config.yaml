@@ -3,7 +3,7 @@ humanoidtracking:
   solver: cg
   iterations: 6
   ls_iterations: 6
-  clip_path: clips/humanoid_track.p
+  clip_path: clips/humanoid_traj.p
   camera: side
   rendering_mjcf: humanoid_pair.xml
 

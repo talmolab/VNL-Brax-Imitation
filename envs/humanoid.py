@@ -318,13 +318,13 @@ class HumanoidTracking(PipelineEnv):
 
         is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
         is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+
         return rcom, rvel, rtrunk, rquat, ract, is_healthy
 
     def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
         """
         Gets reference trajectory obs along with env state obs
         """
-
         # Get the relevant slice of the ref_traj
         def f(x):
             if len(x.shape) != 1:
