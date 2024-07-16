@@ -3,6 +3,7 @@ humanoidtracking:
   stac_path: clips/humanoid_traj.p
   rendering_mjcf: humanoid_pair.xml
   camera: side
+  clip_idx: 1
   env_args:
     solver: cg
     iterations: 6
