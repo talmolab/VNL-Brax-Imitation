@@ -1,6 +1,6 @@
 humanoidtracking:
   name: humanoidtracking
-  stac_path: clips/humanoid_traj.p
+  stac_path: clips/humanoid_traj_stand.p
   rendering_mjcf: humanoid_pair.xml
   camera: side
   clip_idx: 1
