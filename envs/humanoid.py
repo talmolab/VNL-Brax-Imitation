@@ -25,7 +25,7 @@ import pickle
 class HumanoidTracking(PipelineEnv):
     def __init__(
         self,
-        params,
+        reference_clip,
         mjcf_path: str = "./assets/humanoid.xml",
         iterations: int = 6,
         ls_iterations: int = 6,
@@ -33,6 +33,7 @@ class HumanoidTracking(PipelineEnv):
         clip_length: int = 250,
         episode_length: int = 150,
         ref_traj_length: int = 5,
+        sub_clip_length: int = 10,
         healthy_z_range=(1.0, 2.0),
         reset_noise_scale=1e-2,
         termination_threshold: float = 10,
@@ -81,15 +82,13 @@ class HumanoidTracking(PipelineEnv):
         self._healthy_z_range = healthy_z_range
         self._reset_noise_scale = reset_noise_scale
         self._body_error_multiplier = body_error_multiplier
+        self._sub_clip_length = sub_clip_length
         self._clip_length = clip_length
-        self._episode_length = episode_length
         self._ref_traj_length = ref_traj_length
         self._body_error_multiplier = body_error_multiplier
+        self._ref_traj = reference_clip
 
-        with open(params["clip_path"], "rb") as f:
-            self._ref_traj = pickle.load(f)
-
-        if self._episode_length > self._clip_length:
+        if self._sub_clip_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
     def reset(self, rng) -> State:
@@ -99,82 +98,36 @@ class HumanoidTracking(PipelineEnv):
         """
         rng, subkey = jax.random.split(rng)
 
-        start_frame = jax.random.randint(
+        self._start_frame = jax.random.randint(
             subkey,
             (),
             0,
-            self._clip_length - self._episode_length - self._ref_traj_length,
+            self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
 
         qpos = jp.hstack(
             [
-                self._ref_traj.position[start_frame, :],
-                self._ref_traj.quaternion[start_frame, :],
-                self._ref_traj.joints[start_frame, :],
+                self._ref_traj.position[self._start_frame, :],
+                self._ref_traj.quaternion[self._start_frame, :],
+                self._ref_traj.joints[self._start_frame, :],
             ]
         )
         qvel = jp.hstack(
             [
-                self._ref_traj.velocity[start_frame, :],
-                self._ref_traj.angular_velocity[start_frame, :],
-                self._ref_traj.joints_velocity[start_frame, :],
+                self._ref_traj.velocity[self._start_frame, :],
+                self._ref_traj.angular_velocity[self._start_frame, :],
+                self._ref_traj.joints_velocity[self._start_frame, :],
             ]
         )
         data = self.pipeline_init(qpos, qvel)
 
         obs = self._get_obs(data)
-        traj = self._get_traj(data, start_frame)
+        traj = self._get_traj(data, self._start_frame)
 
         info = {
-            "cur_frame": start_frame,
+            "cur_frame": self._start_frame,
             "traj": traj,
-        }
-
-        reward, done, zero = jp.zeros(3)
-        metrics = {
-            "rcom": zero,
-            "rvel": zero,
-            "rtrunk": zero,
-            "rquat": zero,
-            "ract": zero,
-            "termination_error": zero,
-        }
-
-        state = State(data, obs, reward, done, metrics, info)
-        termination_error = self._calculate_termination(state)
-        info["termination_error"] = termination_error
-        # if termination_error > 1e-1:
-        #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
-        #                     'This is likely due to a proto/walker mismatch.'))
-        state = state.replace(info=info)
-
-        return state
-
-    def reset_to_frame(self, start_frame) -> State:
-        """
-        Resets the environment to the initial frame
-        """
-        qpos = jp.hstack(
-            [
-                self._ref_traj.position[start_frame, :],
-                self._ref_traj.quaternion[start_frame, :],
-                self._ref_traj.joints[start_frame, :],
-            ]
-        )
-        qvel = jp.hstack(
-            [
-                self._ref_traj.velocity[start_frame, :],
-                self._ref_traj.angular_velocity[start_frame, :],
-                self._ref_traj.joints_velocity[start_frame, :],
-            ]
-        )
-        data = self.pipeline_init(qpos, qvel)
-
-        obs = self._get_obs(data)
-        traj = self._get_traj(data, start_frame)
-        info = {
-            "cur_frame": start_frame,
-            "traj": traj,
+            "sub_clip_frame": 0,
         }
 
         reward, done, zero = jp.zeros(3)
@@ -204,6 +157,7 @@ class HumanoidTracking(PipelineEnv):
 
         info = state.info.copy()
         info["cur_frame"] += 1
+        info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data)
         traj = self._get_traj(data, info["cur_frame"])
@@ -217,6 +171,7 @@ class HumanoidTracking(PipelineEnv):
         rtrunk *= 0.01
         rquat *= 0.01
         ract *= 0.0001
+
         total_reward = rcom + rvel + rtrunk + rquat + ract
         
         # increment frame tracker and up
@@ -224,7 +179,17 @@ class HumanoidTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
+        sub_clip_healthy = jp.where(
+            info["sub_clip_frame"] < self._sub_clip_length,
+            jp.array(1, float),
+            jp.array(0, float),
+        )
+
+        done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
+        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
+
+        # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)
 
@@ -526,10 +491,6 @@ class HumanoidStanding(PipelineEnv):
             "y_velocity": zero,
         }
         return State(data, obs, reward, done, metrics)
-
-    def reset_to_frame(self, start_frame):
-        # TODO: make the rng stuff in reset a wrapper? and reset_to_frame is default
-        return self.reset(jax.random.PRNGKey(0))
 
     def step(self, state: State, action: jp.ndarray) -> State:
         """Runs one timestep of the environment's dynamics."""

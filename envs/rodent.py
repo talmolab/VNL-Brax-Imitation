@@ -119,7 +119,6 @@ class RodentTracking(PipelineEnv):
         self._body_error_multiplier = body_error_multiplier
 
         self._ref_traj = reference_clip
-        self._ref_traj = reference_clip
         filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
         self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
         if self._sub_clip_length > self._clip_length:
@@ -225,7 +224,6 @@ class RodentTracking(PipelineEnv):
         done = jp.max(jp.array([1.0 - is_healthy, done]))
         done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
-        # Handle nans during sim by resetting env
         # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)
@@ -333,17 +331,6 @@ class RodentTracking(PipelineEnv):
         """
         Get env state obs only
         """
-
-        # Get the relevant slice of the ref_traj
-        # TODO: can just use jax.lax.slice
-        def f(x):
-            if len(x.shape) != 1:
-                return jax.lax.dynamic_slice_in_dim(
-                    x,
-                    info["cur_frame"] + 1,
-                    self._ref_traj_length,
-                )
-            return jp.array([])
 
         # TODO: end effectors pos and appendages pos are two different features?
         end_effectors = data.xpos[self._end_eff_idx].flatten()
