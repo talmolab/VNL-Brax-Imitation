@@ -11,6 +11,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import mujoco
 import imageio
+import pickle
 
 from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks
@@ -83,12 +84,18 @@ def main(train_config: DictConfig):
     rodent_config = env_cfg[train_config.env_name]
     env_args = rodent_config["env_args"]
 
-    # Process rodent clip
-    reference_clip = process_clip_to_train(
-        rodent_config["stac_path"],
-        start_step=rodent_config["clip_idx"] * env_args["clip_length"],
-        clip_length=env_args["clip_length"],
-    )
+    if train_config.env_name == "humanoidtracking":
+        with open(rodent_config["stac_path"], "rb") as f:
+            reference_clip = pickle.load(f)
+    
+    else:
+        # Process rodent clip
+        reference_clip = process_clip_to_train(
+            rodent_config["stac_path"],
+            start_step=rodent_config["clip_idx"] * env_args["clip_length"],
+            clip_length=env_args["clip_length"],
+        )
+
     env = envs.get_environment(
         env_cfg[train_config.env_name]["name"],
         reference_clip=reference_clip,
@@ -199,16 +206,19 @@ def main(train_config: DictConfig):
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
 
-            min_std = 0.01
-            scale_std = 0.01
-            mean, std = np.split(extras["logits"], 2)
-            std = (jax.nn.softplus(std) + min_std) * scale_std
+            # min_std = 0.01
+            # scale_std = 0.01
+            # mean, std = np.split(extras["logits"], 2)
+            # std = (jax.nn.softplus(std) + min_std) * scale_std
             log_prob = extras["log_prob"]
             action = extras["actions"]
 
+            # Fixed standard deviation
+            mean = extras["logits"]
+
             log_probs.append(log_prob)
             means.append(mean)
-            stds.append(std)
+            # stds.append(std)
             ctrls.append(ctrl)
             actions.append(action)
             rollout.append(state.pipeline_state)

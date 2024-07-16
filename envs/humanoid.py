@@ -46,14 +46,7 @@ class HumanoidTracking(PipelineEnv):
         **kwargs,
     ):
         root = mjcf.from_path(mjcf_path)
-
-        # Change actuators to torque (from positional)
-        for actuator in root.find_all("actuator"):
-            actuator.gainprm = [actuator.forcerange[1]]
-            del actuator.biastype
-            del actuator.biasprm
-        root = mjcf.from_path(mjcf_path)
-
+        
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
             root,
