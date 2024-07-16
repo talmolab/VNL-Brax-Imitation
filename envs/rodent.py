@@ -28,8 +28,8 @@ class RodentTracking(PipelineEnv):
         mjcf_path: str = "./assets/rodent.xml",
         scale_factor: float = 0.9,
         solver: str = "cg",
-        iterations: int = 30,
-        ls_iterations: int = 50,
+        iterations: int = 6,
+        ls_iterations: int = 6,
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
@@ -48,17 +48,9 @@ class RodentTracking(PipelineEnv):
             del actuator.biasprm
         root = mjcf.from_path(mjcf_path)
 
-        # Change actuators to torque (from positional)
-        for actuator in root.find_all("actuator"):
-            actuator.gainprm = [actuator.forcerange[1]]
-            del actuator.biastype
-            del actuator.biasprm
-
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
             root,
-            scale_factor,
-            scale_factor,
             scale_factor,
             scale_factor,
         )
@@ -69,10 +61,6 @@ class RodentTracking(PipelineEnv):
         mj_model.opt.solver = {
             "cg": mujoco.mjtSolver.mjSOL_CG,
             "newton": mujoco.mjtSolver.mjSOL_NEWTON,
-        }[solver.lower()]
-        mj_model.opt.iterations = iterations
-        mj_model.opt.ls_iterations = ls_iterations
-        mj_model.opt.jacobian = 0  # Dense is faster on GPU
         }[solver.lower()]
         mj_model.opt.iterations = iterations
         mj_model.opt.ls_iterations = ls_iterations
@@ -93,7 +81,6 @@ class RodentTracking(PipelineEnv):
             ]
         )
         self._com_idx = mujoco.mj_name2id(
-            mj_model, mujoco.mju_str2Type("body"), center_of_mass
             mj_model, mujoco.mju_str2Type("body"), center_of_mass
         )
 

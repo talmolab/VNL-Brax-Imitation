@@ -21,7 +21,7 @@ from jax import random
 import flax
 from flax import linen as nn
 
-from ppo_imitation import intention_policy_network as ipn
+from ppo_imitation import networks as ipn
 from ppo_imitation import distribution
 
 
@@ -70,6 +70,7 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
                 "log_prob": log_prob,
                 "raw_action": raw_actions,
                 "logits": logits,  # logits is tuple of (previous raw action, mean, sd)
+                "actions": postprocessed_actions
             }
 
         return policy
