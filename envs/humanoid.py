@@ -1,6 +1,7 @@
 import jax
 from jax import numpy as jp
 from typing import Any
+from typing import List
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
@@ -21,19 +22,22 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
 
-
 class HumanoidTracking(PipelineEnv):
     def __init__(
         self,
         reference_clip,
+        end_eff_names: List[str],
+        appendage_names: List[str],
+        walker_body_names: List[str],
+        joint_names: List[str],
+        center_of_mass: str,
         mjcf_path: str = "./assets/humanoid.xml",
         iterations: int = 6,
         ls_iterations: int = 6,
         solver: str = "cg",
         clip_length: int = 250,
-        episode_length: int = 150,
         ref_traj_length: int = 5,
-        sub_clip_length: int = 10,
+        sub_clip_length: int = 150,
         healthy_z_range=(1.0, 2.0),
         reset_noise_scale=1e-2,
         termination_threshold: float = 10,
@@ -69,6 +73,40 @@ class HumanoidTracking(PipelineEnv):
         mj_model.opt.ls_iterations = ls_iterations
         mj_model.opt.jacobian = 0  # Dense is faster on GPU
 
+        self._end_eff_idx = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
+                for body in end_eff_names
+                for body in end_eff_names
+            ]
+        )
+        self._app_idx = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
+                for body in appendage_names
+                for body in appendage_names
+            ]
+        )
+        self._com_idx = mujoco.mj_name2id(
+            mj_model, mujoco.mju_str2Type("body"), center_of_mass
+        )
+
+        self._body_idxs = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
+                for body in walker_body_names
+                for body in walker_body_names
+            ]
+        )
+
+        self._joint_idxs = jp.array(
+            [
+                mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
+                for joint in joint_names
+                for joint in joint_names
+            ]
+        )
+
         sys = mjcf_brax.load_model(mj_model)
 
         physics_steps_per_control_step = 5
@@ -88,22 +126,27 @@ class HumanoidTracking(PipelineEnv):
         self._body_error_multiplier = body_error_multiplier
         self._ref_traj = reference_clip
 
+        self._ref_traj = reference_clip
+        filtered_bodies = self._ref_traj.body_positions[:, self._body_idxs]
+        self._ref_traj = self._ref_traj.replace(body_positions=filtered_bodies)
+
         if self._sub_clip_length > self._clip_length:
             raise ValueError("episode_length cannot be greater than clip_length!")
 
     def reset(self, rng) -> State:
         """
         Resets the environment to an initial state.
-        TODO: add a small amt of noise (qpos + epsilon) for randomization purposes
         """
-        rng, subkey = jax.random.split(rng)
-
         self._start_frame = jax.random.randint(
-            subkey,
+            rng,
             (),
             0,
             self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
+        # self._start_frame = 0
+
+        old, rng = jax.random.split(rng)
+        noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
 
         qpos = jp.hstack(
             [
@@ -119,17 +162,17 @@ class HumanoidTracking(PipelineEnv):
                 self._ref_traj.joints_velocity[self._start_frame, :],
             ]
         )
-        data = self.pipeline_init(qpos, qvel)
-
-        obs = self._get_obs(data)
-        traj = self._get_traj(data, self._start_frame)
 
         info = {
             "cur_frame": self._start_frame,
-            "traj": traj,
             "sub_clip_frame": 0,
         }
+        data = self.pipeline_init(qpos + noise, qvel)
+        traj = self._get_traj(data, info)
 
+        info['traj'] = traj
+
+        obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)
         metrics = {
             "rcom": zero,
@@ -137,11 +180,12 @@ class HumanoidTracking(PipelineEnv):
             "rtrunk": zero,
             "rquat": zero,
             "ract": zero,
+            "rapp": zero,
             "termination_error": zero,
         }
 
         state = State(data, obs, reward, done, metrics, info)
-        termination_error = self._calculate_termination(state)
+        termination_error, is_healhty = self._calculate_termination(state)
         info["termination_error"] = termination_error
         # if termination_error > 1e-1:
         #   raise ValueError(('The termination exceeds 1e-2 at initialization. '
@@ -149,7 +193,7 @@ class HumanoidTracking(PipelineEnv):
         state = state.replace(info=info)
 
         return state
-
+    
     def step(self, state: State, action: jp.ndarray) -> State:
         """Runs one timestep of the environment's dynamics."""
         data0 = state.pipeline_state
@@ -159,23 +203,23 @@ class HumanoidTracking(PipelineEnv):
         info["cur_frame"] += 1
         info["sub_clip_frame"] += 1
 
-        obs = self._get_obs(data)
-        traj = self._get_traj(data, info["cur_frame"])
+        obs = self._get_obs(data, action, state.info)
+        traj = self._get_traj(data, info)
 
-        rcom, rvel, rtrunk, rquat, ract, is_healthy = self._calculate_reward(
-            state, action
+        rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
+            state, data
         )
-        done = jp.where((rtrunk < 0.5), jp.array(1, float), jp.array(0, float))
         rcom *= 0.01
         rvel *= 0.01
+        rapp *= 0.01
         rtrunk *= 0.01
+        rtrunk += 0
         rquat *= 0.01
         ract *= 0.0001
 
-        total_reward = rcom + rvel + rtrunk + rquat + ract
-        
-        # increment frame tracker and up
-        # date termination error
+        total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
+
+        # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
@@ -202,9 +246,10 @@ class HumanoidTracking(PipelineEnv):
         state.metrics.update(
             rcom=rcom,
             rvel=rvel,
+            rapp=rapp,
             rquat=rquat,
-            ract=ract,
             rtrunk=rtrunk,
+            ract=ract,
             termination_error=rtrunk,
         )
 
@@ -228,7 +273,7 @@ class HumanoidTracking(PipelineEnv):
 
         target_bodies = self._ref_traj.body_positions[state.info["cur_frame"], :]
         error_bodies = jp.linalg.norm(
-            (target_bodies - data_c.xpos), ord=1
+            (target_bodies - data_c.xpos[self._body_idxs]), ord=1
         )
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
         termination_error = 1 - (
@@ -240,7 +285,7 @@ class HumanoidTracking(PipelineEnv):
 
         return termination_error, is_healthy
 
-    def _calculate_reward(self, state, action):
+    def _calculate_reward(self, state, data_c):
         """
         calculates the tracking reward:
         1. rcom: comparing center of mass
@@ -251,11 +296,12 @@ class HumanoidTracking(PipelineEnv):
         Args:
             state (_type_): _description_
         """
-        data_c = state.pipeline_state
-
         # location using com (dim=3)
-        com_c = data_c.subtree_com[1]
-        com_ref = self._ref_traj.center_of_mass[state.info["cur_frame"], :]
+        com_c = data_c.xpos[self._com_idx]
+        com_c = data_c.xpos[self._com_idx]
+        com_ref = self._ref_traj.body_positions[:, self._com_idx][
+            state.info["cur_frame"], :
+        ]
         rcom = jp.exp(-100 * (jp.linalg.norm(com_c - (com_ref))))
 
         # joint angle velocity
@@ -267,29 +313,53 @@ class HumanoidTracking(PipelineEnv):
                 self._ref_traj.joints_velocity[state.info["cur_frame"], :],
             ]
         )
-        rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - (qvel_ref))))
+        rvel = jp.exp(-0.1 * (jp.linalg.norm(qvel_c - qvel_ref)))
 
         # rtrunk = termination error
-        rtrunk = self._calculate_termination(state)
+        rtrunk, is_healthy = self._calculate_termination(state)
 
         quat_c = data_c.qpos[3:7]
         quat_ref = self._ref_traj.quaternion[state.info["cur_frame"], :]
-        
         # use bounded_quat_dist from dmcontrol
         rquat = jp.exp(-2 * (jp.linalg.norm(self._bounded_quat_dist(quat_c, quat_ref))))
 
         # control force from actions
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
 
-        is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
-        is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+        # end effector positions
+        app_c = data_c.xpos[self._app_idx].flatten()
+        app_ref = self._ref_traj.body_positions[:, self._app_idx][
+            state.info["cur_frame"], :
+        ].flatten()
 
-        return rcom, rvel, rtrunk, rquat, ract, is_healthy
+        rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
 
-    def _get_traj(self, data: mjx.Data, cur_frame: int) -> jp.ndarray:
+        return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
+
+    def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:
         """
-        Gets reference trajectory obs along with env state obs
+        Get env state obs only
         """
+
+        # TODO: end effectors pos and appendages pos are two different features?
+        end_effectors = data.xpos[self._end_eff_idx].flatten()
+
+        return jp.concatenate(
+            [
+                data.qpos,
+                data.qvel,
+                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
+                end_effectors,
+            ]
+        )
+
+    def _get_traj(self, data: mjx.Data, info: dict) -> jp.ndarray:
+        """
+        Gets reference trajectory obs for separate pathway, storage in the info section of state
+        """
+
+        cur_frame = info["cur_frame"]
+
         # Get the relevant slice of the ref_traj
         def f(x):
             if len(x.shape) != 1:
@@ -301,7 +371,7 @@ class HumanoidTracking(PipelineEnv):
             return jp.array([])
 
         ref_traj = jax.tree_util.tree_map(f, self._ref_traj)
-
+        reference_appendages = self.get_reference_appendages_pos(ref_traj)
         reference_rel_bodies_pos_local = self.get_reference_rel_bodies_pos_local(
             data, ref_traj
         )
@@ -315,6 +385,7 @@ class HumanoidTracking(PipelineEnv):
 
         return jp.concatenate(
             [
+                reference_appendages,
                 reference_rel_bodies_pos_local,
                 reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,
@@ -322,21 +393,6 @@ class HumanoidTracking(PipelineEnv):
             ]
         )
 
-    def _get_obs(self, data: mjx.Data) -> jp.ndarray:
-        """
-        Gets reference trajectory obs along with env state obs
-        """
-        end_effectors = data.xpos.flatten()
-
-        return jp.concatenate(
-            [
-                data.qpos,
-                data.qvel,
-                data.qfrc_actuator,
-                end_effectors,
-            ]
-        )
-    
     def global_vector_to_local_frame(self, data, vec_in_world_frame):
         """Linearly transforms a world-frame vector into entity's local frame.
 
@@ -370,19 +426,19 @@ class HumanoidTracking(PipelineEnv):
     def get_reference_rel_bodies_pos_local(self, data, ref_traj):
         """Observation of the reference bodies relative to walker in local frame."""
         xpos_broadcast = jp.broadcast_to(
-            data.xpos, ref_traj.body_positions.shape
+            data.xpos[self._body_idxs], ref_traj.body_positions.shape
         )
         obs = self.global_vector_to_local_frame(
             data, ref_traj.body_positions - xpos_broadcast
-        )
+        )  # [:, self._body_idxs]
         return jp.concatenate([o.flatten() for o in obs])
 
     def get_reference_rel_bodies_pos_global(self, data, ref_traj):
         """Observation of the reference bodies relative to walker, global frame directly"""
         xpos_broadcast = jp.broadcast_to(
-            data.xpos, ref_traj.body_positions.shape
+            data.xpos[self._body_idxs], ref_traj.body_positions.shape
         )
-        diff = ref_traj.body_positions - xpos_broadcast
+        diff = ref_traj.body_positions - xpos_broadcast  # [:, self._body_idxs]
 
         return diff.flatten()
 
@@ -394,9 +450,12 @@ class HumanoidTracking(PipelineEnv):
 
     def get_reference_rel_joints(self, data, ref_traj):
         """Observation of the reference joints relative to walker."""
-        diff = (ref_traj.joints - data.qpos[7:])
+        diff = (ref_traj.joints - data.qpos[7:])[:, self._joint_idxs]
         return diff.flatten()
 
+    def get_reference_appendages_pos(self, ref_traj):
+        """Reference appendage positions in reference frame, not relative."""
+        return ref_traj.body_positions[:, self._app_idx].flatten()
 
     def _bounded_quat_dist(self, source: np.ndarray, target: np.ndarray) -> np.ndarray:
         """Computes a quaternion distance limiting the difference to a max of pi/2.

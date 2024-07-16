@@ -1,7 +1,6 @@
 import jax
 from jax import numpy as jp
 from typing import List
-from typing import List
 
 from brax.envs.base import PipelineEnv, State
 from brax.io import mjcf as mjcf_brax
@@ -33,7 +32,7 @@ class RodentTracking(PipelineEnv):
         healthy_z_range=(0.05, 0.5),
         reset_noise_scale=1e-3,
         clip_length: int = 250,
-        sub_clip_length: int = 10,
+        sub_clip_length: int = 150,
         ref_traj_length: int = 5,
         termination_threshold: float = 5,
         body_error_multiplier: float = 1.0,
@@ -70,13 +69,11 @@ class RodentTracking(PipelineEnv):
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in end_eff_names
-                for body in end_eff_names
             ]
         )
         self._app_idx = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
-                for body in appendage_names
                 for body in appendage_names
             ]
         )
@@ -88,14 +85,12 @@ class RodentTracking(PipelineEnv):
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
                 for body in walker_body_names
-                for body in walker_body_names
             ]
         )
 
         self._joint_idxs = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("joint"), joint)
-                for joint in joint_names
                 for joint in joint_names
             ]
         )
