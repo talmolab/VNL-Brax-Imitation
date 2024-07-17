@@ -6,8 +6,8 @@ humanoidtracking:
   clip_idx: 0
   env_args:
     solver: cg
-    iterations: 6
-    ls_iterations: 6
+    iterations: 30
+    ls_iterations: 50
     clip_length: 250
     sub_clip_length: 10
     ref_traj_length: 5
@@ -54,13 +54,6 @@ humanoidtracking:
       - left_shoulder2,
       - left_elbow
     center_of_mass: torso1
-
-humanoidstanding:
-  name: humanoidstanding
-  solver: cg
-  iterations: 6
-  ls_iterations: 6
-  camera: side
 
 ant:
   name: ant
