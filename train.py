@@ -16,7 +16,7 @@ import pickle
 from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks
 
-from envs.humanoid import HumanoidTracking, HumanoidStanding
+from envs.humanoid import HumanoidTracking
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking, RodentMultiClipTracking
 
@@ -69,7 +69,6 @@ os.environ["XLA_FLAGS"] = (
 envs.register_environment("humanoidtracking", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
-envs.register_environment("humanoidstanding", HumanoidStanding)
 envs.register_environment("rodentmuticlip", RodentMultiClipTracking)
 
 
