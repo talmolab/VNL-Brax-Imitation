@@ -156,7 +156,7 @@ class RodentTracking(PipelineEnv):
         data = self.pipeline_init(qpos + noise, qvel)
         traj = self._get_traj(data, info)
 
-        info['traj'] = traj
+        info["traj"] = traj
 
         obs = self._get_obs(data, jp.zeros(self.sys.nu), info)
         reward, done, zero = jp.zeros(3)

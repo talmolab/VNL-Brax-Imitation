@@ -26,6 +26,7 @@ import pickle
 @struct.dataclass
 class ReferenceClip:
     """This dataclass is used to store the trajectory in the env."""
+
     """This dataclass is used to store the trajectory in the env."""
 
     # qpos
@@ -338,6 +339,7 @@ def compute_velocity_from_kinematics(
     qvel_gyro = jp.stack(qvel_gyro)
     qvel_joints = (qpos_trajectory[1:, 7:] - qpos_trajectory[:-1, 7:]) / dt
     return jp.concatenate([qvel_translation, qvel_gyro, qvel_joints], axis=1)
+
 
 def save_dataclass_pickle(pickle_path, mocap_features):
     data = ReferenceClip(**mocap_features)

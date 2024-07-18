@@ -22,6 +22,7 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from walker import Rat
 import pickle
 
+
 class HumanoidTracking(PipelineEnv):
     def __init__(
         self,
@@ -130,9 +131,11 @@ class HumanoidTracking(PipelineEnv):
         """
         Resets the environment to an initial state.
         """
-        start_frame = 0
-
         old, rng = jax.random.split(rng)
+        start_frame = jax.random.randint(
+            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
+        )
+
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
 
         qpos = jp.hstack(
@@ -192,13 +195,13 @@ class HumanoidTracking(PipelineEnv):
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
-        rcom *= 0.01
+        rcom *= 0.1
         rvel *= 0.01
         rapp *= 0.01
-        rtrunk *= 0.01
+        rtrunk *= 0.2
         rtrunk += 0
-        rquat *= 0.01
-        ract *= 0.0001
+        rquat *= 0.005
+        ract *= 0.001
 
         total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
 

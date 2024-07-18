@@ -86,7 +86,7 @@ def main(train_config: DictConfig):
     if train_config.env_name == "humanoidtracking":
         with open(rodent_config["stac_path"], "rb") as f:
             reference_clip = pickle.load(f)
-    
+
     else:
         # Process rodent clip
         reference_clip = process_clip_to_train(

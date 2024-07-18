@@ -174,7 +174,11 @@ def make_mlp_policy(
 ) -> IntentionNetwork:
     """Creates an intention policy network."""
 
-    policy_module = ImitationMLP(layer_sizes=list(layer_sizes) + [param_size], layer_norm=True, activate_final=False)
+    policy_module = ImitationMLP(
+        layer_sizes=list(layer_sizes) + [param_size],
+        layer_norm=True,
+        activate_final=False,
+    )
 
     def apply(processor_params, policy_params, traj, obs, key):
         obs = preprocess_observations_fn(obs, processor_params)
