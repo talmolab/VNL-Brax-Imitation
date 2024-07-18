@@ -133,7 +133,10 @@ class HumanoidTracking(PipelineEnv):
         """
         old, rng = jax.random.split(rng)
         start_frame = jax.random.randint(
-            rng, (), 0, self._clip_length - self._episode_length - self._ref_traj_length
+            rng,
+            (),
+            0,
+            self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
 
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
