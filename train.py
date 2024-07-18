@@ -32,6 +32,9 @@ from preprocessing.mjx_preprocess import process_clip_to_train
 # rendering related
 from dm_control.mujoco import wrapper
 from dm_control.mujoco.wrapper.mjbindings import enums
+from orbax import checkpoint as ocp
+from flax.training import orbax_utils
+from etils import epath
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -174,8 +177,15 @@ def main(train_config: DictConfig):
 
     # TODO: make the rollout into a scan (or call brax's rollout fn?)
     def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
-        os.makedirs(model_path, exist_ok=True)
-        model.save_params(f"{model_path}/{num_steps}", params)
+        # use orbax to save the cehck points
+        ckpt_path = epath.Path(model_path)
+        orbax_checkpointer = ocp.PyTreeCheckpointer()
+        ckpt_path.mkdir(parents=True, exist_ok=True)
+        save_args = orbax_utils.save_args_from_target(params)
+        path = ckpt_path / f"{num_steps}"
+        path = os.path.abspath(path) # orbax required abs path
+        orbax_checkpointer.save(path, params, force=True, save_args=save_args)
+
         jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
