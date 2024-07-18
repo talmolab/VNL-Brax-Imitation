@@ -1,11 +1,59 @@
-humanoidtracking:
-  name: humanoidtracking
-  solver: cg
-  iterations: 6
-  ls_iterations: 6
-  clip_path: clips/humanoid_traj_stand.p
-  camera: side
+humanoid:
+  name: humanoid
+  stac_path: clips/humanoid_traj.p
   rendering_mjcf: humanoid_pair.xml
+  camera: close_profile
+  clip_idx: 0
+  env_args:
+    solver: cg
+    iterations: 2
+    ls_iterations: 4
+    clip_length: 500
+    sub_clip_length: 150
+    ref_traj_length: 5
+    termination_threshold: 10
+    end_eff_names:
+      - right_foot
+      - left_foot
+    appendage_names:
+      - left_knee
+      - right_knee
+      - left_elbow
+      - right_elbow
+    walker_body_names:
+      - torso,
+      - lwaist,
+      - pelvis,
+      - right_thigh,
+      - right_shin,
+      - right_foot,
+      - left_thigh,
+      - left_shin,
+      - left_foot,
+      - right_upper_arm,
+      - right_lower_arm,
+      - left_upper_arm,
+      - left_lower_arm
+    joint_names:
+      - root,
+      - abdomen_z,
+      - abdomen_y,
+      - abdomen_x,
+      - right_hip_x,
+      - right_hip_z,
+      - right_hip_y,
+      - right_knee,
+      - left_hip_x,
+      - left_hip_z,
+      - left_hip_y,
+      - left_knee,
+      - right_shoulder1,
+      - right_shoulder2,
+      - right_elbow,
+      - left_shoulder1,
+      - left_shoulder2,
+      - left_elbow
+    center_of_mass: torso1
 
 humanoidstanding:
   name: humanoidstanding
@@ -28,13 +76,13 @@ rodent:
   camera: close_profile
   rendering_mjcf: rodent_pair.xml
   stac_path: clips/all_snips.p
-  clip_idx: 76 # easier walk clip
+  clip_idx: 1
   env_args:
     mjcf_path: "./assets/rodent_modified.xml"
     scale_factor: 0.9
     solver: cg
-    iterations: 6
-    ls_iterations: 6
+    iterations: 30
+    ls_iterations: 50
     clip_length: 250
     sub_clip_length: 10
     ref_traj_length: 5
@@ -98,4 +146,87 @@ rodent:
       - wrist_R
       - finger_R
     center_of_mass: torso
-    
+
+rodent_multiclip:
+  name: rodent_multiclip
+  camera: close_profile
+  rendering_mjcf: rodent_pair.xml
+  stac_path: clips/all_snips.p
+  clip_idx: 1
+  env_args:
+    mjcf_path: "./assets/rodent.xml"
+    scale_factor: 0.9
+    solver: cg
+    iterations: 6
+    ls_iterations: 6
+    clip_length: 250
+    sub_clip_length: 10
+    ref_traj_length: 5
+    termination_threshold: 5
+    min_steps: 10
+    random_start: True
+    end_eff_names:
+      - foot_L
+      - foot_R 
+      - hand_L
+      - hand_R
+    appendage_names:
+      - foot_L
+      - foot_R 
+      - hand_L
+      - hand_R
+      - skull
+    walker_body_names:
+      - torso
+      - pelvis
+      - upper_leg_L
+      - lower_leg_L
+      - foot_L
+      - upper_leg_R
+      - lower_leg_R
+      - foot_R
+      - skull
+      - jaw
+      - scapula_L
+      - upper_arm_L
+      - lower_arm_L
+      - finger_L
+      - scapula_R
+      - upper_arm_R
+      - lower_arm_R
+      - finger_R
+    joint_names:
+      - vertebra_1_extend
+      - hip_L_supinate
+      - hip_L_abduct
+      - hip_L_extend
+      - knee_L
+      - ankle_L
+      - toe_L
+      - hip_R_supinate
+      - hip_R_abduct
+      - hip_R_extend
+      - knee_R
+      - ankle_R
+      - toe_R
+      - vertebra_C11_extend
+      - vertebra_cervical_1_bend
+      - vertebra_axis_twist
+      - atlas
+      - mandible
+      - scapula_L_supinate
+      - scapula_L_abduct
+      - scapula_L_extend
+      - shoulder_L
+      - shoulder_sup_L
+      - elbow_L
+      - wrist_L
+      - scapula_R_supinate
+      - scapula_R_abduct
+      - scapula_R_extend
+      - shoulder_R
+      - shoulder_sup_R
+      - elbow_R
+      - wrist_R
+      - finger_R
+    center_of_mass: torso

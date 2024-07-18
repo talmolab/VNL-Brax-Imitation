@@ -170,6 +170,13 @@ def compute_ppo_intention_loss(
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
     rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)
 
+    # take the top k advantages.
+    k = 20
+    top_k_indices = jnp.argsort(advantages)[-k:]
+    mask = jnp.zeros_like(advantages, dtype=bool)
+    mask.at[top_k_indices].set(True)
+    advantages = jnp.where(mask, advantages, 0)
+
     surrogate_loss1 = rho_s * advantages
     surrogate_loss2 = (
         jnp.clip(rho_s, 1 - clipping_epsilon, 1 + clipping_epsilon) * advantages
@@ -188,7 +195,7 @@ def compute_ppo_intention_loss(
 
     prediction_corr = jnp.corrcoef(vs, rewards)
     explained_variance = 1.0 - (v_loss / jnp.var(rewards))
-    # scale the output KL loss by the kl_weight, currently assumes the variance of the output distribution is 1. 
+    # scale the output KL loss by the kl_weight, currently assumes the variance of the output distribution is 1.
     # If you want a differnet variance, then scaling the KL weight differently.
     output_kl_loss = jnp.square(policy_logits).sum() * kl_weight
 

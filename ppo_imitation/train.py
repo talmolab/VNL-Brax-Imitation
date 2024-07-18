@@ -23,11 +23,12 @@ from brax.training.types import Params
 from brax.training.types import PRNGKey
 from brax.v1 import envs as envs_v1
 import flax
+from etils import epath
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-
+from orbax import checkpoint as ocp
 
 InferenceParams = Tuple[running_statistics.NestedMeanStd, Params]
 Metrics = types.Metrics
@@ -94,6 +95,7 @@ def train(
     ] = None,
     ppo_loss_fn=ppo_losses.compute_ppo_intention_loss,
     kl_weight: float = 1e-4,  # default kl_weight in MIMIC
+    restore_checkpoint_path: Optional[str] = None,
 ):
     """PPO training.
 
@@ -142,6 +144,7 @@ def train(
         saving policy checkpoints
       randomization_fn: a user-defined callback function that generates randomized
         environments
+      restore_checkpoint_path: the path used to restore previous model params
 
     Returns:
       Tuple of (make_policy function, network params, metrics)
@@ -409,6 +412,29 @@ def train(
         ),
         env_steps=0,
     )
+    
+    # Added checkpoint supports
+    if num_timesteps == 0:
+        return (
+            make_policy,
+            (training_state.normalizer_params, training_state.params),
+            {},
+        )
+
+    if (
+        restore_checkpoint_path is not None
+        and epath.Path(restore_checkpoint_path).exists()
+    ):
+        logging.info('restoring from checkpoint %s', restore_checkpoint_path)
+        orbax_checkpointer = ocp.PyTreeCheckpointer()
+        target = training_state.normalizer_params, init_params
+        (normalizer_params, init_params) = orbax_checkpointer.restore(
+            restore_checkpoint_path, item=target
+        )
+        training_state = training_state.replace(
+            normalizer_params=normalizer_params, params=init_params
+        )
+    
     training_state = jax.device_put_replicated(
         training_state, jax.local_devices()[:local_devices_to_use]
     )

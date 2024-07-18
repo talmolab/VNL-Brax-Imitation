@@ -1,27 +1,27 @@
-env_name: rodent
+env_name: humanoid
 algo_name: ppo
 task_name: track
+# Optional checkpoint loading.
+checkpoint_path: cps
+num_envs: 4096
 note: 
-num_envs: 2048
-num_timesteps: 2_000_000_000
-eval_every: 2_000_000
+num_timesteps: 20_000_000_000
+eval_every: 20_000_000
 episode_length: 1000
 batch_size: 2048
-learning_rate: 1e-3
+learning_rate: 1e-5
 num_minibatches: 32
 num_updates_per_batch: 16
 clipping_epsilon: 0.3
-terminate_when_unhealthy: true
-entropy_cost: 1e-1
-
+entropy_cost: 1e-2
 # Either "mlp" or "intention"
 policy_network_name: "mlp"
 # currently use this for the output layer too.
-kl_weight: 0
+kl_weight: 1e-4
 # If using mlp policy network
-mlp_policy_layer_sizes: [1024, 1024, 1024]
-# # If using intention policy network
-encoder_layer_sizes: [256, 256]
+mlp_policy_layer_sizes: [1024, 1024, 1024, 1024]
+# If using intention policy network
+encoder_layer_sizes: [512,256,256,256]
 intention_latent_size: 64
-decoder_layer_sizes: [256, 256]
+decoder_layer_sizes: [256,256,256,512]
 

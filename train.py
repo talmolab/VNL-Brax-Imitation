@@ -6,7 +6,7 @@ import wandb
 import numpy as np
 from brax import envs
 from brax.io import model
-
+import pickle
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import mujoco
@@ -15,7 +15,7 @@ import imageio
 from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks
 
-from envs.humanoid import HumanoidTracking, HumanoidStanding
+from envs.humanoid import HumanoidTracking
 from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
@@ -64,10 +64,10 @@ os.environ["XLA_FLAGS"] = (
     "--xla_gpu_enable_triton_softmax_fusion=true " "--xla_gpu_triton_gemm_any=True "
 )
 
-envs.register_environment("humanoidtracking", HumanoidTracking)
+envs.register_environment("humanoid", HumanoidTracking)
 envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
-envs.register_environment("humanoidstanding", HumanoidStanding)
+# envs.register_environment("humanoidstanding", HumanoidStanding)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
@@ -77,12 +77,16 @@ def main(train_config: DictConfig):
     rodent_config = env_cfg[train_config.env_name]
     env_args = rodent_config["env_args"]
 
-    # Process rodent clip
-    reference_clip = process_clip_to_train(
-        rodent_config["stac_path"],
-        start_step=rodent_config["clip_idx"] * env_args["clip_length"],
-        clip_length=env_args["clip_length"],
-    )
+    if train_config.env_name == "humanoid":
+        with open(rodent_config["stac_path"], "rb") as f:
+            reference_clip = pickle.load(f)
+    else:
+        # Process rodent clip
+        reference_clip = process_clip_to_train(
+            rodent_config["stac_path"],
+            start_step=rodent_config["clip_idx"] * env_args["clip_length"],
+            clip_length=env_args["clip_length"],
+        )
 
     # Init env
     env = envs.get_environment(
@@ -146,6 +150,7 @@ def main(train_config: DictConfig):
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
         network_factory=network_factory,
+        restore_checkpoint_path=train_config["checkpoint_path"],
     )
 
     # Generates a completely random UUID (version 4)
@@ -295,34 +300,6 @@ def main(train_config: DictConfig):
         )
 
         qposes_rollout = [data.qpos for data in rollout]
-
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
-
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
-
-        # render overlay
-        scene_option = wrapper.MjvOption()
-        scene_option.geomgroup[2] = 1
-        scene_option.sitegroup[2] = 1
-
-        scene_option.sitegroup[3] = 1
-        scene_option.flags[enums.mjtVisFlag.mjVIS_TRANSPARENT] = True
-        scene_option.flags[enums.mjtVisFlag.mjVIS_LIGHT] = False
-        scene_option.flags[enums.mjtVisFlag.mjVIS_CONVEXHULL] = True
-        scene_option.flags[enums.mjtRndFlag.mjRND_SHADOW] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_REFLECTION] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_SKYBOX] = False
-        scene_option.flags[enums.mjtRndFlag.mjRND_FOG] = False
 
         # render overlay
         scene_option = wrapper.MjvOption()
