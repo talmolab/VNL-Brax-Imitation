@@ -13,7 +13,7 @@ num_updates_per_batch: 16
 clipping_epsilon: 0.1
 entropy_cost: 1e-2
 # Either "mlp" or "intention"
-policy_network_name: "mlp"
+policy_network_name: "intention"
 # currently use this for the output layer too.
 kl_weight: 0
 # If using mlp policy network

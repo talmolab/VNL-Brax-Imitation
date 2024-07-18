@@ -11,7 +11,7 @@ humanoidtracking:
     clip_length: 250
     sub_clip_length: 10
     ref_traj_length: 5
-    termination_threshold: 5
+    termination_threshold: 10
     end_eff_names:
       - right_foot
       - left_foot
