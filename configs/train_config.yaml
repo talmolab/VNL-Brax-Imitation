@@ -1,7 +1,7 @@
 env_name: humanoidtracking
 algo_name: ppo
 task_name: track
-num_envs: 128
+num_envs: 4096
 note: 
 num_timesteps: 10_000_000_000
 eval_every: 10_000_000
