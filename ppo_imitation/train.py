@@ -234,7 +234,7 @@ def train(
 
     learning_rate_fn = optax.constant_schedule(learning_rate)
     optimizer = optax.adam(learning_rate_fn)
-    # This doesn't work yet (set adam b1=0. if used)
+    # Set b1=0. in adam if using schedule_free
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
     loss_fn = functools.partial(
@@ -262,6 +262,7 @@ def train(
         key, key_loss = jax.random.split(key)
 
         # gets logged
+        # don't update the parameters to see if its the update that's messing it up
         (_, metrics), params, optimizer_state = gradient_update_fn(
             params, normalizer_params, data, key_loss, optimizer_state=optimizer_state
         )

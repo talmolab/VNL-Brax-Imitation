@@ -82,6 +82,7 @@ def main(train_config: DictConfig):
         rodent_config["stac_path"],
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
+        mjcf_path=env_args["mjcf_path"]
     )
 
     # Init env
@@ -132,12 +133,12 @@ def main(train_config: DictConfig):
         num_evals=int(train_config["num_timesteps"] / train_config["eval_every"]),
         reward_scaling=1,
         episode_length=train_config["episode_length"],
-        normalize_observations=True,
+        normalize_observations=False,
         action_repeat=1,
-        unroll_length=20,
+        unroll_length=10,
         num_minibatches=train_config["num_minibatches"],
         num_updates_per_batch=train_config["num_updates_per_batch"],
-        discounting=0.99,
+        discounting=0.95,
         learning_rate=train_config["learning_rate"],
         entropy_cost=train_config["entropy_cost"],
         num_envs=train_config["num_envs"] * n_devices,
@@ -146,6 +147,7 @@ def main(train_config: DictConfig):
         clipping_epsilon=train_config["clipping_epsilon"],
         kl_weight=train_config["kl_weight"],
         network_factory=network_factory,
+        # deterministic_eval=True,
     )
 
     # Generates a completely random UUID (version 4)
@@ -183,7 +185,7 @@ def main(train_config: DictConfig):
         means = []
         actions = []
         log_probs = []
-
+        z_heights = []
         for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
             ctrl, extras = jit_inference_fn(
@@ -195,13 +197,14 @@ def main(train_config: DictConfig):
                 errors.append(state.info["termination_error"])
                 rewards.append(state.reward)
 
-            mean = extras["logits"]
-            log_prob = extras["log_prob"]
-            action = extras["actions"]
-            log_probs.append(log_prob)
-            means.append(mean)
-            actions.append(action)
+            # mean = extras["logits"]
+            # log_prob = extras["log_prob"]
+            # action = extras["actions"]
+            # log_probs.append(log_prob)
+            # actions.append(action)
+            # means.append(mean)
             rollout.append(state.pipeline_state)
+            z_heights.append(state.pipeline_state.xpos[eval_env._torso_idx][2])
 
         # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
@@ -216,48 +219,62 @@ def main(train_config: DictConfig):
                 )
             }
         )
-
-        # Plot action means over rollout (array of array)
-        data = np.array(means).T
+        
+        # Plot z height over rollout
+        data = [[x, y] for (x, y) in zip(range(len(z_heights)), z_heights)]
+        table = wandb.Table(data=data, columns=["frame", "z height"])
         wandb.log(
             {
-                f"logits/rollout_means": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Action actuator means for each rollout frame (un-processed)",
-                )
-            }
-        )
-
-        # Plot action means over rollout (array of array)
-        data = np.array(actions).T
-        wandb.log(
-            {
-                f"logits/rollout_actions": wandb.plot.line_series(
-                    xs=range(data.shape[1]),
-                    ys=data,
-                    keys=[str(i) for i in range(data.shape[0])],
-                    xname="Frame",
-                    title=f"Action actuator means for each rollout frame (post-processed)",
-                )
-            }
-        )
-
-        # Plot policy action prob over rollout
-        data = [[x, y] for (x, y) in zip(range(len(log_probs)), log_probs)]
-        table = wandb.Table(data=data, columns=["frame", "log_probs"])
-        wandb.log(
-            {
-                "logits/rollout_log_probs": wandb.plot.line(
+                "eval/rollout_rtrunk": wandb.plot.line(
                     table,
                     "frame",
-                    "log_probs",
-                    title="Policy action probability for each rollout frame",
+                    "z height",
+                    title="z height for each rollout frame",
                 )
             }
         )
+
+        # # Plot action means over rollout (array of array)
+        # data = np.array(means).T
+        # wandb.log(
+        #     {
+        #         f"logits/rollout_means": wandb.plot.line_series(
+        #             xs=range(data.shape[1]),
+        #             ys=data,
+        #             keys=[str(i) for i in range(data.shape[0])],
+        #             xname="Frame",
+        #             title=f"Action actuator means for each rollout frame (un-processed)",
+        #         )
+        #     }
+        # )
+
+        # # Plot action means over rollout (array of array)
+        # data = np.array(actions).T
+        # wandb.log(
+        #     {
+        #         f"logits/rollout_actions": wandb.plot.line_series(
+        #             xs=range(data.shape[1]),
+        #             ys=data,
+        #             keys=[str(i) for i in range(data.shape[0])],
+        #             xname="Frame",
+        #             title=f"Action actuator means for each rollout frame (post-processed)",
+        #         )
+        #     }
+        # )
+
+        # # Plot policy action prob over rollout
+        # data = [[x, y] for (x, y) in zip(range(len(log_probs)), log_probs)]
+        # table = wandb.Table(data=data, columns=["frame", "log_probs"])
+        # wandb.log(
+        #     {
+        #         "logits/rollout_log_probs": wandb.plot.line(
+        #             table,
+        #             "frame",
+        #             "log_probs",
+        #             title="Policy action probability for each rollout frame",
+        #         )
+        #     }
+        # )
 
         # Plot reward over rollout
         data = [[x, y] for (x, y) in zip(range(len(rewards)), rewards)]
@@ -303,8 +320,8 @@ def main(train_config: DictConfig):
             "newton": mujoco.mjtSolver.mjSOL_NEWTON,
         }["cg"]
 
-        mj_model.opt.iterations = 6
-        mj_model.opt.ls_iterations = 6
+        mj_model.opt.iterations = 50
+        mj_model.opt.ls_iterations = 100
         mj_model.opt.jacobian = 0  # dense
         mj_data = mujoco.MjData(mj_model)
 

@@ -26,6 +26,7 @@ from typing import Any
 def process(
     stac_path: Text,
     save_file: Text,
+    mjcf_path: str = "./assets/rodent.xml",
     scale_factor: float = 0.9,
     start_step: int = 0,
     clip_length: int = 250,
@@ -56,7 +57,7 @@ def process(
         mocap_qpos = np.array(d["qpos"])
 
     # load rodent mjcf
-    root = mjcf.from_path("./assets/rodent.xml")
+    root = mjcf.from_path(mjcf_path)
     rescale.rescale_subtree(
         root,
         scale_factor,

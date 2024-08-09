@@ -27,8 +27,8 @@ class RodentTracking(PipelineEnv):
         solver: str = "cg",
         iterations: int = 6,
         ls_iterations: int = 6,
-        healthy_z_range=(0.05, 0.5),
-        reset_noise_scale=1e-3,
+        healthy_z_range=(0.02, 0.5),
+        reset_noise_scale=1e-4,
         clip_length: int = 250,
         sub_clip_length: int = 10,
         ref_traj_length: int = 5,
@@ -39,10 +39,10 @@ class RodentTracking(PipelineEnv):
         root = mjcf.from_path(mjcf_path)
 
         # Change actuators to torque (from positional)
-        for actuator in root.find_all("actuator"):
-            actuator.gainprm = [actuator.forcerange[1]]
-            del actuator.biastype
-            del actuator.biasprm
+        # for actuator in root.find_all("actuator"):
+        #    actuator.gainprm = [actuator.forcerange[1]]
+        #    del actuator.biastype
+        #    del actuator.biasprm
 
         # TODO: replace this rescale with jax version (from james cotton BodyModels)
         rescale.rescale_subtree(
@@ -52,7 +52,7 @@ class RodentTracking(PipelineEnv):
         )
         mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
 
-        mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
+        # mj_model.opt.cone = mujoco.mjtCone.mjCONE_PYRAMIDAL
 
         mj_model.opt.solver = {
             "cg": mujoco.mjtSolver.mjSOL_CG,
@@ -62,6 +62,7 @@ class RodentTracking(PipelineEnv):
         mj_model.opt.ls_iterations = ls_iterations
         mj_model.opt.jacobian = 0  # Dense is faster on GPU
 
+        self._torso_idx = mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), "torso")
         self._end_eff_idx = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
@@ -94,7 +95,8 @@ class RodentTracking(PipelineEnv):
 
         sys = mjcf_brax.load_model(mj_model)
 
-        physics_steps_per_control_step = 5
+        # logic to get 'correct' physics steps based on traj fps and simulation timestep
+        physics_steps_per_control_step = (1.0/50.0) / mj_model.opt.timestep
 
         kwargs["n_frames"] = kwargs.get("n_frames", physics_steps_per_control_step)
         kwargs["backend"] = "mjx"
@@ -126,7 +128,7 @@ class RodentTracking(PipelineEnv):
             0,
             self._clip_length - self._sub_clip_length - self._ref_traj_length,
         )
-        # start_frame = 0
+        start_frame = 0
 
         old, rng = jax.random.split(rng)
         noise = self._reset_noise_scale * jax.random.normal(rng, shape=(self.sys.nq,))
@@ -146,8 +148,8 @@ class RodentTracking(PipelineEnv):
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, start_frame)
-
+        # traj = self._get_traj(data, start_frame)
+        traj = jp.array([0], dtype=float)
         info = {
             "cur_frame": start_frame,
             "sub_clip_frame": 0,
@@ -163,6 +165,7 @@ class RodentTracking(PipelineEnv):
             "ract": zero,
             "rapp": zero,
             "termination_error": zero,
+            "nan": zero,
         }
 
         state = State(data, obs, reward, done, metrics, info)
@@ -185,18 +188,18 @@ class RodentTracking(PipelineEnv):
         info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
-        traj = self._get_traj(data, info["cur_frame"])
-
+        # traj = self._get_traj(data, info["cur_frame"])
+        traj = jp.array([0], dtype=float)
+        
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
-        rcom *= 0.01
-        rvel *= 0.01
-        rapp *= 0.01
-        rtrunk *= 0.01
-        rtrunk += 0
-        rquat *= 0.01
-        ract *= 0.0001
+        rcom *= 0.15 * 0.0
+        rvel *= 0.1 * 0.0
+        rapp *= 0.1 * 0.0
+        rtrunk *= 0.3 * 0.0
+        rquat *= 0.1 * 0.0
+        ract *= 0.0001 * 0.0
 
         total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
 
@@ -210,7 +213,8 @@ class RodentTracking(PipelineEnv):
             jp.array(0, float),
         )
 
-        done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
+        done = jp.array(0, float)
+        # done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
         done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
 
@@ -222,7 +226,8 @@ class RodentTracking(PipelineEnv):
 
         flattened_vals, _ = ravel_pytree(data)
         num_nans = jp.sum(jp.isnan(flattened_vals))
-        done = jp.where(num_nans > 0, 1.0, done)
+        nan = jp.where(num_nans > 0, 1.0, 0.0)
+        done = jp.max(jp.array([nan, done]))
 
         state.metrics.update(
             rcom=rcom,
@@ -232,8 +237,10 @@ class RodentTracking(PipelineEnv):
             rtrunk=rtrunk,
             ract=ract,
             termination_error=rtrunk,
+            nan=nan,
         )
-
+        #only standing reward
+        reward = jp.where(done < 1.0, 1.0, 0.0)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
@@ -250,12 +257,10 @@ class RodentTracking(PipelineEnv):
         data_c = state.pipeline_state
 
         target_joints = self._ref_traj.joints[state.info["cur_frame"], :]
-        error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]), ord=1)
+        error_joints = jp.linalg.norm((target_joints - data_c.qpos[7:]))
 
         target_bodies = self._ref_traj.body_positions[state.info["cur_frame"], :]
-        error_bodies = jp.linalg.norm(
-            (target_bodies - data_c.xpos[self._body_idxs]), ord=1
-        )
+        error_bodies = jp.linalg.norm((target_bodies - data_c.xpos[self._body_idxs]))
         error = 0.5 * self._body_error_multiplier * error_bodies + 0.5 * error_joints
         termination_error = 1 - (
             error / self._termination_threshold
@@ -302,17 +307,18 @@ class RodentTracking(PipelineEnv):
 
         # control force from actions
         ract = -0.015 * jp.mean(jp.square(data_c.qfrc_actuator))
-
+        # no ract for now
+        ract = 0.0
         # end effector positions
         app_c = data_c.xpos[self._app_idx].flatten()
         app_ref = self._ref_traj.body_positions[:, self._app_idx][
             state.info["cur_frame"], :
         ].flatten()
 
-        rapp = jp.exp(-400 * (jp.linalg.norm(app_c - app_ref)))
+        rapp = jp.exp(-40 * (jp.linalg.norm(app_c - app_ref)))
 
-        is_healthy = jp.where(data_c.q[2] < self._healthy_z_range[0], 0.0, 1.0)
-        is_healthy = jp.where(data_c.q[2] > self._healthy_z_range[1], 0.0, is_healthy)
+        is_healthy = jp.where(data_c.xpos[self._torso_idx][2] < self._healthy_z_range[0], 0.0, 1.0)
+        is_healthy = jp.where(data_c.xpos[self._torso_idx][2] > self._healthy_z_range[1], 0.0, is_healthy)
         return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:

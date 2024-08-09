@@ -43,6 +43,7 @@ class ReferenceClip:
 
 def process_clip_to_train(
     stac_path: Text,
+    mjcf_path: str = "./assets/rodent.xml",
     scale_factor: float = 0.9,
     start_step: int = 0,
     clip_length: int = 250,
@@ -71,7 +72,7 @@ def process_clip_to_train(
     # TODO: make this all work in mjx? james cotton did rescaling with mjx model:
     # https://github.com/peabody124/BodyModels/blob/f6ef1be5c5d4b7e51028adfc51125e510c13bcc2/body_models/biomechanics_mjx/forward_kinematics.py#L92
     # TODO: Set this up outside of this function as it only needs to be done once anyway
-    root = mjcf.from_path("./assets/rodent.xml")
+    root = mjcf.from_path(mjcf_path)
 
     # rescale a rodent model.
     rescale.rescale_subtree(

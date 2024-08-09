@@ -26,19 +26,19 @@ ant:
 rodent:
   name: rodent
   camera: close_profile
-  rendering_mjcf: rodent_pair.xml
-  stac_path: transform_snips.p
-  clip_idx: 1
+  rendering_mjcf: rodent_pairnew.xml
+  stac_path: /n/home05/charleszhang/stac-mjx/transform_snips_new.p
+  clip_idx: 84
   env_args:
-    mjcf_path: "./assets/rodent.xml"
+    mjcf_path: "./assets/rodent_new.xml"
     scale_factor: 0.9
     solver: cg
     iterations: 6
-    ls_iterations: 6
+    ls_iterations: 8
     clip_length: 250
-    sub_clip_length: 100
+    sub_clip_length: 245
     ref_traj_length: 5
-    termination_threshold: 10
+    termination_threshold: 5
     end_eff_names:
       - foot_L
       - foot_R 
