@@ -67,7 +67,7 @@ def main(train_config: DictConfig):
     rodent_config = env_cfg[train_config.env_name]
     env_args = rodent_config["env_args"]
 
-    reference_path = f"clips/{rodent_config["clip_idx"]}.p"
+    reference_path = f"clips/{rodent_config['clip_idx']}.p"
 
     if os.path.exists(reference_path):
         with open(reference_path, "rb") as file:
