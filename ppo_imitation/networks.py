@@ -58,7 +58,7 @@ def make_mlp_policy(
 
     policy_module = ImitationMLP(layer_sizes=list(layer_sizes) + [param_size])
 
-    def apply(processor_params, policy_params, obs, key):
+    def apply(processor_params, policy_params, obs):
         obs = preprocess_observations_fn(obs, processor_params)
         return policy_module.apply(policy_params, data=obs)
 
