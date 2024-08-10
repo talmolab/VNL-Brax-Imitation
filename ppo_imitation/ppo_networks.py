@@ -42,14 +42,11 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
         parametric_action_distribution = ppo_networks.parametric_action_distribution
 
         def policy(
-            trajectories: types.Observation,
             observations: types.Observation,
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
             key_sample, key_network = jax.random.split(key_sample)
-            logits, _, _ = policy_network.apply(
-                *params, trajectories, observations, key_network
-            )
+            logits = policy_network.apply(*params, observations, key_network)
             # logits comes from policy directly, raw predictions that decoder generates (action, intention_mean, intention_logvar)
 
             if deterministic:

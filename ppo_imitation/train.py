@@ -402,21 +402,19 @@ def train(
         params=init_params,
         normalizer_params=running_statistics.init_state(
             specs.Array(
-                # tuple(
-                #     jnp.array(env_state.obs.shape[-1:])
-                #     + jnp.array(env_state.info["traj"].shape[-1:])
-                # ),
-                jnp.array(env_state.obs.shape[-1:]),
+                tuple(
+                    jnp.array(env_state.obs.shape[-1:])
+                    + jnp.array(env_state.info["traj"].shape[-1:])
+                ),
                 jnp.dtype("float32"),
             )
         ),
         env_steps=0,
     )
-    # print(training_state.params.policy["params"])
-    # print(
-    #     training_state.normalizer_params.mean.shape,
-    #     training_state.params.policy["params"].shape,
-    # )
+
+    training_state = jax.device_put_replicated(
+        training_state, jax.local_devices()[:local_devices_to_use]
+    )
     if num_timesteps == 0:
         return (
             make_policy,
@@ -463,7 +461,7 @@ def train(
         action_repeat=action_repeat,
         key=eval_key,
     )
-    print(training_state.normalizer_params, training_state.params.policy)
+    # print(training_state.normalizer_params, training_state.params.policy)
     # Run initial eval
     metrics = {}
     if process_id == 0 and num_evals > 1:

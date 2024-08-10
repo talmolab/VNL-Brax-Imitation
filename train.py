@@ -23,6 +23,7 @@ from brax.v1 import envs as envs_v1
 
 import numpy as np
 import uuid
+import pickle
 from preprocessing.mjx_preprocess import process_clip_to_train
 
 State = Union[envs.State, envs_v1.State]
@@ -66,13 +67,23 @@ def main(train_config: DictConfig):
     rodent_config = env_cfg[train_config.env_name]
     env_args = rodent_config["env_args"]
 
-    # Process rodent clip
-    reference_clip = process_clip_to_train(
-        rodent_config["stac_path"],
-        start_step=rodent_config["clip_idx"] * env_args["clip_length"],
-        clip_length=env_args["clip_length"],
-        mjcf_path=env_args["mjcf_path"],
-    )
+    reference_path = f"clips/{rodent_config["clip_idx"]}.p"
+
+    if os.path.exists(reference_path):
+        with open(reference_path, "rb") as file:
+            # Use pickle.load() to load the data from the file
+            reference_clip = pickle.load(file)
+    else:
+        # Process rodent clip and save as pickle
+        reference_clip = process_clip_to_train(
+            rodent_config["stac_path"],
+            start_step=rodent_config["clip_idx"] * env_args["clip_length"],
+            clip_length=env_args["clip_length"],
+            mjcf_path=env_args["mjcf_path"],
+        )
+        with open(reference_path, "wb") as file:
+            # Use pickle.dump() to save the data to the file
+            pickle.dump(reference_clip, file)
 
     # Init env
     env = envs.get_environment(
