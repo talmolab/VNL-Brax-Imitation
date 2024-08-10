@@ -10,24 +10,22 @@ from brax.training import pmap
 from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
+from brax.training.agents.ppo import losses as ppo_losses
 
-# we inject our custom losses
-# from brax.training.agents.ppo import losses as ppo_losses
-from ppo_imitation import losses as ppo_losses
+# from ppo_imitation import losses as ppo_losses
 from ppo_imitation import acting
 from ppo_imitation import ppo_networks
 
-# we inject our custom network
-# from brax.training.agents.ppo import networks as ppo_networks\
 from brax.training.types import Params
 from brax.training.types import PRNGKey
 from brax.v1 import envs as envs_v1
+from etils import epath
 import flax
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-
+from orbax import checkpoint as ocp
 
 InferenceParams = Tuple[running_statistics.NestedMeanStd, Params]
 Metrics = types.Metrics
@@ -84,7 +82,7 @@ def train(
     deterministic_eval: bool = False,
     network_factory: types.NetworkFactory[
         ppo_networks.PPOImitationNetworks
-    ] = ppo_networks.make_intention_ppo_networks,
+    ] = ppo_networks.make_mlp_ppo_networks,
     progress_fn: Callable[[int, Metrics], None] = lambda *args: None,
     normalize_advantage: bool = True,
     eval_env: Optional[envs.Env] = None,
@@ -92,8 +90,7 @@ def train(
     randomization_fn: Optional[
         Callable[[base.System, jnp.ndarray], Tuple[base.System, base.System]]
     ] = None,
-    ppo_loss_fn=ppo_losses.compute_ppo_intention_loss,
-    kl_weight: float = 1e-4,  # default kl_weight in MIMIC
+    restore_checkpoint_path: Optional[str] = None,
 ):
     """PPO training.
 
@@ -238,7 +235,7 @@ def train(
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
     loss_fn = functools.partial(
-        ppo_loss_fn,
+        ppo_losses.compute_ppo_loss,
         ppo_network=ppo_network,
         entropy_cost=entropy_cost,
         discounting=discounting,
@@ -246,7 +243,6 @@ def train(
         gae_lambda=gae_lambda,
         clipping_epsilon=clipping_epsilon,
         normalize_advantage=normalize_advantage,
-        kl_weight=kl_weight,
     )
 
     gradient_update_fn = gradients.gradient_update_fn(
@@ -405,13 +401,46 @@ def train(
         ),  # pytype: disable=wrong-arg-types  # numpy-scalars
         params=init_params,
         normalizer_params=running_statistics.init_state(
-            specs.Array(env_state.obs.shape[-1:], jnp.dtype("float32"))
+            specs.Array(
+                # tuple(
+                #     jnp.array(env_state.obs.shape[-1:])
+                #     + jnp.array(env_state.info["traj"].shape[-1:])
+                # ),
+                jnp.array(env_state.obs.shape[-1:]),
+                jnp.dtype("float32"),
+            )
         ),
         env_steps=0,
     )
-    training_state = jax.device_put_replicated(
-        training_state, jax.local_devices()[:local_devices_to_use]
-    )
+    # print(training_state.params.policy["params"])
+    # print(
+    #     training_state.normalizer_params.mean.shape,
+    #     training_state.params.policy["params"].shape,
+    # )
+    if num_timesteps == 0:
+        return (
+            make_policy,
+            (training_state.normalizer_params, training_state.params),
+            {},
+        )
+
+    if (
+        restore_checkpoint_path is not None
+        and epath.Path(restore_checkpoint_path).exists()
+    ):
+        logging.info("restoring from checkpoint %s", restore_checkpoint_path)
+        orbax_checkpointer = ocp.PyTreeCheckpointer()
+        target = training_state.normalizer_params, init_params
+        (normalizer_params, init_params) = orbax_checkpointer.restore(
+            restore_checkpoint_path, item=target
+        )
+        training_state = training_state.replace(
+            normalizer_params=normalizer_params, params=init_params
+        )
+
+        training_state = jax.device_put_replicated(
+            training_state, jax.local_devices()[:local_devices_to_use]
+        )
 
     if not eval_env:
         eval_env = environment
@@ -434,7 +463,7 @@ def train(
         action_repeat=action_repeat,
         key=eval_key,
     )
-
+    print(training_state.normalizer_params, training_state.params.policy)
     # Run initial eval
     metrics = {}
     if process_id == 0 and num_evals > 1:

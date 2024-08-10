@@ -25,6 +25,7 @@ from brax.training.types import PRNGKey
 from brax.training.types import Transition
 from brax.v1 import envs as envs_v1
 import jax
+from jax import numpy as jp
 import numpy as np
 
 State = Union[envs.State, envs_v1.State]
@@ -42,17 +43,18 @@ def actor_step(
     Collect data.
     Call the policy and feed in here
     """
-
+    obs = jp.concatenate([env_state.obs, env_state.info["traj"]], axis=-1)
     # this action here is one value, already post ditribution process, stochasticity added
-    actions, policy_extras = policy(env_state.info["traj"], env_state.obs, key)
+    actions, policy_extras = policy(obs, key)
     nstate = env.step(env_state, actions)
+    n_state_obs = jp.concatenate([nstate.obs, nstate.info["traj"]], axis=-1)
     state_extras = {x: nstate.info[x] for x in extra_fields}
     return nstate, Transition(  # pytype: disable=wrong-arg-types  # jax-ndarray
-        observation=env_state.obs,
+        observation=obs,
         action=actions,
         reward=nstate.reward,
         discount=1 - nstate.done,
-        next_observation=nstate.obs,
+        next_observation=n_state_obs,
         extras={"policy_extras": policy_extras, "state_extras": state_extras},
     )
 

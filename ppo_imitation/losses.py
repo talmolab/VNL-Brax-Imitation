@@ -1,9 +1,26 @@
+# Copyright 2024 The Brax Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Proximal policy optimization training.
+
+See: https://arxiv.org/pdf/1707.06347.pdf
+"""
+
 from typing import Any, Tuple
 
 from brax.training import types
-
 from brax.training.agents.ppo import networks as ppo_networks
-
 from brax.training.types import Params
 import flax
 import jax
@@ -16,11 +33,6 @@ class PPONetworkParams:
 
     policy: Params
     value: Params
-
-
-def kl_divergence(mean, logvar):
-    """kl_divergence for latent space regularization"""
-    return -0.5 * jnp.mean(1 + logvar - jnp.square(mean) - jnp.exp(logvar))
 
 
 def compute_gae(
@@ -87,8 +99,7 @@ def compute_gae(
     return jax.lax.stop_gradient(vs), jax.lax.stop_gradient(advantages)
 
 
-# Same as brax.training.agents.ppo.losses.compute_ppo_loss but with KL divergence term for VAE latent dim reg
-def compute_ppo_intention_loss(
+def compute_ppo_loss(
     params: PPONetworkParams,
     normalizer_params: Any,
     data: types.Transition,
@@ -100,9 +111,8 @@ def compute_ppo_intention_loss(
     gae_lambda: float = 0.95,
     clipping_epsilon: float = 0.3,
     normalize_advantage: bool = True,
-    kl_weight: float = 1e-4,
 ) -> Tuple[jnp.ndarray, types.Metrics]:
-    """Computes PPO loss. stochatsic suffled data update
+    """Computes PPO loss.
 
     Args:
       params: Network parameters,
@@ -127,22 +137,11 @@ def compute_ppo_intention_loss(
     value_apply = ppo_network.value_network.apply
 
     # Put the time dimension first.
-    # data is dynamically passed in to update, in a mini batch fashion
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 0, 1), data)
-    rng, policy_rng = jax.random.split(rng)
-    policy_logits, intention_mean, intention_logvar = policy_apply(
-        normalizer_params,
-        params.policy,
-        data.extras["state_extras"]["traj"],
-        data.observation,
-        policy_rng,
-    )
+    policy_logits = policy_apply(normalizer_params, params.policy, data.observation)
 
-    baseline = value_apply(
-        normalizer_params, params.value, data.observation
-    )  # current prediction
+    baseline = value_apply(normalizer_params, params.value, data.observation)
 
-    # smart move from brax, value network direclty bootstrap one instance
     bootstrap_value = value_apply(
         normalizer_params, params.value, data.next_observation[-1]
     )
@@ -165,7 +164,6 @@ def compute_ppo_intention_loss(
         lambda_=gae_lambda,
         discount=discounting,
     )
-
     if normalize_advantage:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
     rho_s = jnp.exp(target_action_log_probs - behaviour_action_log_probs)
@@ -184,19 +182,12 @@ def compute_ppo_intention_loss(
     # Entropy reward
     entropy = jnp.mean(parametric_action_distribution.entropy(policy_logits, rng))
     entropy_loss = entropy_cost * -entropy
-    kl_intention = kl_weight * kl_divergence(intention_mean, intention_logvar)
 
-    prediction_corr = jnp.corrcoef(vs, rewards)
-    explained_variance = 1.0 - (v_loss / jnp.var(rewards))
-
-    total_loss = policy_loss + v_loss + entropy_loss + kl_intention
-
+    total_loss = policy_loss + v_loss + entropy_loss
     return total_loss, {
         "total_loss": total_loss,
         "policy_loss": policy_loss,
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
-        "kl_loss_intention": kl_intention,
-        "prediction_corr": prediction_corr,
-        "explained_variance": explained_variance,
+        "explained_variance": 1 - v_loss / jnp.var(vs),
     }

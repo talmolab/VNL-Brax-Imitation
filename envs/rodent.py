@@ -62,7 +62,9 @@ class RodentTracking(PipelineEnv):
         mj_model.opt.ls_iterations = ls_iterations
         mj_model.opt.jacobian = 0  # Dense is faster on GPU
 
-        self._torso_idx = mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), "torso")
+        self._torso_idx = mujoco.mj_name2id(
+            mj_model, mujoco.mju_str2Type("body"), "torso"
+        )
         self._end_eff_idx = jp.array(
             [
                 mujoco.mj_name2id(mj_model, mujoco.mju_str2Type("body"), body)
@@ -96,7 +98,7 @@ class RodentTracking(PipelineEnv):
         sys = mjcf_brax.load_model(mj_model)
 
         # logic to get 'correct' physics steps based on traj fps and simulation timestep
-        physics_steps_per_control_step = (1.0/50.0) / mj_model.opt.timestep
+        physics_steps_per_control_step = (1.0 / 50.0) / mj_model.opt.timestep
 
         kwargs["n_frames"] = kwargs.get("n_frames", physics_steps_per_control_step)
         kwargs["backend"] = "mjx"
@@ -190,7 +192,7 @@ class RodentTracking(PipelineEnv):
         obs = self._get_obs(data, action, state.info)
         # traj = self._get_traj(data, info["cur_frame"])
         traj = jp.array([0], dtype=float)
-        
+
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
@@ -216,8 +218,10 @@ class RodentTracking(PipelineEnv):
         done = jp.array(0, float)
         # done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         done = jp.max(jp.array([1.0 - is_healthy, done]))
-        done = jp.max(jp.array([1.0 - sub_clip_healthy, done]))
-
+        # truncate if reset due to subclip ending
+        truncation = jp.where(sub_clip_healthy > 0, 1.0, 0.0)
+        done = jp.max(jp.array([truncation, done]))
+        info["truncation"] = truncation
         # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
         obs = jp.nan_to_num(obs)
@@ -239,7 +243,7 @@ class RodentTracking(PipelineEnv):
             termination_error=rtrunk,
             nan=nan,
         )
-        #only standing reward
+        # only standing reward
         reward = jp.where(done < 1.0, 1.0, 0.0)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
@@ -317,8 +321,12 @@ class RodentTracking(PipelineEnv):
 
         rapp = jp.exp(-40 * (jp.linalg.norm(app_c - app_ref)))
 
-        is_healthy = jp.where(data_c.xpos[self._torso_idx][2] < self._healthy_z_range[0], 0.0, 1.0)
-        is_healthy = jp.where(data_c.xpos[self._torso_idx][2] > self._healthy_z_range[1], 0.0, is_healthy)
+        is_healthy = jp.where(
+            data_c.xpos[self._torso_idx][2] < self._healthy_z_range[0], 0.0, 1.0
+        )
+        is_healthy = jp.where(
+            data_c.xpos[self._torso_idx][2] > self._healthy_z_range[1], 0.0, is_healthy
+        )
         return rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy
 
     def _get_obs(self, data: mjx.Data, action: jp.ndarray, info) -> jp.ndarray:

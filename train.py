@@ -15,23 +15,15 @@ import imageio
 from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks
 
-from envs.humanoid import HumanoidTracking, HumanoidStanding
-from envs.ant import AntTracking
 from envs.rodent import RodentTracking
 
 from typing import Union
 from brax import envs
 from brax.v1 import envs as envs_v1
-from brax.training.agents.ppo.losses import compute_ppo_loss as mlp_ppo_loss
-from ppo_imitation import losses as ppo_losses
 
 import numpy as np
 import uuid
 from preprocessing.mjx_preprocess import process_clip_to_train
-
-# rendering related
-from dm_control.mujoco import wrapper
-from dm_control.mujoco.wrapper.mjbindings import enums
 
 State = Union[envs.State, envs_v1.State]
 Env = Union[envs.Env, envs_v1.Env, envs_v1.Wrapper]
@@ -64,10 +56,7 @@ os.environ["XLA_FLAGS"] = (
     "--xla_gpu_enable_triton_softmax_fusion=true " "--xla_gpu_triton_gemm_any=True "
 )
 
-envs.register_environment("humanoidtracking", HumanoidTracking)
-envs.register_environment("ant", AntTracking)
 envs.register_environment("rodent", RodentTracking)
-envs.register_environment("humanoidstanding", HumanoidStanding)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
@@ -82,7 +71,7 @@ def main(train_config: DictConfig):
         rodent_config["stac_path"],
         start_step=rodent_config["clip_idx"] * env_args["clip_length"],
         clip_length=env_args["clip_length"],
-        mjcf_path=env_args["mjcf_path"]
+        mjcf_path=env_args["mjcf_path"],
     )
 
     # Init env
@@ -115,9 +104,8 @@ def main(train_config: DictConfig):
             ppo_networks.make_mlp_ppo_networks,
             policy_layer_sizes=train_config.mlp_policy_layer_sizes,
         )
-        # set KL weight to 0 for mlp
-        train_config["kl_weight"] = 0.0
     elif train_config["policy_network_name"] == "intention":
+        # This one won't work bc i got rid of kl_weight
         network_factory = functools.partial(
             ppo_networks.make_intention_ppo_networks,
             intention_latent_size=train_config.intention_latent_size,
@@ -145,7 +133,6 @@ def main(train_config: DictConfig):
         batch_size=train_config["batch_size"] * n_devices,
         seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
-        kl_weight=train_config["kl_weight"],
         network_factory=network_factory,
         # deterministic_eval=True,
     )
@@ -193,10 +180,6 @@ def main(train_config: DictConfig):
             )  # extra is a dictionary
             state = jit_step(state, ctrl)
 
-            if train_config.env_name != "humanoidstanding":
-                errors.append(state.info["termination_error"])
-                rewards.append(state.reward)
-
             # mean = extras["logits"]
             # log_prob = extras["log_prob"]
             # action = extras["actions"]
@@ -219,7 +202,7 @@ def main(train_config: DictConfig):
                 )
             }
         )
-        
+
         # Plot z height over rollout
         data = [[x, y] for (x, y) in zip(range(len(z_heights)), z_heights)]
         table = wandb.Table(data=data, columns=["frame", "z height"])
