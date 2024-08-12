@@ -479,7 +479,7 @@ def train(
             make_policy,
             params,
             ppo_network.value_network.apply,
-            training_state.params.value,
+            _unpmap(training_state.params.value),
         )
 
     training_metrics = {}
@@ -521,7 +521,7 @@ def train(
                 make_policy,
                 params,
                 ppo_network.value_network.apply,
-                training_state.params.value,
+                _unpmap(training_state.params.value),
             )
 
     total_steps = current_step
