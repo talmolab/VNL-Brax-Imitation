@@ -33,8 +33,8 @@ rodent:
     mjcf_path: "./assets/rodent_new.xml"
     scale_factor: 0.9
     solver: cg
-    iterations: 6
-    ls_iterations: 6
+    iterations: 5
+    ls_iterations: 5
     clip_length: 250
     sub_clip_length: 245
     ref_traj_length: 5

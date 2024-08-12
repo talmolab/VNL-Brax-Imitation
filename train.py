@@ -348,8 +348,8 @@ def main(train_config: DictConfig):
             "newton": mujoco.mjtSolver.mjSOL_NEWTON,
         }["cg"]
 
-        mj_model.opt.iterations = 50
-        mj_model.opt.ls_iterations = 100
+        mj_model.opt.iterations = 6
+        mj_model.opt.ls_iterations = 6
         mj_model.opt.jacobian = 0  # dense
         mj_data = mujoco.MjData(mj_model)
 

@@ -27,7 +27,7 @@ class RodentTracking(PipelineEnv):
         solver: str = "cg",
         iterations: int = 6,
         ls_iterations: int = 6,
-        healthy_z_range=(0.02, 0.5),
+        healthy_z_range=(0.04, 0.5),
         reset_noise_scale=1e-4,
         clip_length: int = 250,
         sub_clip_length: int = 10,
@@ -223,6 +223,7 @@ class RodentTracking(PipelineEnv):
         # done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
         # done = jp.max(jp.array([1.0 - is_healthy, done]))
         
+        # truncation or just done?
         done = jp.array(1.0 - is_healthy, float)
         
         fall = done
@@ -253,7 +254,7 @@ class RodentTracking(PipelineEnv):
             trunc=truncation,
         )
         # only standing reward
-        reward = jp.where(done < 1.0, 1.0, 0.0)
+        reward = jp.where(done < 1.0, 1.0, -50.0)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
