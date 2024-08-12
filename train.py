@@ -169,11 +169,18 @@ def main(train_config: DictConfig):
 
     # TODO: make the rollout into a scan (or call brax's rollout fn?)
     # wandb.log commit=False until the last log (probably the video)
-    def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
+    def policy_params_fn(
+        num_steps,
+        make_policy,
+        policy_params,
+        value_apply,
+        value_params,
+        model_path=model_path,
+    ):
         os.makedirs(model_path, exist_ok=True)
-        model.save_params(f"{model_path}/{num_steps}", params)
-        jit_inference_fn = jax.jit(make_policy(params, deterministic=True))
-
+        model.save_params(f"{model_path}/{num_steps}", policy_params)
+        jit_inference_fn = jax.jit(make_policy(policy_params, deterministic=True))
+        jit_value_apply = jax.jit(value_apply)
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
 
         state = jit_reset(reset_rng)
@@ -186,10 +193,12 @@ def main(train_config: DictConfig):
         log_probs = []
         ctrls = []
         z_heights = []
+        values = []
         for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
             obs = jp.concatenate([state.obs, state.info["traj"]], axis=-1)
             ctrl, extras = jit_inference_fn(obs, act_rng)
+            value = jit_value_apply(policy_params[0], value_params, obs)
             state = jit_step(state, ctrl)
 
             # mean = extras["logits"]
@@ -198,39 +207,51 @@ def main(train_config: DictConfig):
             # log_probs.append(log_prob)
             # actions.append(action)
             # means.append(mean)
+            values.append(value)
             rewards.append(state.reward)
             ctrls.append(ctrl)
             rollout.append(state.pipeline_state)
             z_heights.append(state.pipeline_state.xpos[eval_env._torso_idx][2])
 
         # Plot normalizer params
-        data = [[c] for c in params[0].mean.flatten()]
+        data = [[c] for c in policy_params[0].mean.flatten()]
         table = wandb.Table(data=data, columns=["running_statistics means"])
         wandb.log(
             {
                 f"logits/running_statistics_means": wandb.plot.histogram(
-                    table,
-                    "running_statistics means",
-                    title="obs normalizer means"
+                    table, "running_statistics means", title="obs normalizer means"
                 )
             },
-            commit=False
+            commit=False,
         )
-        
+
         # Plot normalizer params
-        data = [[c] for c in params[0].std.flatten()]
+        data = [[c] for c in policy_params[0].std.flatten()]
         table = wandb.Table(data=data, columns=["running_statistics stds"])
         wandb.log(
             {
                 f"logits/running_statistics_stds": wandb.plot.histogram(
-                    table,
-                    "running_statistics stds",
-                    title="obs normalizer stds"
+                    table, "running_statistics stds", title="obs normalizer stds"
                 )
             },
-            commit=False
+            commit=False,
         )
-        
+
+        # Plot value estimate over rollout
+        data = [[x, y] for (x, y) in zip(range(len(values)), values)]
+        table = wandb.Table(data=data, columns=["frame", "values"])
+        wandb.log(
+            {
+                "eval/rollout_value_estimate": wandb.plot.line(
+                    table,
+                    "frame",
+                    "values",
+                    title="value estimate for each rollout frame",
+                )
+            },
+            commit=False,
+        )
+
         # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
         table = wandb.Table(data=data, columns=["frame", "rtrunk"])
@@ -243,7 +264,7 @@ def main(train_config: DictConfig):
                     title="rtrunk for each rollout frame",
                 )
             },
-            commit=False
+            commit=False,
         )
 
         # Plot z height over rollout
@@ -258,7 +279,7 @@ def main(train_config: DictConfig):
                     title="z height for each rollout frame",
                 )
             },
-            commit=False
+            commit=False,
         )
 
         # Plot action means over rollout (array of array)
@@ -267,12 +288,10 @@ def main(train_config: DictConfig):
         wandb.log(
             {
                 f"logits/rollout_actions": wandb.plot.histogram(
-                    table,
-                    "actions",
-                    title="Final Action Distribution"
+                    table, "actions", title="Final Action Distribution"
                 )
             },
-            commit=False
+            commit=False,
         )
 
         # # Plot action means over rollout (array of array)
@@ -315,7 +334,7 @@ def main(train_config: DictConfig):
                     title="reward for each rollout frame",
                 )
             },
-            commit=False
+            commit=False,
         )
 
         # Render the walker with the reference expert demonstration trajectory

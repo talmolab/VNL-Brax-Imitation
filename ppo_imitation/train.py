@@ -474,7 +474,13 @@ def train(
         params = _unpmap(
             (training_state.normalizer_params, training_state.params.policy)
         )
-        policy_params_fn(0, make_policy, params)
+        policy_params_fn(
+            0,
+            make_policy,
+            params,
+            ppo_network.value_network.apply,
+            training_state.params.value,
+        )
 
     training_metrics = {}
     training_walltime = 0
@@ -510,7 +516,13 @@ def train(
             params = _unpmap(
                 (training_state.normalizer_params, training_state.params.policy)
             )
-            policy_params_fn(current_step, make_policy, params)
+            policy_params_fn(
+                current_step,
+                make_policy,
+                params,
+                ppo_network.value_network.apply,
+                training_state.params.value,
+            )
 
     total_steps = current_step
     assert total_steps >= num_timesteps
