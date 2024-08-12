@@ -203,6 +203,34 @@ def main(train_config: DictConfig):
             rollout.append(state.pipeline_state)
             z_heights.append(state.pipeline_state.xpos[eval_env._torso_idx][2])
 
+        # Plot normalizer params
+        data = [[c] for c in params[0].mean.flatten()]
+        table = wandb.Table(data=data, columns=["running_statistics means"])
+        wandb.log(
+            {
+                f"logits/running_statistics_means": wandb.plot.histogram(
+                    table,
+                    "running_statistics means",
+                    title="obs normalizer means"
+                )
+            },
+            commit=False
+        )
+        
+        # Plot normalizer params
+        data = [[c] for c in params[0].std.flatten()]
+        table = wandb.Table(data=data, columns=["running_statistics stds"])
+        wandb.log(
+            {
+                f"logits/running_statistics_stds": wandb.plot.histogram(
+                    table,
+                    "running_statistics stds",
+                    title="obs normalizer stds"
+                )
+            },
+            commit=False
+        )
+        
         # Plot rtrunk over rollout
         data = [[x, y] for (x, y) in zip(range(len(errors)), errors)]
         table = wandb.Table(data=data, columns=["frame", "rtrunk"])
