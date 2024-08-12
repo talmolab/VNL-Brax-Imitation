@@ -132,8 +132,8 @@ def main(train_config: DictConfig):
         num_evals=int(train_config["num_timesteps"] / train_config["eval_every"]),
         reward_scaling=1,
         episode_length=train_config["episode_length"],
-        normalize_observations=False,
-        action_repeat=1,
+        normalize_observations=True,
+        action_repeat=5,
         unroll_length=10,
         num_minibatches=train_config["num_minibatches"],
         num_updates_per_batch=train_config["num_updates_per_batch"],
@@ -145,7 +145,7 @@ def main(train_config: DictConfig):
         seed=0,
         clipping_epsilon=train_config["clipping_epsilon"],
         network_factory=network_factory,
-        # deterministic_eval=True,
+        deterministic_eval=True,
     )
 
     # Generates a completely random UUID (version 4)
@@ -165,13 +165,14 @@ def main(train_config: DictConfig):
 
     def wandb_progress(num_steps, metrics):
         metrics["num_steps"] = num_steps
-        wandb.log(metrics)
+        wandb.log(metrics, commit=False)
 
     # TODO: make the rollout into a scan (or call brax's rollout fn?)
+    # wandb.log commit=False until the last log (probably the video)
     def policy_params_fn(num_steps, make_policy, params, model_path=model_path):
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", params)
-        jit_inference_fn = jax.jit(make_policy(params, deterministic=False))
+        jit_inference_fn = jax.jit(make_policy(params, deterministic=True))
 
         reset_rng, act_rng = jax.random.split(jax.random.PRNGKey(0))
 
@@ -183,12 +184,12 @@ def main(train_config: DictConfig):
         means = []
         actions = []
         log_probs = []
+        ctrls = []
         z_heights = []
         for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
-            ctrl, extras = jit_inference_fn(
-                state.info["traj"], state.obs, act_rng
-            )  # extra is a dictionary
+            obs = jp.concatenate([state.obs, state.info["traj"]], axis=-1)
+            ctrl, extras = jit_inference_fn(obs, act_rng)
             state = jit_step(state, ctrl)
 
             # mean = extras["logits"]
@@ -197,6 +198,8 @@ def main(train_config: DictConfig):
             # log_probs.append(log_prob)
             # actions.append(action)
             # means.append(mean)
+            rewards.append(state.reward)
+            ctrls.append(ctrl)
             rollout.append(state.pipeline_state)
             z_heights.append(state.pipeline_state.xpos[eval_env._torso_idx][2])
 
@@ -211,7 +214,8 @@ def main(train_config: DictConfig):
                     "rtrunk",
                     title="rtrunk for each rollout frame",
                 )
-            }
+            },
+            commit=False
         )
 
         # Plot z height over rollout
@@ -225,22 +229,23 @@ def main(train_config: DictConfig):
                     "z height",
                     title="z height for each rollout frame",
                 )
-            }
+            },
+            commit=False
         )
 
-        # # Plot action means over rollout (array of array)
-        # data = np.array(means).T
-        # wandb.log(
-        #     {
-        #         f"logits/rollout_means": wandb.plot.line_series(
-        #             xs=range(data.shape[1]),
-        #             ys=data,
-        #             keys=[str(i) for i in range(data.shape[0])],
-        #             xname="Frame",
-        #             title=f"Action actuator means for each rollout frame (un-processed)",
-        #         )
-        #     }
-        # )
+        # Plot action means over rollout (array of array)
+        data = [[c] for c in list(np.array(ctrls).flatten())]
+        table = wandb.Table(data=data, columns=["actions"])
+        wandb.log(
+            {
+                f"logits/rollout_actions": wandb.plot.histogram(
+                    table,
+                    "actions",
+                    title="Final Action Distribution"
+                )
+            },
+            commit=False
+        )
 
         # # Plot action means over rollout (array of array)
         # data = np.array(actions).T
@@ -281,7 +286,8 @@ def main(train_config: DictConfig):
                     "reward",
                     title="reward for each rollout frame",
                 )
-            }
+            },
+            commit=False
         )
 
         # Render the walker with the reference expert demonstration trajectory

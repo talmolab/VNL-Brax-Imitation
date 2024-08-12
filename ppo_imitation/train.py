@@ -471,6 +471,10 @@ def train(
         )
         logging.info(metrics)
         progress_fn(0, metrics)
+        params = _unpmap(
+            (training_state.normalizer_params, training_state.params.policy)
+        )
+        policy_params_fn(0, make_policy, params)
 
     training_metrics = {}
     training_walltime = 0

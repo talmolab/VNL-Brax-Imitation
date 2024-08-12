@@ -168,6 +168,9 @@ class RodentTracking(PipelineEnv):
             "rapp": zero,
             "termination_error": zero,
             "nan": zero,
+            "fall": zero,
+            "done": zero,
+            "trunc": zero,
         }
 
         state = State(data, obs, reward, done, metrics, info)
@@ -209,17 +212,20 @@ class RodentTracking(PipelineEnv):
         info["termination_error"] = rtrunk
         info["traj"] = traj
 
-        sub_clip_healthy = jp.where(
+        # truncate if reset due to subclip ending
+        truncation = jp.where(
             info["sub_clip_frame"] < self._sub_clip_length,
-            jp.array(1, float),
             jp.array(0, float),
+            jp.array(1, float),
         )
 
-        done = jp.array(0, float)
+        # done = jp.array(0, float)
         # done = jp.where((rtrunk < 0), jp.array(1, float), jp.array(0, float))
-        done = jp.max(jp.array([1.0 - is_healthy, done]))
-        # truncate if reset due to subclip ending
-        truncation = jp.where(sub_clip_healthy > 0, 1.0, 0.0)
+        # done = jp.max(jp.array([1.0 - is_healthy, done]))
+        
+        done = jp.array(1.0 - is_healthy, float)
+        
+        fall = done
         done = jp.max(jp.array([truncation, done]))
         info["truncation"] = truncation
         # Handle nans during sim by resetting env
@@ -242,6 +248,9 @@ class RodentTracking(PipelineEnv):
             ract=ract,
             termination_error=rtrunk,
             nan=nan,
+            fall=fall,
+            done=done,
+            trunc=truncation,
         )
         # only standing reward
         reward = jp.where(done < 1.0, 1.0, 0.0)
