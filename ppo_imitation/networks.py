@@ -25,7 +25,7 @@ class ImitationMLP(nn.Module):
 
     layer_sizes: Sequence[int]
     activation: ActivationFn = nn.relu
-    kernel_init: Initializer = jax.nn.initializers.he_uniform()
+    kernel_init: Initializer = jax.nn.initializers.he_normal()
     activate_final: bool = False
     bias: bool = True
     layer_norm: bool = True
@@ -34,6 +34,8 @@ class ImitationMLP(nn.Module):
     def __call__(self, data: jnp.ndarray):
         hidden = data
         for i, hidden_size in enumerate(self.layer_sizes):
+            if i == len(self.layer_sizes) - 1:
+                self.kernel_init = jax.nn.initializers.zeros
             hidden = nn.Dense(
                 hidden_size,
                 name=f"hidden_{i}",
