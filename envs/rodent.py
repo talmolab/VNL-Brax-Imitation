@@ -27,7 +27,7 @@ class RodentTracking(PipelineEnv):
         solver: str = "cg",
         iterations: int = 6,
         ls_iterations: int = 6,
-        healthy_z_range=(0.04, 0.5),
+        healthy_z_range=(0.045, 0.5),
         reset_noise_scale=1e-4,
         clip_length: int = 250,
         sub_clip_length: int = 10,
@@ -150,8 +150,8 @@ class RodentTracking(PipelineEnv):
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
-        # traj = self._get_traj(data, start_frame)
-        traj = jp.array([0], dtype=float)
+        traj = self._get_traj(data, start_frame)
+        # traj = jp.array([0], dtype=float)
         info = {
             "cur_frame": start_frame,
             "sub_clip_frame": 0,
@@ -193,16 +193,16 @@ class RodentTracking(PipelineEnv):
         info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
-        # traj = self._get_traj(data, info["cur_frame"])
-        traj = jp.array([0], dtype=float)
+        traj = self._get_traj(data, info["cur_frame"])
+        # traj = jp.array([0], dtype=float)
 
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
-        rcom *= 0.15 * 0.0
+        rcom *= 0.2 
         rvel *= 0.1 * 0.0
         rapp *= 0.1 * 0.0
-        rtrunk *= 0.3 * 0.0
+        rtrunk *= 0.3
         rquat *= 0.1 * 0.0
         ract *= 0.0001 * 0.0
 
@@ -253,8 +253,8 @@ class RodentTracking(PipelineEnv):
             done=done,
             trunc=truncation,
         )
-        # only standing reward
-        reward = jp.where(done < 1.0, 1.0, -50.0)
+        # alive reward
+        reward += jp.where(done < 1.0, 1.0, 0.0)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
@@ -398,8 +398,8 @@ class RodentTracking(PipelineEnv):
         return jp.concatenate(
             [
                 reference_appendages,
-                reference_rel_bodies_pos_local,
-                reference_rel_bodies_pos_global,
+                # reference_rel_bodies_pos_local,
+                # reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,
                 reference_rel_joints,
             ]
