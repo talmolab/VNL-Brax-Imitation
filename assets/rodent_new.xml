@@ -16,19 +16,19 @@
       <geom contype="0" conaffinity="0" group="0" rgba="0.5 0.5 0.5 1" density="1100.0"/>
     </default>
     <default class="no_collision">
-      <geom contype="1" conaffinity="0" condim="3" group="2"/>
+      <geom contype="0" conaffinity="0" condim="3" group="2"/>
     </default>
     <default class="collision">
       <geom condim="1" group="2"/>
       <default class="nonself_collision_primitive">
-        <geom contype="2" conaffinity="4" type="capsule" group="2" rgba="0 0.5 0.5 1" density="500.0"/>
+        <geom contype="1" conaffinity="0" type="capsule" group="2" rgba="0 0.5 0.5 1" density="500.0"/>
         <default class="nonself_collision_primitive_paw">
           <geom condim="3" priority="1" rgba="0 0.6 0.7 1" friction="1.5 0.005 0.0001"/>
         </default>
       </default>
     </default>
     <default class="collision_floor">
-      <geom contype="4" conaffinity="2" condim="3"/>
+      <geom contype="0" conaffinity="1" condim="3"/>
     </default>
     <default class="lumbar">
       <joint group="3" pos="0.003 0 -0.003" armature="1e-05" damping="0.03"/>

@@ -218,8 +218,7 @@ def train(
     normalize = lambda x, y: x
     if normalize_observations:
         normalize = running_statistics.normalize
-    # TODO Traj size
-    # use info to keep track of traj
+    
     ppo_network = network_factory(
         env_state.info["traj"].shape[-1],
         env_state.obs.shape[-1],
@@ -479,7 +478,7 @@ def train(
             make_policy,
             params,
             ppo_network.value_network.apply,
-            training_state.params.value,
+            _unpmap(training_state.params.value),
         )
 
     training_metrics = {}
@@ -521,7 +520,7 @@ def train(
                 make_policy,
                 params,
                 ppo_network.value_network.apply,
-                training_state.params.value,
+                _unpmap(training_state.params.value),
             )
 
     total_steps = current_step
