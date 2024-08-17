@@ -36,6 +36,7 @@
       <camera name="back" pos="0 3 1.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
       <camera name="side" pos="-3 0 1.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="front_side" pos="-2 -2 0.5" xyaxes="0.5 -0.5 0 0.1 0.1 1"  mode="trackcom"/>
+      <replicate count="2" euler="0 0 180" sep="-">
       <body name="root" childclass="humanoid">
         <freejoint name="root"/>
         <camera name="bodycam" pos="0 .3 .1" xyaxes="-1 0 0 0 1 0" fovy="80"/>
@@ -216,6 +217,7 @@
           </body>
         </body>
       </body>
+    </replicate>
     </worldbody>
   
     <contact>
