@@ -35,13 +35,19 @@ class ImitationMLP(nn.Module):
         hidden = data
         for i, hidden_size in enumerate(self.layer_sizes):
             if i == len(self.layer_sizes) - 1:
-                self.kernel_init = jax.nn.initializers.zeros
-            hidden = nn.Dense(
-                hidden_size,
-                name=f"hidden_{i}",
-                kernel_init=self.kernel_init,
-                use_bias=self.bias,
-            )(hidden)
+                hidden = nn.Dense(
+                    hidden_size,
+                    name=f"hidden_{i}",
+                    kernel_init=self.kernel_init,  # nn.initializers.zeros,
+                    use_bias=self.bias,
+                )(hidden)
+            else:
+                hidden = nn.Dense(
+                    hidden_size,
+                    name=f"hidden_{i}",
+                    kernel_init=self.kernel_init,
+                    use_bias=self.bias,
+                )(hidden)
             if i != len(self.layer_sizes) - 1 or self.activate_final:
                 hidden = self.activation(hidden)
                 if self.layer_norm:

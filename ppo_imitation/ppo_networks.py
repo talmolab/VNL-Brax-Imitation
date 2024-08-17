@@ -45,7 +45,7 @@ def make_inference_fn(ppo_networks: PPOImitationNetworks):
             observations: types.Observation,
             key_sample: PRNGKey,
         ) -> Tuple[types.Action, types.Extra]:
-            # key_sample, key_network = jax.random.split(key_sample)
+            _, key_sample = jax.random.split(key_sample)
             logits = policy_network.apply(*params, observations)
             # logits comes from policy directly, raw predictions that decoder generates (action, intention_mean, intention_logvar)
 
@@ -88,7 +88,7 @@ def make_mlp_ppo_networks(
     #     event_size=action_size, scale=0.1
     # )
     parametric_action_distribution = distribution.NormalTanhDistribution(
-        event_size=action_size, var_scale=0.1
+        event_size=action_size, var_scale=0.5
     )
     policy_network = imitationnetworks.make_mlp_policy(
         # action_size,

@@ -133,7 +133,7 @@ def main(train_config: DictConfig):
         reward_scaling=1,
         episode_length=train_config["episode_length"],
         normalize_observations=True,
-        action_repeat=5,
+        action_repeat=1,
         unroll_length=10,
         num_minibatches=train_config["num_minibatches"],
         num_updates_per_batch=train_config["num_updates_per_batch"],

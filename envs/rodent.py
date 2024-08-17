@@ -27,7 +27,7 @@ class RodentTracking(PipelineEnv):
         solver: str = "cg",
         iterations: int = 6,
         ls_iterations: int = 6,
-        healthy_z_range=(0.045, 0.5),
+        healthy_z_range=(0.04, 0.5), # TODO: make minimum z range be the minimum z in the given clip. and also add terminate on contact probably
         reset_noise_scale=1e-4,
         clip_length: int = 250,
         sub_clip_length: int = 10,
@@ -150,8 +150,8 @@ class RodentTracking(PipelineEnv):
             ]
         )
         data = self.pipeline_init(qpos + noise, qvel)
-        traj = self._get_traj(data, start_frame)
-        # traj = jp.array([0], dtype=float)
+        # traj = self._get_traj(data, start_frame)
+        traj = jp.array([0], dtype=float)
         info = {
             "cur_frame": start_frame,
             "sub_clip_frame": 0,
@@ -188,25 +188,30 @@ class RodentTracking(PipelineEnv):
         data0 = state.pipeline_state
         data = self.pipeline_step(data0, action)
 
+        com_before = data0.subtree_com[1]
+        com_after = data.subtree_com[1]
+        velocity = (com_after - com_before) / self.dt
+        forward_reward = velocity[0]
+
         info = state.info.copy()
         info["cur_frame"] += 1
         info["sub_clip_frame"] += 1
 
         obs = self._get_obs(data, action, state.info)
-        traj = self._get_traj(data, info["cur_frame"])
-        # traj = jp.array([0], dtype=float)
+        # traj = self._get_traj(data, info["cur_frame"])
+        traj = jp.array([0], dtype=float)
 
         rcom, rvel, rtrunk, rquat, ract, rapp, is_healthy = self._calculate_reward(
             state, data
         )
-        rcom *= 0.2 
+        rcom *= 0.5 * 0.0  
         rvel *= 0.1 * 0.0
         rapp *= 0.1 * 0.0
-        rtrunk *= 0.3
+        rtrunk *= 0.3 * 0.0
         rquat *= 0.1 * 0.0
         ract *= 0.0001 * 0.0
 
-        total_reward = rcom + rvel + rtrunk + rquat + ract + rapp
+        total_reward = forward_reward + rcom + rvel + rtrunk + rquat + ract + rapp
 
         # increment frame tracker and update termination error
         info["termination_error"] = rtrunk
@@ -224,10 +229,12 @@ class RodentTracking(PipelineEnv):
         # done = jp.max(jp.array([1.0 - is_healthy, done]))
         
         # truncation or just done?
-        done = jp.array(1.0 - is_healthy, float)
+        # done = jp.array(1.0 - is_healthy, float)
         
-        fall = done
-        done = jp.max(jp.array([truncation, done]))
+        # fall = done
+        fall = 0.0
+        done = truncation
+        # done = jp.max(jp.array([truncation, done]))
         info["truncation"] = truncation
         # Handle nans during sim by resetting env
         reward = jp.nan_to_num(total_reward)
@@ -254,7 +261,7 @@ class RodentTracking(PipelineEnv):
             trunc=truncation,
         )
         # alive reward
-        reward += jp.where(done < 1.0, 1.0, 0.0)
+        # reward += jp.where(done < 1.0, 1.0, 0.0)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
@@ -361,9 +368,9 @@ class RodentTracking(PipelineEnv):
         return jp.concatenate(
             [
                 data.qpos,
-                data.qvel,
-                data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
-                end_effectors,
+                # data.qvel,
+                # data.qfrc_actuator,  # Actuator force <==> joint torque sensor?
+                # end_effectors,
             ]
         )
 
@@ -397,7 +404,7 @@ class RodentTracking(PipelineEnv):
 
         return jp.concatenate(
             [
-                reference_appendages,
+                # reference_appendages,
                 # reference_rel_bodies_pos_local,
                 # reference_rel_bodies_pos_global,
                 reference_rel_root_pos_local,
