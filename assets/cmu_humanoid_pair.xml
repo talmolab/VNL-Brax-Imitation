@@ -25,18 +25,21 @@
           <site type="sphere" size="0.01" group="4" rgba="1 0 0 .5"/>
         </default>
         <default class="contact">
-          <geom condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
+            <geom contype="0" conaffinity="1" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
         </default>
       </default>
     </default>
   
     <worldbody>
+        <geom name="floor" pos="0 0 -0.005" size="25 25 0.025" type="plane" material="grid"/>
       <light name="tracking_light" pos="0 0 7" dir="0 0 -1" mode="trackcom"/>
       <camera name="close_profile" mode="trackcom" pos="3 3 1.4" xyaxes="1 1 0 -1 1 2"/>
       <camera name="back" pos="0 3 1.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
       <camera name="side" pos="-3 0 1.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="front_side" pos="-2 -2 0.5" xyaxes="0.5 -0.5 0 0.1 0.1 1"  mode="trackcom"/>
       <replicate count="2" euler="0 0 180" sep="-">
+        <body name="walker">
+            <freejoint name="root"/>
       <body name="root" childclass="humanoid">
         <freejoint name="root"/>
         <camera name="bodycam" pos="0 .3 .1" xyaxes="-1 0 0 0 1 0" fovy="80"/>
@@ -216,6 +219,7 @@
             </body>
           </body>
         </body>
+      </body>
       </body>
     </replicate>
     </worldbody>

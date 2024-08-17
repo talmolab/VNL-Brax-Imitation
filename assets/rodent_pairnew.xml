@@ -159,7 +159,7 @@
     <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
   </asset>
   <worldbody>
-    <geom name="floor" class="collision_floor" pos="0 0 -0.005" size="10 10 0.025" type="plane" material="grid"/>
+    <geom name="floor" class="collision_floor" pos="0 0 -0.005" size="10 10 0.005" type="plane" material="grid"/>
     <camera name="close_profile" mode="trackcom" pos=".5 -.5 0.5" xyaxes="1 1 0 -1 1 2"/>
     <replicate count="2" euler="0 0 180" sep="-">
     <body name="walker">
