@@ -16,7 +16,7 @@ from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks
 
 from envs.rodent import RodentTracking
-
+from envs.cmu_humanoid import CMUHumanoidRun
 from typing import Union
 from brax import envs
 from brax.v1 import envs as envs_v1
@@ -58,16 +58,17 @@ os.environ["XLA_FLAGS"] = (
 )
 
 envs.register_environment("rodent", RodentTracking)
+envs.register_environment("cmu_humanoid_run", CMUHumanoidRun)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
 def main(train_config: DictConfig):
     env_cfg = hydra.compose(config_name="env_config")
     env_cfg = OmegaConf.to_container(env_cfg, resolve=True)
-    rodent_config = env_cfg[train_config.env_name]
-    env_args = rodent_config["env_args"]
+    env_cfg = env_cfg[train_config.env_name]
+    env_args = env_cfg["env_args"]
 
-    reference_path = f"clips/{rodent_config['clip_idx']}.p"
+    reference_path = f"clips/{env_cfg['clip_idx']}.p"
 
     if os.path.exists(reference_path):
         with open(reference_path, "rb") as file:
@@ -76,8 +77,8 @@ def main(train_config: DictConfig):
     else:
         # Process rodent clip and save as pickle
         reference_clip = process_clip_to_train(
-            rodent_config["stac_path"],
-            start_step=rodent_config["clip_idx"] * env_args["clip_length"],
+            env_cfg["stac_path"],
+            start_step=env_cfg["clip_idx"] * env_args["clip_length"],
             clip_length=env_args["clip_length"],
             mjcf_path=env_args["mjcf_path"],
         )
@@ -87,13 +88,10 @@ def main(train_config: DictConfig):
 
     # Init env
     env = envs.get_environment(
-        env_cfg[train_config.env_name]["name"],
+        env_cfg["name"],
         reference_clip=reference_clip,
         **env_args,
     )
-
-    # TODO: Also have preset solver params here for eval
-    # so we can relax params in training for faster sps?
 
     # Set the env to always start at frame 0 by maximizing sub_clip_length
     eval_env_args = env_args.copy()
@@ -115,16 +113,8 @@ def main(train_config: DictConfig):
             ppo_networks.make_mlp_ppo_networks,
             policy_layer_sizes=train_config.mlp_policy_layer_sizes,
         )
-    elif train_config["policy_network_name"] == "intention":
-        # This one won't work bc i got rid of kl_weight
-        network_factory = functools.partial(
-            ppo_networks.make_intention_ppo_networks,
-            intention_latent_size=train_config.intention_latent_size,
-            encoder_layer_sizes=train_config.encoder_layer_sizes,
-            decoder_layer_sizes=train_config.decoder_layer_sizes,
-        )
     else:
-        raise Exception("invalid config: policy_network_name")
+        raise ValueError("invalid config: policy_network_name")
 
     train_fn = functools.partial(
         ppo.train,
@@ -383,7 +373,11 @@ def main(train_config: DictConfig):
 
         with imageio.get_writer(video_path, fps=float(1.0 / eval_env.dt)) as video:
             for qpos1, qpos2 in zip(qposes_ref, qposes_rollout):
-                mj_data.qpos = np.append(qpos1, qpos2)
+                if train_config.env_name == "rodent":
+                    mj_data.qpos = np.append(qpos1, qpos2)
+                else:
+                    mj_data.qpos = np.append(qpos2, qpos2)
+
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
