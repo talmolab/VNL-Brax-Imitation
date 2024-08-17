@@ -1,8 +1,8 @@
 <mujoco model="humanoid_CMU">
 
-    <include file="./common/skybox.xml"/>
+    <!-- <include file="./common/skybox.xml"/>
     <include file="./common/visual.xml"/>
-    <include file="./common/materials.xml"/>
+    <include file="./common/materials.xml"/> -->
   
     <statistic extent="2" center="0 0 1"/>
   
