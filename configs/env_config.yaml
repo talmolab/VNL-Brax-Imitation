@@ -81,8 +81,8 @@ rodent:
       - finger_R
     center_of_mass: torso
 
-cmu_humanoid_run:
-  name: cmu_humanoid_run
+cmuhumanoidrun:
+  name: cmuhumanoidrun
   camera: close_profile
   rendering_mjcf: cmu_humanoid_pair.xml
   stac_path: ../stac-mjx/transform_snips_new.p
@@ -91,8 +91,8 @@ cmu_humanoid_run:
     mjcf_path: "./assets/cmu_humanoid.xml"
     scale_factor: 1.0
     solver: cg
-    iterations: 5
-    ls_iterations: 5
+    iterations: 8
+    ls_iterations: 8
     clip_length: 250
     sub_clip_length: 245
     ref_traj_length: 5

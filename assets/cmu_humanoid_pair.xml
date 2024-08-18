@@ -7,7 +7,9 @@
       <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
       <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
     </asset>
-  
+    <visual>
+	    <global offwidth="1920" offheight="1200" elevation="-20" azimuth="120"/> 
+    </visual>	
     <default>
       <joint limited="true" solimplimit="0 0.99 0.01" stiffness="1" armature=".01" damping="1"/>
       <geom size="0.03 0 0" condim="1" friction="0.7 0.005 0.0001" solref="0.015 1" solimp="0.99 0.99 0.003"/>
@@ -35,18 +37,17 @@
     <worldbody>
         <geom name="floor" pos="0 0 -0.005" size="25 25 0.025" type="plane" material="grid"/>
       <light name="tracking_light" pos="0 0 7" dir="0 0 -1" mode="trackcom"/>
-      <camera name="close_profile" mode="trackcom" pos="3 3 1.4" xyaxes="1 1 0 -1 1 2"/>
+      <camera name="close_profile" mode="trackcom" pos="3 -3 2.4" xyaxes="1 1 0 -1 1 2"/>
       <camera name="back" pos="0 3 1.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
       <camera name="side" pos="-3 0 1.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="front_side" pos="-2 -2 0.5" xyaxes="0.5 -0.5 0 0.1 0.1 1"  mode="trackcom"/>
       <replicate count="2" euler="0 0 180" sep="-">
-        <body name="walker">
+        <body name="walker" pos="0.0 0.0 1.143" quat="0.859 1.0 1.0 0.859">
             <freejoint name="root"/>
       <body name="root" childclass="humanoid">
-        <freejoint name="root"/>
         <camera name="bodycam" pos="0 .3 .1" xyaxes="-1 0 0 0 1 0" fovy="80"/>
         <site name="root" size=".01" rgba="0.5 0.5 0.5 0"/>
-        <geom name="root_geom" size="0.1 0.07" pos="0 -0.05 0" quat="1 0 -1 0"/>
+        <geom name="root_geom" size="0.1 0.07" pos="0 -0.05 0" quat="1 0 0 0"/>
         <body name="lhipjoint">
           <geom name="lhipjoint" size="0.008 0.02187363" pos="0.0509685 -0.0459037 0.024723" quat="0.5708 -0.566602 -0.594264 0"/>
           <body name="lfemur" pos="0.101937 -0.0918074 0.0494461" quat="0.984808 0 0 0.173648">

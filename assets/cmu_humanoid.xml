@@ -13,7 +13,7 @@
       <geom size="0.03 0 0" condim="1" friction="0.7 0.005 0.0001" solref="0.015 1" solimp="0.99 0.99 0.003"/>
       <general ctrllimited="true" ctrlrange="-1 1"/>
       <default class="humanoid">
-        <geom type="capsule" material="self" group="2"/>
+        <geom contype="0" conaffinity="0" type="capsule" material="self" group="2"/>
         <default class="stiff_medium">
           <joint stiffness="10" damping="2"/>
         </default>
@@ -29,21 +29,24 @@
         <default class="contact">
           <geom contype="0" conaffinity="1" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
         </default>
+        <default class="no_contact">
+          <geom contype="0" conaffinity="0" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
+        </default>
       </default>
     </default>
   
     <worldbody>
-      <geom name="floor" pos="0 0 -0.005" size="25 25 0.025" type="plane" material="grid"/>
+      <geom name="floor" contype="0" conaffinity="1" pos="0 0 -0.005" size="25 25 0.025" type="plane" material="grid"/>
       <light name="tracking_light" pos="0 0 7" dir="0 0 -1" mode="trackcom"/>
       <camera name="back" pos="0 3 1.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
       <camera name="side" pos="-3 0 1.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="front_side" pos="-2 -2 0.5" xyaxes="0.5 -0.5 0 0.1 0.1 1"  mode="trackcom"/>
-      <body name="walker">
+      <body name="walker" pos="0.0 0.0 1.143" quat="0.859 1.0 1.0 0.859">
         <freejoint name="root"/>
       <body name="root" childclass="humanoid">
         <camera name="bodycam" pos="0 .3 .1" xyaxes="-1 0 0 0 1 0" fovy="80"/>
         <site name="root" size=".01" rgba="0.5 0.5 0.5 0"/>
-        <geom name="root_geom" size="0.1 0.07" pos="0 -0.05 0" quat="1 0 -1 0"/>
+        <geom name="root_geom" size="0.1 0.07" pos="0 -0.05 0" quat="1 0 0 0"/>
         <body name="lhipjoint">
           <geom name="lhipjoint" size="0.008 0.02187363" pos="0.0509685 -0.0459037 0.024723" quat="0.5708 -0.566602 -0.594264 0"/>
           <body name="lfemur" pos="0.101937 -0.0918074 0.0494461" quat="0.984808 0 0 0.173648">
@@ -155,20 +158,20 @@
                         <joint name="lhandrz" pos="0 0 0" axis="0 0 1" range="-0.785398 0.785398"/>
                         <joint name="lhandrx" pos="0 0 0" axis="1 0 0" range="-1.5708 1.5708"/>
                         <site name="lhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.02" quat="0 0 -1 -1" type="ellipsoid" class="sensor_site"/>
-                        <geom name="lhand" size="0.035 0.02 0.045" pos="0 -0.016752 0" quat="0 0 -1 -1" type="ellipsoid" class="contact"/>
+                        <geom name="lhand" size="0.035 0.02 0.045" pos="0 -0.016752 0" quat="0 0 -1 -1" type="ellipsoid" class="no_contact"/>
                         <body name="lfingers" pos="0 -0.075 0">
                           <joint name="lfingersrx" pos="0 0.015 0" axis="1 0 0" range="0 1.5708"/>
                           <site name="lfingers_touch" type="box" size="0.023 0.013 0.003" pos="0 -0.042 -0.007" class="sensor_site"/>
-                          <geom name="lfinger0" size="0.0065 0.04" pos="-.024 -0.025 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="lfinger1" size="0.0065 0.04" pos="-.008 -0.03 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="lfinger2" size="0.006 0.04" pos=".008 -0.03 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="lfinger3" size="0.0055 0.04" pos=".024 -0.025 0" quat="1 -1 0 0" class="contact"/>
+                          <geom name="lfinger0" size="0.0065 0.04" pos="-.024 -0.025 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="lfinger1" size="0.0065 0.04" pos="-.008 -0.03 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="lfinger2" size="0.006 0.04" pos=".008 -0.03 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="lfinger3" size="0.0055 0.04" pos=".024 -0.025 0" quat="1 -1 0 0" class="no_contact"/>
                         </body>
                         <body name="lthumb" pos="-.025 0 0" quat="0.92388 0 0 -0.382683">
                           <joint name="lthumbrz" pos="0 0 0" axis="0 0 1" range="-0.785398 0.785398"/>
                           <joint name="lthumbrx" pos="0 0 0" axis="1 0 0" range="0 1.57"/>
                           <site name="lthumb_touch" type="box" size="0.006 0.013 0.003" pos="0 -0.043 -0.007" class="sensor_site"/>
-                          <geom name="lthumb" size="0.008 0.03" pos="0 -0.03 0" quat="0 0 -1 -1" class="contact"/>
+                          <geom name="lthumb" size="0.008 0.03" pos="0 -0.03 0" quat="0 0 -1 -1" class="no_contact"/>
                         </body>
                       </body>
                     </body>
@@ -195,20 +198,20 @@
                         <joint name="rhandrz" pos="0 0 0" axis="0 0 1" range="-0.785398 0.785398"/>
                         <joint name="rhandrx" pos="0 0 0" axis="1 0 0" range="-1.5708 1.5708"/>
                         <site name="rhand_touch" size=".012 0.005 0.015" pos="0 -0.016752 -0.02" quat="0 0 1 1" type="ellipsoid" class="sensor_site"/>
-                        <geom name="rhand" size="0.035 0.02 0.045" pos="0 -0.016752 0" quat="0 0 1 1" type="ellipsoid" class="contact"/>
+                        <geom name="rhand" size="0.035 0.02 0.045" pos="0 -0.016752 0" quat="0 0 1 1" type="ellipsoid" class="no_contact"/>
                         <body name="rfingers" pos="0 -0.075 0">
                           <joint name="rfingersrx" pos="0 0.015 0" axis="1 0 0" range="0 1.5708"/>
                           <site name="rfingers_touch" type="box" size="0.023 0.013 0.003" pos="0 -0.042 -0.007" class="sensor_site"/>
-                          <geom name="rfinger0" size="0.0065 0.04" pos=".024 -0.025 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="rfinger1" size="0.0065 0.04" pos=".008 -0.03 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="rfinger2" size="0.006 0.04" pos="-.008 -0.03 0" quat="1 -1 0 0" class="contact"/>
-                          <geom name="rfinger3" size="0.0055 0.04" pos="-.024 -0.025 0" quat="1 -1 0 0" class="contact"/>
+                          <geom name="rfinger0" size="0.0065 0.04" pos=".024 -0.025 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="rfinger1" size="0.0065 0.04" pos=".008 -0.03 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="rfinger2" size="0.006 0.04" pos="-.008 -0.03 0" quat="1 -1 0 0" class="no_contact"/>
+                          <geom name="rfinger3" size="0.0055 0.04" pos="-.024 -0.025 0" quat="1 -1 0 0" class="no_contact"/>
                         </body>
                         <body name="rthumb" pos=".025 0 0" quat="0.92388 0 0 0.382683">
                           <joint name="rthumbrz" pos="0 0 0" axis="0 0 1" range="-0.785398 0.785398"/>
                           <joint name="rthumbrx" pos="0 0 0" axis="1 0 0" range="0 1.57"/>
                           <site name="rthumb_touch" type="box" size="0.006 0.013 0.003" pos="0 -0.043 -0.007" class="sensor_site"/>
-                          <geom name="rthumb" size="0.008 0.03" pos="0 -0.03 0" quat="6.21773e-11 -6.35284e-11 0.707107 0.707107" class="contact"/>
+                          <geom name="rthumb" size="0.008 0.03" pos="0 -0.03 0" quat="6.21773e-11 -6.35284e-11 0.707107 0.707107" class="no_contact"/>
                         </body>
                       </body>
                     </body>

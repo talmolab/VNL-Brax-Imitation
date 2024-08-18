@@ -1,10 +1,10 @@
-env_name: cmu_humanoid_run
+env_name: cmuhumanoidrun
 algo_name: ppo
 task_name: track
 note: 
 num_envs: 2048
 num_timesteps: 3_000_000_000
-eval_every: 20_480
+eval_every: 204_800
 episode_length: 250
 batch_size: 256
 learning_rate: 3e-4

@@ -58,7 +58,7 @@ os.environ["XLA_FLAGS"] = (
 )
 
 envs.register_environment("rodent", RodentTracking)
-envs.register_environment("cmu_humanoid_run", CMUHumanoidRun)
+envs.register_environment("cmuhumanoidrun", CMUHumanoidRun)
 
 
 @hydra.main(config_path="./configs", config_name="train_config", version_base=None)
@@ -99,7 +99,7 @@ def main(train_config: DictConfig):
         env_args["clip_length"] - env_args["ref_traj_length"]
     )
     eval_env = envs.get_environment(
-        env_cfg[train_config.env_name]["name"],
+        env_cfg["name"],
         reference_clip=reference_clip,
         **eval_env_args,
     )
@@ -349,7 +349,7 @@ def main(train_config: DictConfig):
         qposes_rollout = [data.qpos for data in rollout]
 
         mj_model = mujoco.MjModel.from_xml_path(
-            f"./assets/{env_cfg[train_config.env_name]['rendering_mjcf']}"
+            f"./assets/{env_cfg['rendering_mjcf']}"
         )
 
         mj_model.opt.solver = {
@@ -381,7 +381,7 @@ def main(train_config: DictConfig):
                 mujoco.mj_forward(mj_model, mj_data)
 
                 renderer.update_scene(
-                    mj_data, camera=f"{env_cfg[train_config.env_name]['camera']}"
+                    mj_data, camera=f"{env_cfg['camera']}"
                 )
 
                 pixels = renderer.render()
