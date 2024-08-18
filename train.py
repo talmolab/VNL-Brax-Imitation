@@ -12,9 +12,9 @@ from omegaconf import DictConfig, OmegaConf
 import mujoco
 import imageio
 
-from brax.training.agents.ppo import train as brax_ppo
+# from brax.training.agents.ppo import train as brax_ppo
 from brax.training.agents.ppo import networks as brax_networks
-from ppo_imitation import train as custom_ppo
+from ppo_imitation import train as ppo
 from ppo_imitation import ppo_networks as custom_ppo_networks
 
 from envs.rodent import RodentTracking
@@ -113,7 +113,7 @@ def main(train_config: DictConfig):
     jit_reset = jax.jit(eval_env.reset)
 
     if train_config["algo_name"] == "custom_ppo":
-        train = custom_ppo.train
+        train = ppo.custom_train
         if train_config["policy_network_name"] == "mlp":
             network_factory = functools.partial(
                 custom_ppo_networks.make_mlp_ppo_networks,
@@ -122,12 +122,14 @@ def main(train_config: DictConfig):
         else:
             raise ValueError("invalid config: policy_network_name")
     elif train_config["algo_name"] == "brax_ppo":
-        train = brax_ppo.train
+        train = ppo.brax_train
         network_factory = functools.partial(
             brax_networks.make_ppo_networks,
             policy_hidden_layer_sizes=train_config.mlp_policy_layer_sizes,
             value_hidden_layer_sizes=(256, 256),
         )
+    else:
+        raise ValueError(f"unsupported algo name: {train_config['algo_name']}")
 
     train_fn = functools.partial(
         train,
@@ -199,9 +201,17 @@ def main(train_config: DictConfig):
         values = []
         for i in range(eval_env._clip_length):
             _, act_rng = jax.random.split(act_rng)
-            obs = jp.concatenate([state.obs, state.info["traj"]], axis=-1)
-            ctrl, extras = jit_inference_fn(obs, act_rng)
-            value = jit_value_apply(policy_params[0], value_params, obs)
+            if train_config["algo_name"] == "custom_ppo":
+                obs = jp.concatenate([state.obs, state.info["traj"]], axis=-1)
+                ctrl, extras = jit_inference_fn(obs, act_rng)
+                value = jit_value_apply(policy_params[0], value_params, obs)
+            elif train_config["algo_name"] == "brax_ppo":
+                obs = state.obs
+                ctrl, extras = jit_inference_fn(obs, act_rng)
+                value = jit_value_apply(policy_params[0], value_params, obs)
+            else:
+                raise ValueError(f"unsupported algo name: {train_config['algo_name']}")
+            
             state = jit_step(state, ctrl)
 
             # mean = extras["logits"]
@@ -352,14 +362,17 @@ def main(train_config: DictConfig):
                 )
             return jp.array([])
 
-        # extract qpos from rollout
-        ref_traj = eval_env._ref_traj
-        ref_traj = jax.tree_util.tree_map(f, ref_traj)
-        qposes_ref = jp.hstack(
-            [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
-        )
-
         qposes_rollout = [data.qpos for data in rollout]
+        
+        if train_config.env_name == "rodent":
+            # extract qpos from rollout
+            ref_traj = eval_env._ref_traj
+            ref_traj = jax.tree_util.tree_map(f, ref_traj)
+            qposes_ref = jp.hstack(
+                [ref_traj.position, ref_traj.quaternion, ref_traj.joints]
+            )
+        else:
+            qposes_ref = qposes_rollout
 
         mj_model = mujoco.MjModel.from_xml_path(f"./assets/{env_cfg['rendering_mjcf']}")
 
