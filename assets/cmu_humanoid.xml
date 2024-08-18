@@ -27,7 +27,7 @@
           <site type="sphere" size="0.01" group="4" rgba="1 0 0 .5"/>
         </default>
         <default class="contact">
-          <geom contype="0" conaffinity="1" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
+          <geom contype="1" conaffinity="0" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
         </default>
         <default class="no_contact">
           <geom contype="0" conaffinity="0" condim="3" friction="1. 0.005 0.0001" solref="0.015 1" solimp="0.98 0.98 0.001" priority="1"/>
