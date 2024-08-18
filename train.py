@@ -12,8 +12,10 @@ from omegaconf import DictConfig, OmegaConf
 import mujoco
 import imageio
 
-from ppo_imitation import train as ppo
-from ppo_imitation import ppo_networks
+from brax.training.agents.ppo import train as brax_ppo
+from brax.training.agents.ppo import networks as brax_networks
+from ppo_imitation import train as custom_ppo
+from ppo_imitation import ppo_networks as custom_ppo_networks
 
 from envs.rodent import RodentTracking
 from envs.cmu_humanoid import CMUHumanoidRun
@@ -68,23 +70,26 @@ def main(train_config: DictConfig):
     env_cfg = env_cfg[train_config.env_name]
     env_args = env_cfg["env_args"]
 
-    reference_path = f"clips/{env_cfg['clip_idx']}.p"
+    if train_config.env_name == "rodent":
+        reference_path = f"clips/{env_cfg['clip_idx']}.p"
 
-    if os.path.exists(reference_path):
-        with open(reference_path, "rb") as file:
-            # Use pickle.load() to load the data from the file
-            reference_clip = pickle.load(file)
+        if os.path.exists(reference_path):
+            with open(reference_path, "rb") as file:
+                # Use pickle.load() to load the data from the file
+                reference_clip = pickle.load(file)
+        else:
+            # Process rodent clip and save as pickle
+            reference_clip = process_clip_to_train(
+                env_cfg["stac_path"],
+                start_step=env_cfg["clip_idx"] * env_args["clip_length"],
+                clip_length=env_args["clip_length"],
+                mjcf_path=env_args["mjcf_path"],
+            )
+            with open(reference_path, "wb") as file:
+                # Use pickle.dump() to save the data to the file
+                pickle.dump(reference_clip, file)
     else:
-        # Process rodent clip and save as pickle
-        reference_clip = process_clip_to_train(
-            env_cfg["stac_path"],
-            start_step=env_cfg["clip_idx"] * env_args["clip_length"],
-            clip_length=env_args["clip_length"],
-            mjcf_path=env_args["mjcf_path"],
-        )
-        with open(reference_path, "wb") as file:
-            # Use pickle.dump() to save the data to the file
-            pickle.dump(reference_clip, file)
+        reference_clip = None
 
     # Init env
     env = envs.get_environment(
@@ -107,17 +112,25 @@ def main(train_config: DictConfig):
     jit_step = jax.jit(eval_env.step)
     jit_reset = jax.jit(eval_env.reset)
 
-    # Make this a dictionary mapping or similar
-    if train_config["policy_network_name"] == "mlp":
+    if train_config["algo_name"] == "custom_ppo":
+        train = custom_ppo.train
+        if train_config["policy_network_name"] == "mlp":
+            network_factory = functools.partial(
+                custom_ppo_networks.make_mlp_ppo_networks,
+                policy_layer_sizes=train_config.mlp_policy_layer_sizes,
+            )
+        else:
+            raise ValueError("invalid config: policy_network_name")
+    elif train_config["algo_name"] == "brax_ppo":
+        train = brax_ppo.train
         network_factory = functools.partial(
-            ppo_networks.make_mlp_ppo_networks,
-            policy_layer_sizes=train_config.mlp_policy_layer_sizes,
+            brax_networks.make_ppo_networks,
+            policy_hidden_layer_sizes=train_config.mlp_policy_layer_sizes,
+            value_hidden_layer_sizes=(256, 256),
         )
-    else:
-        raise ValueError("invalid config: policy_network_name")
 
     train_fn = functools.partial(
-        ppo.train,
+        train,
         num_timesteps=train_config["num_timesteps"],
         num_evals=int(train_config["num_timesteps"] / train_config["eval_every"]),
         reward_scaling=1,
@@ -348,9 +361,7 @@ def main(train_config: DictConfig):
 
         qposes_rollout = [data.qpos for data in rollout]
 
-        mj_model = mujoco.MjModel.from_xml_path(
-            f"./assets/{env_cfg['rendering_mjcf']}"
-        )
+        mj_model = mujoco.MjModel.from_xml_path(f"./assets/{env_cfg['rendering_mjcf']}")
 
         mj_model.opt.solver = {
             "cg": mujoco.mjtSolver.mjSOL_CG,
@@ -380,9 +391,7 @@ def main(train_config: DictConfig):
 
                 mujoco.mj_forward(mj_model, mj_data)
 
-                renderer.update_scene(
-                    mj_data, camera=f"{env_cfg['camera']}"
-                )
+                renderer.update_scene(mj_data, camera=f"{env_cfg['camera']}")
 
                 pixels = renderer.render()
                 video.append_data(pixels)
