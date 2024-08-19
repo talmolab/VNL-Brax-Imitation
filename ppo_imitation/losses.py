@@ -190,4 +190,8 @@ def compute_ppo_loss(
         "v_loss": v_loss,
         "entropy_loss": entropy_loss,
         "explained_variance": 1 - v_loss / jnp.var(vs),
+        "vs_mean": jnp.mean(vs),
+        "vs_std": jnp.std(vs),
+        "baseline_mean": jnp.mean(baseline),
+        "baseline_std": jnp.std(baseline),
     }
