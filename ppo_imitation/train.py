@@ -14,7 +14,7 @@ from brax.training.agents.ppo import losses as ppo_losses
 from brax.training import acting as brax_acting
 from brax.training.agents.ppo import networks as brax_ppo_networks
 
-# from ppo_imitation import losses as ppo_losses
+from ppo_imitation import losses as custom_ppo_losses
 from ppo_imitation import acting as custom_acting
 from ppo_imitation import ppo_networks as custom_ppo_networks
 
@@ -236,7 +236,7 @@ def custom_train(
     # optimizer = optax.contrib.schedule_free(optimizer, learning_rate_fn)
 
     loss_fn = functools.partial(
-        ppo_losses.compute_ppo_loss,
+        custom_ppo_losses.compute_ppo_loss,
         ppo_network=ppo_network,
         entropy_cost=entropy_cost,
         discounting=discounting,

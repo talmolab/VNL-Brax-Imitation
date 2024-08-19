@@ -782,8 +782,8 @@ class CMUHumanoidRun(PipelineEnv):
         )
         # Add running reward
         reward += jp.abs(forward_reward)
-        reward -= 0.01 * jp.sum(jp.square(action))
-        reward = jp.clip(reward, a_min=0, a_max=None)
+        reward -= jp.clip(0.01 * jp.sum(jp.square(action)), a_min=0.0, a_max=None)
+        
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
