@@ -943,7 +943,7 @@ def brax_train(
       logging.info(metrics)
       progress_fn(current_step, metrics)
       params = _unpmap(
-          (training_state.normalizer_params, training_state.params)
+          (training_state.normalizer_params, training_state.params.policy)
       )
       policy_params_fn(
             current_step,

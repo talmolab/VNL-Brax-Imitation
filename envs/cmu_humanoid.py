@@ -636,7 +636,7 @@ class CMUHumanoidRun(PipelineEnv):
         sys = mjcf_brax.load_model(mj_model)
 
         # logic to get 'correct' physics steps based on traj fps and simulation timestep
-        physics_steps_per_control_step = (1.0 / 50.0) / mj_model.opt.timestep
+        physics_steps_per_control_step = 5 # (1.0 / 50.0) / mj_model.opt.timestep
 
         kwargs["n_frames"] = kwargs.get("n_frames", physics_steps_per_control_step)
         kwargs["backend"] = "mjx"
@@ -781,7 +781,9 @@ class CMUHumanoidRun(PipelineEnv):
             trunc=truncation,
         )
         # Add running reward
-        reward += forward_reward
+        reward += jp.abs(forward_reward)
+        reward -= 0.01 * jp.sum(jp.square(action))
+        reward = jp.clip(reward, a_min=0, a_max=None)
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )

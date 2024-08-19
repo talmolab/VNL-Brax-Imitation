@@ -182,6 +182,19 @@ def main(train_config: DictConfig):
         value_params,
         model_path=model_path,
     ):
+        
+        # Debugging code for printing pytree info
+        # def get_shape(x):
+        #     return x.shape if hasattr(x, 'shape') else None
+        
+        # shapes = jax.tree_util.tree_map(get_shape, policy_params)
+        # structure = jax.tree_util.tree_structure(policy_params)
+        
+        # print("Pytree structure:")
+        # print(structure)
+        # print("\nShapes:")
+        # print(jax.tree_util.tree_map(lambda x: x, shapes))
+            
         os.makedirs(model_path, exist_ok=True)
         model.save_params(f"{model_path}/{num_steps}", policy_params)
         jit_inference_fn = jax.jit(make_policy(policy_params, deterministic=True))
