@@ -14,66 +14,68 @@ import numpy as np
 import collections
 
 PositionActuatorParamsV2020 = collections.namedtuple(
-    'PositionActuatorParams', ['name', 'forcerange', 'kp', 'damping'])
+    "PositionActuatorParams", ["name", "forcerange", "kp", "damping"]
+)
 
 _POSITION_ACTUATORS_V2020 = [
-    PositionActuatorParamsV2020('headrx',      [-40,   40 ], 40 , 2 ),
-    PositionActuatorParamsV2020('headry',      [-40,   40 ], 40 , 2 ),
-    PositionActuatorParamsV2020('headrz',      [-40,   40 ], 40 , 2 ),
-    PositionActuatorParamsV2020('lclaviclery', [-80,   80 ], 80 , 20),
-    PositionActuatorParamsV2020('lclaviclerz', [-80,   80 ], 80 , 20),
-    PositionActuatorParamsV2020('lfemurrx',    [-300,  300], 300, 15),
-    PositionActuatorParamsV2020('lfemurry',    [-200,  200], 200, 10),
-    PositionActuatorParamsV2020('lfemurrz',    [-200,  200], 200, 10),
-    PositionActuatorParamsV2020('lfingersrx',  [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('lfootrx',     [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('lfootrz',     [-50,   50 ], 50 , 3 ),
-    PositionActuatorParamsV2020('lhandrx',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('lhandrz',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('lhumerusrx',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('lhumerusry',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('lhumerusrz',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('lowerbackrx', [-300,  300], 300, 15),
-    PositionActuatorParamsV2020('lowerbackry', [-180,  180], 180, 20),
-    PositionActuatorParamsV2020('lowerbackrz', [-200,  200], 200, 20),
-    PositionActuatorParamsV2020('lowerneckrx', [-120,  120 ],120, 20),
-    PositionActuatorParamsV2020('lowerneckry', [-120,  120 ],120, 20),
-    PositionActuatorParamsV2020('lowerneckrz', [-120,  120 ],120, 20),
-    PositionActuatorParamsV2020('lradiusrx',   [-90,   90 ], 90 , 5 ),
-    PositionActuatorParamsV2020('lthumbrx',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('lthumbrz',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('ltibiarx',    [-160,  160], 160, 8 ),
-    PositionActuatorParamsV2020('ltoesrx',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('lwristry',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rclaviclery', [-80,   80 ], 80 , 20),
-    PositionActuatorParamsV2020('rclaviclerz', [-80,   80 ], 80 , 20),
-    PositionActuatorParamsV2020('rfemurrx',    [-300,  300], 300, 15),
-    PositionActuatorParamsV2020('rfemurry',    [-200,  200], 200, 10),
-    PositionActuatorParamsV2020('rfemurrz',    [-200,  200], 200, 10),
-    PositionActuatorParamsV2020('rfingersrx',  [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rfootrx',     [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('rfootrz',     [-50,   50 ], 50 , 3 ),
-    PositionActuatorParamsV2020('rhandrx',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rhandrz',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rhumerusrx',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('rhumerusry',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('rhumerusrz',  [-120,  120], 120, 6 ),
-    PositionActuatorParamsV2020('rradiusrx',   [-90,   90 ], 90 , 5 ),
-    PositionActuatorParamsV2020('rthumbrx',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rthumbrz',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rtibiarx',    [-160,  160], 160, 8 ),
-    PositionActuatorParamsV2020('rtoesrx',     [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('rwristry',    [-20,   20 ], 20 , 1 ),
-    PositionActuatorParamsV2020('thoraxrx',    [-300,  300], 300, 15),
-    PositionActuatorParamsV2020('thoraxry',    [-80,   80],  80 , 8 ),
-    PositionActuatorParamsV2020('thoraxrz',    [-200,  200], 200, 12),
-    PositionActuatorParamsV2020('upperbackrx', [-300,  300], 300, 15),
-    PositionActuatorParamsV2020('upperbackry', [-80,   80],  80 , 8 ),
-    PositionActuatorParamsV2020('upperbackrz', [-200,  200], 200, 12),
-    PositionActuatorParamsV2020('upperneckrx', [-60,   60 ], 60 , 10),
-    PositionActuatorParamsV2020('upperneckry', [-60,   60 ], 60 , 10),
-    PositionActuatorParamsV2020('upperneckrz', [-60,   60 ], 60 , 10),
+    PositionActuatorParamsV2020("headrx", [-40, 40], 40, 2),
+    PositionActuatorParamsV2020("headry", [-40, 40], 40, 2),
+    PositionActuatorParamsV2020("headrz", [-40, 40], 40, 2),
+    PositionActuatorParamsV2020("lclaviclery", [-80, 80], 80, 20),
+    PositionActuatorParamsV2020("lclaviclerz", [-80, 80], 80, 20),
+    PositionActuatorParamsV2020("lfemurrx", [-300, 300], 300, 15),
+    PositionActuatorParamsV2020("lfemurry", [-200, 200], 200, 10),
+    PositionActuatorParamsV2020("lfemurrz", [-200, 200], 200, 10),
+    PositionActuatorParamsV2020("lfingersrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("lfootrx", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("lfootrz", [-50, 50], 50, 3),
+    PositionActuatorParamsV2020("lhandrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("lhandrz", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("lhumerusrx", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("lhumerusry", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("lhumerusrz", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("lowerbackrx", [-300, 300], 300, 15),
+    PositionActuatorParamsV2020("lowerbackry", [-180, 180], 180, 20),
+    PositionActuatorParamsV2020("lowerbackrz", [-200, 200], 200, 20),
+    PositionActuatorParamsV2020("lowerneckrx", [-120, 120], 120, 20),
+    PositionActuatorParamsV2020("lowerneckry", [-120, 120], 120, 20),
+    PositionActuatorParamsV2020("lowerneckrz", [-120, 120], 120, 20),
+    PositionActuatorParamsV2020("lradiusrx", [-90, 90], 90, 5),
+    PositionActuatorParamsV2020("lthumbrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("lthumbrz", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("ltibiarx", [-160, 160], 160, 8),
+    PositionActuatorParamsV2020("ltoesrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("lwristry", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rclaviclery", [-80, 80], 80, 20),
+    PositionActuatorParamsV2020("rclaviclerz", [-80, 80], 80, 20),
+    PositionActuatorParamsV2020("rfemurrx", [-300, 300], 300, 15),
+    PositionActuatorParamsV2020("rfemurry", [-200, 200], 200, 10),
+    PositionActuatorParamsV2020("rfemurrz", [-200, 200], 200, 10),
+    PositionActuatorParamsV2020("rfingersrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rfootrx", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("rfootrz", [-50, 50], 50, 3),
+    PositionActuatorParamsV2020("rhandrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rhandrz", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rhumerusrx", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("rhumerusry", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("rhumerusrz", [-120, 120], 120, 6),
+    PositionActuatorParamsV2020("rradiusrx", [-90, 90], 90, 5),
+    PositionActuatorParamsV2020("rthumbrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rthumbrz", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rtibiarx", [-160, 160], 160, 8),
+    PositionActuatorParamsV2020("rtoesrx", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("rwristry", [-20, 20], 20, 1),
+    PositionActuatorParamsV2020("thoraxrx", [-300, 300], 300, 15),
+    PositionActuatorParamsV2020("thoraxry", [-80, 80], 80, 8),
+    PositionActuatorParamsV2020("thoraxrz", [-200, 200], 200, 12),
+    PositionActuatorParamsV2020("upperbackrx", [-300, 300], 300, 15),
+    PositionActuatorParamsV2020("upperbackry", [-80, 80], 80, 8),
+    PositionActuatorParamsV2020("upperbackrz", [-200, 200], 200, 12),
+    PositionActuatorParamsV2020("upperneckrx", [-60, 60], 60, 10),
+    PositionActuatorParamsV2020("upperneckry", [-60, 60], 60, 10),
+    PositionActuatorParamsV2020("upperneckrz", [-60, 60], 60, 10),
 ]
+
 
 class CMUHumanoidTracking(PipelineEnv):
     def __init__(
@@ -636,7 +638,7 @@ class CMUHumanoidRun(PipelineEnv):
         sys = mjcf_brax.load_model(mj_model)
 
         # logic to get 'correct' physics steps based on traj fps and simulation timestep
-        physics_steps_per_control_step = 5 # (1.0 / 50.0) / mj_model.opt.timestep
+        physics_steps_per_control_step = 5  # (1.0 / 50.0) / mj_model.opt.timestep
 
         kwargs["n_frames"] = kwargs.get("n_frames", physics_steps_per_control_step)
         kwargs["backend"] = "mjx"
@@ -671,7 +673,7 @@ class CMUHumanoidRun(PipelineEnv):
         qvel = jax.random.uniform(rng2, (self.sys.nv,), minval=low, maxval=hi)
 
         data = self.pipeline_init(qpos, qvel)
-        
+
         # traj = self._get_traj(data, start_frame)
         traj = jp.array([0], dtype=float)
         info = {
@@ -693,6 +695,8 @@ class CMUHumanoidRun(PipelineEnv):
             "fall": zero,
             "done": zero,
             "trunc": zero,
+            "forward_reward": zero,
+            "ctrl_cost": zero,
         }
 
         state = State(data, obs, reward, done, metrics, info)
@@ -767,6 +771,11 @@ class CMUHumanoidRun(PipelineEnv):
         nan = jp.where(num_nans > 0, 1.0, 0.0)
         done = jp.max(jp.array([nan, done]))
 
+        # Add running reward
+        reward += jp.abs(forward_reward)
+        ctrl_cost = 0.001 * jp.sum(jp.square(action))
+        reward = jp.clip(reward, a_min=0.0, a_max=None)
+
         state.metrics.update(
             rcom=rcom,
             rvel=rvel,
@@ -779,11 +788,10 @@ class CMUHumanoidRun(PipelineEnv):
             fall=fall,
             done=done,
             trunc=truncation,
+            forward_reward=forward_reward,
+            ctrl_cost=ctrl_cost,
         )
-        # Add running reward
-        reward += jp.abs(forward_reward)
-        reward -= jp.clip(0.01 * jp.sum(jp.square(action)), a_min=0.0, a_max=None)
-        
+
         return state.replace(
             pipeline_state=data, obs=obs, reward=reward, done=done, info=info
         )
